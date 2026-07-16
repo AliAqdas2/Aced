@@ -6,8 +6,14 @@
  * OpenAPI spec version: 1.0.0
  */
 
+export * from './adminConfigResponse';
+export * from './adminConfigResponseData';
 export * from './adminDashboardResponse';
 export * from './adminDashboardResponseData';
+export * from './adminPlatformStatsResponse';
+export * from './adminPlatformStatsResponseData';
+export * from './adminUniversitiesResponse';
+export * from './adminUniversitiesResponseDataItem';
 export * from './adminUsersResponse';
 export * from './adminUsersResponseDataItem';
 export * from './applicationConfigResponse';
@@ -136,6 +142,7 @@ export * from './universityDetailResponse';
 export * from './universityDetailResponseData';
 export * from './unreadCountResponse';
 export * from './unreadCountResponseData';
+export * from './updateAdminConfigRequest';
 export * from './updateStorefrontRequest';
 export * from './uploadUrlRequest';
 export * from './uploadUrlResponse';

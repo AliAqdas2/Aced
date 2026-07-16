@@ -549,9 +549,52 @@ export interface CommissionRulesResponse {
   data: CommissionRulesResponseDataItem[];
 }
 
+export type AdminConfigResponseData = {
+  approvalEmail: string;
+  dbsRequired: boolean;
+  commissionRate: number;
+};
+
+export interface AdminConfigResponse {
+  data: AdminConfigResponseData;
+}
+
+export interface UpdateAdminConfigRequest {
+  approvalEmail?: string;
+  dbsRequired?: boolean;
+  commissionRate?: number;
+}
+
+export type AdminPlatformStatsResponseData = {
+  totalUniversities: number;
+  totalStudents: number;
+  totalCreators: number;
+  gmvMinorUnits: number;
+  commissionEarnedMinorUnits: number;
+  commissionRatePct: number;
+};
+
+export interface AdminPlatformStatsResponse {
+  data: AdminPlatformStatsResponseData;
+}
+
+export type AdminUniversitiesResponseDataItem = {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  website?: string;
+  logoUrl?: string;
+  creatorCount: number;
+  createdAt?: string;
+};
+
+export interface AdminUniversitiesResponse {
+  data: AdminUniversitiesResponseDataItem[];
+}
+
 export type ApplicationConfigResponseData = {
   dbsRequired: boolean;
-  approvalEmail: string;
 };
 
 export interface ApplicationConfigResponse {

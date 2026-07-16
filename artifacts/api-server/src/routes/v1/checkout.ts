@@ -14,6 +14,7 @@ import {
   creatorProfilesTable,
   commissionRulesTable,
   webhookEventsTable,
+  platformConfigTable,
 } from "@workspace/db";
 import { eq, and, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -29,10 +30,18 @@ function getStripe(): Stripe {
   return new Stripe(key, { apiVersion: "2026-06-24.dahlia" });
 }
 
-function computeCommissionRate(offerType: string): number {
-  // Default rates per spec: 20% live services, 15% digital
-  if (offerType === "service_offer") return 2000; // 20% in basis points
-  return 1500; // 15% in basis points
+/**
+ * Returns the platform commission rate in basis points (1% = 100 bps).
+ * Reads COMMISSION_RATE from platform_config; falls back to 15% if not set.
+ */
+async function getCommissionRateBps(): Promise<number> {
+  const [cfg] = await db
+    .select()
+    .from(platformConfigTable)
+    .where(eq(platformConfigTable.key, "COMMISSION_RATE"))
+    .limit(1);
+  const ratePct = parseFloat(cfg?.value ?? "15");
+  return Math.round(ratePct * 100); // percentage → basis points
 }
 
 // POST /api/v1/checkout/sessions — create Stripe Checkout for an order
@@ -97,7 +106,7 @@ router.post("/checkout/sessions", requireAuth, async (req, res): Promise<void> =
     return;
   }
 
-  const commissionRateBps = computeCommissionRate(listing.type);
+  const commissionRateBps = await getCommissionRateBps();
   const platformFee = Math.round(priceRecord.amountMinorUnits * (commissionRateBps / 10000));
   const creatorProceeds = priceRecord.amountMinorUnits - platformFee;
 

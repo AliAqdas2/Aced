@@ -827,6 +827,62 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdminDashboardResponse"
 
+  /v1/admin/config:
+    get:
+      operationId: getAdminConfig
+      tags: [admin]
+      summary: Get platform configuration settings
+      responses:
+        "200":
+          description: Platform config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminConfigResponse"
+    patch:
+      operationId: updateAdminConfig
+      tags: [admin]
+      summary: Update platform configuration settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAdminConfigRequest"
+      responses:
+        "200":
+          description: Updated platform config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminConfigResponse"
+
+  /v1/admin/platform-stats:
+    get:
+      operationId: getAdminPlatformStats
+      tags: [admin]
+      summary: Get platform-wide financial and user statistics
+      responses:
+        "200":
+          description: Platform statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminPlatformStatsResponse"
+
+  /v1/admin/universities:
+    get:
+      operationId: getAdminUniversities
+      tags: [admin]
+      summary: List all universities with creator counts
+      responses:
+        "200":
+          description: Universities list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUniversitiesResponse"
+
   /v1/admin/applications:
     get:
       operationId: getAdminApplications
@@ -1850,6 +1906,80 @@ components:
           type: array
           items:
             type: object
+
+    AdminConfigResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [approvalEmail, dbsRequired, commissionRate]
+          properties:
+            approvalEmail:
+              type: string
+            dbsRequired:
+              type: boolean
+            commissionRate:
+              type: number
+
+    UpdateAdminConfigRequest:
+      type: object
+      properties:
+        approvalEmail:
+          type: string
+        dbsRequired:
+          type: boolean
+        commissionRate:
+          type: number
+
+    AdminPlatformStatsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [totalUniversities, totalStudents, totalCreators, gmvMinorUnits, commissionEarnedMinorUnits, commissionRatePct]
+          properties:
+            totalUniversities:
+              type: integer
+            totalStudents:
+              type: integer
+            totalCreators:
+              type: integer
+            gmvMinorUnits:
+              type: integer
+            commissionEarnedMinorUnits:
+              type: integer
+            commissionRatePct:
+              type: number
+
+    AdminUniversitiesResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            required: [id, name, slug, status, creatorCount]
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              slug:
+                type: string
+              status:
+                type: string
+              website:
+                type: string
+              logoUrl:
+                type: string
+              creatorCount:
+                type: integer
+              createdAt:
+                type: string
 
     ApplicationConfigResponse:
       type: object

@@ -601,8 +601,7 @@ export const SubmitCreatorApplicationResponse = zod.object({
  */
 export const GetApplicationConfigResponse = zod.object({
   "data": zod.object({
-  "dbsRequired": zod.boolean(),
-  "approvalEmail": zod.string()
+  "dbsRequired": zod.boolean()
 })
 })
 
@@ -809,6 +808,68 @@ export const GetAdminDashboardResponse = zod.object({
   "pendingListingModeration": zod.number().optional(),
   "openReports": zod.number().optional()
 })
+})
+
+
+/**
+ * @summary Get platform configuration settings
+ */
+export const GetAdminConfigResponse = zod.object({
+  "data": zod.object({
+  "approvalEmail": zod.string(),
+  "dbsRequired": zod.boolean(),
+  "commissionRate": zod.number()
+})
+})
+
+
+/**
+ * @summary Update platform configuration settings
+ */
+export const UpdateAdminConfigBody = zod.object({
+  "approvalEmail": zod.string().optional(),
+  "dbsRequired": zod.boolean().optional(),
+  "commissionRate": zod.number().optional()
+})
+
+export const UpdateAdminConfigResponse = zod.object({
+  "data": zod.object({
+  "approvalEmail": zod.string(),
+  "dbsRequired": zod.boolean(),
+  "commissionRate": zod.number()
+})
+})
+
+
+/**
+ * @summary Get platform-wide financial and user statistics
+ */
+export const GetAdminPlatformStatsResponse = zod.object({
+  "data": zod.object({
+  "totalUniversities": zod.number(),
+  "totalStudents": zod.number(),
+  "totalCreators": zod.number(),
+  "gmvMinorUnits": zod.number(),
+  "commissionEarnedMinorUnits": zod.number(),
+  "commissionRatePct": zod.number()
+})
+})
+
+
+/**
+ * @summary List all universities with creator counts
+ */
+export const GetAdminUniversitiesResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "status": zod.string(),
+  "website": zod.string().optional(),
+  "logoUrl": zod.string().optional(),
+  "creatorCount": zod.number(),
+  "createdAt": zod.string().optional()
+}))
 })
 
 

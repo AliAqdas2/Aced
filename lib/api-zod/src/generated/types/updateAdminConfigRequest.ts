@@ -6,6 +6,8 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export type ApplicationConfigResponseData = {
-  dbsRequired: boolean;
-};
+export interface UpdateAdminConfigRequest {
+  approvalEmail?: string;
+  dbsRequired?: boolean;
+  commissionRate?: number;
+}

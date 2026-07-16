@@ -15,6 +15,9 @@ import {
   creatorProfilesTable,
   bookingsTable,
   notificationsTable,
+  platformConfigTable,
+  universitiesTable,
+  creatorExpertiseTable,
 } from "@workspace/db";
 import { eq, and, desc, ilike, gte, lte } from "drizzle-orm";
 import { requireRole } from "../../middlewares/auth";
@@ -80,6 +83,145 @@ router.get(
         openReports: openReports.length,
       },
     });
+  }
+);
+
+// GET /api/v1/admin/config — read platform settings
+router.get(
+  "/admin/config",
+  requireRole("admin"),
+  async (_req, res): Promise<void> => {
+    const configs = await db.select().from(platformConfigTable);
+    const map = Object.fromEntries(configs.map((c) => [c.key, c.value]));
+    res.json({
+      data: {
+        approvalEmail: map["APPROVAL_EMAIL"] ?? "AcedApprovals@creativecloud.ai",
+        dbsRequired: map["DBS_REQUIRED"] === "true",
+        commissionRate: parseFloat(map["COMMISSION_RATE"] ?? "15"),
+      },
+    });
+  }
+);
+
+// PATCH /api/v1/admin/config — update platform settings (upsert)
+router.patch(
+  "/admin/config",
+  requireRole("admin"),
+  async (req, res): Promise<void> => {
+    const Body = z.object({
+      approvalEmail: z.string().email().optional(),
+      dbsRequired: z.boolean().optional(),
+      commissionRate: z.number().min(0).max(100).optional(),
+    });
+    const parsed = Body.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+      return;
+    }
+
+    const updates: Record<string, string> = {};
+    if (parsed.data.approvalEmail !== undefined) updates["APPROVAL_EMAIL"] = parsed.data.approvalEmail;
+    if (parsed.data.dbsRequired !== undefined) updates["DBS_REQUIRED"] = String(parsed.data.dbsRequired);
+    if (parsed.data.commissionRate !== undefined) updates["COMMISSION_RATE"] = String(parsed.data.commissionRate);
+
+    const userId = req.session.userId!;
+    for (const [key, value] of Object.entries(updates)) {
+      await db
+        .insert(platformConfigTable)
+        .values({ key, value, updatedBy: userId })
+        .onConflictDoUpdate({
+          target: platformConfigTable.key,
+          set: { value, updatedBy: userId, updatedAt: new Date() },
+        });
+    }
+
+    await logAuditEvent({
+      actorId: userId,
+      actorRole: req.session.role,
+      action: "platform_config.update",
+      targetType: "platform_config",
+      summary: Object.keys(updates).join(", "),
+    });
+
+    const configs = await db.select().from(platformConfigTable);
+    const map = Object.fromEntries(configs.map((c) => [c.key, c.value]));
+    res.json({
+      data: {
+        approvalEmail: map["APPROVAL_EMAIL"] ?? "AcedApprovals@creativecloud.ai",
+        dbsRequired: map["DBS_REQUIRED"] === "true",
+        commissionRate: parseFloat(map["COMMISSION_RATE"] ?? "15"),
+      },
+    });
+  }
+);
+
+// GET /api/v1/admin/platform-stats — financial + user overview
+router.get(
+  "/admin/platform-stats",
+  requireRole("admin"),
+  async (_req, res): Promise<void> => {
+    const [uniCount] = await db
+      .select({ count: db.$count(universitiesTable.id) })
+      .from(universitiesTable);
+
+    const allUsers = await db.select({ role: usersTable.role }).from(usersTable);
+    const studentCount = allUsers.filter((u) => u.role === "learner").length;
+    const creatorCount = allUsers.filter((u) => u.role === "creator").length;
+
+    const paidOrders = await db
+      .select({ total: ordersTable.totalMinorUnits, fee: ordersTable.platformFeeMinorUnits })
+      .from(ordersTable)
+      .where(eq(ordersTable.status, "paid"));
+    const gmvMinorUnits = paidOrders.reduce((s, o) => s + o.total, 0);
+    // Use actual persisted platform fees — not a synthetic rate × GMV estimate
+    const commissionEarnedMinorUnits = paidOrders.reduce((s, o) => s + o.fee, 0);
+
+    const [commCfg] = await db
+      .select()
+      .from(platformConfigTable)
+      .where(eq(platformConfigTable.key, "COMMISSION_RATE"))
+      .limit(1);
+    const commissionRatePct = parseFloat(commCfg?.value ?? "15");
+
+    res.json({
+      data: {
+        totalUniversities: Number(uniCount?.count ?? 0),
+        totalStudents: studentCount,
+        totalCreators: creatorCount,
+        gmvMinorUnits,
+        commissionEarnedMinorUnits,
+        commissionRatePct,
+      },
+    });
+  }
+);
+
+// GET /api/v1/admin/universities — all universities with creator counts
+router.get(
+  "/admin/universities",
+  requireRole("admin"),
+  async (_req, res): Promise<void> => {
+    const universities = await db
+      .select()
+      .from(universitiesTable)
+      .orderBy(universitiesTable.name);
+
+    const expertises = await db
+      .select({ universityId: creatorExpertiseTable.universityId })
+      .from(creatorExpertiseTable)
+      .where(eq(creatorExpertiseTable.isPrimary, true));
+
+    const creatorsByUni = expertises.reduce<Record<string, number>>((acc, e) => {
+      if (e.universityId) acc[e.universityId] = (acc[e.universityId] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    const result = universities.map((u) => ({
+      ...u,
+      creatorCount: creatorsByUni[u.id] ?? 0,
+    }));
+
+    res.json({ data: result });
   }
 );
 

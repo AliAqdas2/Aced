@@ -60,6 +60,8 @@ import AdminOrders from '@/pages/admin/admin-orders';
 import AdminReports from '@/pages/admin/admin-reports';
 import AdminAuditLogs from '@/pages/admin/admin-audit-logs';
 import AdminCommission from '@/pages/admin/admin-commission';
+import AdminSettings from '@/pages/admin/admin-settings';
+import AdminUniversities from '@/pages/admin/admin-universities';
 
 import { HowItWorks, BecomeACreator } from '@/pages/public/static';
 import NotFound from './pages/not-found';
@@ -132,6 +134,12 @@ function Router() {
       </Route>
       <Route path="/admin/commission">
         <AdminLayout><AdminCommission /></AdminLayout>
+      </Route>
+      <Route path="/admin/settings">
+        <AdminLayout><AdminSettings /></AdminLayout>
+      </Route>
+      <Route path="/admin/universities">
+        <AdminLayout><AdminUniversities /></AdminLayout>
       </Route>
 
       {/* Creator Studio Routes */}

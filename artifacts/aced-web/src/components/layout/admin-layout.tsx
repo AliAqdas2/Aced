@@ -7,7 +7,9 @@ import {
   ShoppingBag, 
   Percent, 
   ShieldAlert,
-  Home
+  Home,
+  GraduationCap,
+  Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
@@ -29,6 +31,11 @@ const adminNavItems = [
     title: 'Listings',
     href: '/admin/listings',
     icon: ShoppingBag,
+  },
+  {
+    title: 'Universities',
+    href: '/admin/universities',
+    icon: GraduationCap,
   },
   {
     title: 'Users',
@@ -54,6 +61,11 @@ const adminNavItems = [
     title: 'Audit Logs',
     href: '/admin/audit-logs',
     icon: ShieldAlert,
+  },
+  {
+    title: 'Settings',
+    href: '/admin/settings',
+    icon: Settings,
   },
 ];
 

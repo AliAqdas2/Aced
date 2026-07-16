@@ -6,6 +6,8 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export type ApplicationConfigResponseData = {
+export type AdminConfigResponseData = {
+  approvalEmail: string;
   dbsRequired: boolean;
+  commissionRate: number;
 };

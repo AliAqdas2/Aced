@@ -20,7 +20,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminConfigResponse,
   AdminDashboardResponse,
+  AdminPlatformStatsResponse,
+  AdminUniversitiesResponse,
   AdminUsersResponse,
   ApplicationConfigResponse,
   ApplicationsResponse,
@@ -90,6 +93,7 @@ import type {
   UniversitiesResponse,
   UniversityDetailResponse,
   UnreadCountResponse,
+  UpdateAdminConfigRequest,
   UpdateStorefrontRequest,
   UploadUrlRequest,
   UploadUrlResponse
@@ -3410,6 +3414,308 @@ export function useGetAdminDashboard<TData = Awaited<ReturnType<typeof getAdminD
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetAdminDashboardQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminConfigUrl = () => {
+
+
+
+
+  return `/api/v1/admin/config`
+}
+
+/**
+ * @summary Get platform configuration settings
+ */
+export const getAdminConfig = async ( options?: RequestInit): Promise<AdminConfigResponse> => {
+
+  return customFetch<AdminConfigResponse>(getGetAdminConfigUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminConfigQueryKey = () => {
+    return [
+    `/api/v1/admin/config`
+    ] as const;
+    }
+
+
+export const getGetAdminConfigQueryOptions = <TData = Awaited<ReturnType<typeof getAdminConfig>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminConfigQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminConfig>>> = ({ signal }) => getAdminConfig({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminConfig>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminConfig>>>
+export type GetAdminConfigQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get platform configuration settings
+ */
+
+export function useGetAdminConfig<TData = Awaited<ReturnType<typeof getAdminConfig>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminConfigQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAdminConfigUrl = () => {
+
+
+
+
+  return `/api/v1/admin/config`
+}
+
+/**
+ * @summary Update platform configuration settings
+ */
+export const updateAdminConfig = async (updateAdminConfigRequest: UpdateAdminConfigRequest, options?: RequestInit): Promise<AdminConfigResponse> => {
+
+  return customFetch<AdminConfigResponse>(getUpdateAdminConfigUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateAdminConfigRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminConfigMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminConfig>>, TError,{data: BodyType<UpdateAdminConfigRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminConfig>>, TError,{data: BodyType<UpdateAdminConfigRequest>}, TContext> => {
+
+const mutationKey = ['updateAdminConfig'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminConfig>>, {data: BodyType<UpdateAdminConfigRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateAdminConfig(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminConfigMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminConfig>>>
+    export type UpdateAdminConfigMutationBody = BodyType<UpdateAdminConfigRequest>
+    export type UpdateAdminConfigMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update platform configuration settings
+ */
+export const useUpdateAdminConfig = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminConfig>>, TError,{data: BodyType<UpdateAdminConfigRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminConfig>>,
+        TError,
+        {data: BodyType<UpdateAdminConfigRequest>},
+        TContext
+      > => {
+      return useMutation(getUpdateAdminConfigMutationOptions(options));
+    }
+
+export const getGetAdminPlatformStatsUrl = () => {
+
+
+
+
+  return `/api/v1/admin/platform-stats`
+}
+
+/**
+ * @summary Get platform-wide financial and user statistics
+ */
+export const getAdminPlatformStats = async ( options?: RequestInit): Promise<AdminPlatformStatsResponse> => {
+
+  return customFetch<AdminPlatformStatsResponse>(getGetAdminPlatformStatsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminPlatformStatsQueryKey = () => {
+    return [
+    `/api/v1/admin/platform-stats`
+    ] as const;
+    }
+
+
+export const getGetAdminPlatformStatsQueryOptions = <TData = Awaited<ReturnType<typeof getAdminPlatformStats>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminPlatformStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminPlatformStatsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminPlatformStats>>> = ({ signal }) => getAdminPlatformStats({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminPlatformStats>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminPlatformStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminPlatformStats>>>
+export type GetAdminPlatformStatsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get platform-wide financial and user statistics
+ */
+
+export function useGetAdminPlatformStats<TData = Awaited<ReturnType<typeof getAdminPlatformStats>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminPlatformStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminPlatformStatsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminUniversitiesUrl = () => {
+
+
+
+
+  return `/api/v1/admin/universities`
+}
+
+/**
+ * @summary List all universities with creator counts
+ */
+export const getAdminUniversities = async ( options?: RequestInit): Promise<AdminUniversitiesResponse> => {
+
+  return customFetch<AdminUniversitiesResponse>(getGetAdminUniversitiesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminUniversitiesQueryKey = () => {
+    return [
+    `/api/v1/admin/universities`
+    ] as const;
+    }
+
+
+export const getGetAdminUniversitiesQueryOptions = <TData = Awaited<ReturnType<typeof getAdminUniversities>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminUniversities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminUniversitiesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminUniversities>>> = ({ signal }) => getAdminUniversities({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminUniversities>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminUniversitiesQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminUniversities>>>
+export type GetAdminUniversitiesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all universities with creator counts
+ */
+
+export function useGetAdminUniversities<TData = Awaited<ReturnType<typeof getAdminUniversities>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminUniversities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminUniversitiesQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
