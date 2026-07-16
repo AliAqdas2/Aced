@@ -58,7 +58,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   if (isLoading || !isAuthenticated) {
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
@@ -67,10 +67,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-[100dvh] flex-col bg-muted/20">
       <Navbar />
-      <div className="container mx-auto flex-1 items-start md:grid md:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)] gap-6 lg:gap-10 pt-8 pb-12 px-4">
-        <aside className="fixed top-14 z-30 -ml-2 hidden h-[calc(100vh-3.5rem)] w-full shrink-0 md:sticky md:block">
-          <div className="h-full py-6 pr-6 lg:py-8">
-            <nav className="flex flex-col space-y-1">
+      <div className="container mx-auto flex-1 items-start md:grid md:grid-cols-[240px_minmax(0,1fr)] lg:grid-cols-[280px_minmax(0,1fr)] gap-8 lg:gap-12 pt-10 pb-16 px-4">
+        <aside className="fixed top-28 z-30 -ml-2 hidden h-[calc(100vh-7rem)] w-full shrink-0 md:sticky md:block">
+          <div className="h-full py-2 pr-6">
+            <nav className="flex flex-col space-y-2">
               {sidebarNavItems.map((item) => {
                 const isActive = location === item.href || location.startsWith(`${item.href}/`);
                 return (
@@ -78,13 +78,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                      "flex items-center gap-4 rounded-xl px-4 py-3 text-sm font-bold transition-all",
                       isActive 
-                        ? "bg-primary text-primary-foreground" 
+                        ? "bg-foreground text-background shadow-lg shadow-foreground/5" 
                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     )}
                   >
-                    <item.icon className="h-4 w-4" />
+                    <item.icon className="h-5 w-5" />
                     {item.title}
                   </Link>
                 );

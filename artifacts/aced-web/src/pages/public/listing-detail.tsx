@@ -20,16 +20,18 @@ export default function ListingDetail() {
   const checkoutMutation = useCreateCheckoutSession();
 
   if (isLoading) {
-    return <div className="min-h-[70vh] flex items-center justify-center">Loading listing details...</div>;
+    return <div className="min-h-[70vh] flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    </div>;
   }
 
   if (error || !response?.data?.listing) {
     return (
-      <div className="container mx-auto px-4 py-20 text-center min-h-[70vh] flex flex-col items-center justify-center">
-        <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
-        <h1 className="text-2xl font-bold mb-4">Listing not found</h1>
-        <p className="text-muted-foreground mb-8">This listing may have been removed or is no longer available.</p>
-        <Button asChild><Link href="/search">Browse Marketplace</Link></Button>
+      <div className="container mx-auto px-4 py-32 text-center min-h-[70vh] flex flex-col items-center justify-center">
+        <AlertCircle className="h-16 w-16 text-muted-foreground mb-6 opacity-20" />
+        <h1 className="font-serif text-4xl tracking-tight mb-4">Listing not found</h1>
+        <p className="text-muted-foreground font-medium mb-8 text-lg">This listing may have been removed or is no longer available.</p>
+        <Button asChild size="lg" className="rounded-xl h-14 px-8 font-bold"><Link href="/search">Browse Marketplace</Link></Button>
       </div>
     );
   }
@@ -61,50 +63,50 @@ export default function ListingDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-muted/20 pb-20">
+    <div className="min-h-screen bg-background pb-24">
       {/* Breadcrumbs */}
-      <div className="bg-background border-b">
-        <div className="container mx-auto px-4 py-3 text-sm text-muted-foreground">
-          <Link href="/" className="hover:text-foreground">Home</Link>
-          <span className="mx-2">/</span>
-          <Link href="/search" className="hover:text-foreground">Marketplace</Link>
-          <span className="mx-2">/</span>
-          <span className="text-foreground font-medium">{listing.title}</span>
+      <div className="border-b bg-muted/20">
+        <div className="container mx-auto px-4 py-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+          <Link href="/" className="hover:text-primary transition-colors">Home</Link>
+          <span className="mx-3 opacity-50">/</span>
+          <Link href="/search" className="hover:text-primary transition-colors">Marketplace</Link>
+          <span className="mx-3 opacity-50">/</span>
+          <span className="text-foreground">{listing.title}</span>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="container mx-auto px-4 py-12 max-w-7xl">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
           
           {/* Main Content Area */}
-          <div className="lg:col-span-2 space-y-8">
-            <div className="bg-background rounded-xl border p-8 shadow-sm">
-              <div className="inline-flex items-center justify-center bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-4">
+          <div className="lg:col-span-2 space-y-10">
+            <div>
+              <div className="inline-flex items-center justify-center bg-primary/10 text-primary px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-6">
                 {listing.type.replace('_', ' ')}
               </div>
-              <h1 className="font-serif text-3xl sm:text-4xl font-bold mb-4 leading-tight">{listing.title}</h1>
+              <h1 className="font-serif text-5xl sm:text-6xl font-normal mb-6 leading-[1.1] tracking-tight text-foreground">{listing.title}</h1>
               
-              <div className="flex items-center gap-4 text-sm mb-8 pb-8 border-b">
-                <div className="flex items-center text-yellow-500">
-                  <Star className="h-4 w-4 fill-current mr-1" />
-                  <span className="font-bold text-foreground">{listing.averageRating?.toFixed(1) || '5.0'}</span>
-                  <span className="text-muted-foreground ml-1">({listing.reviewCount || 0} reviews)</span>
+              <div className="flex items-center gap-6 text-sm mb-10 pb-10 border-b border-border/50">
+                <div className="flex items-center text-foreground font-semibold">
+                  <Star className="h-5 w-5 fill-primary text-primary mr-1.5" />
+                  <span className="text-lg">{listing.averageRating?.toFixed(1) || '5.0'}</span>
+                  <span className="text-muted-foreground ml-2 font-medium">({listing.reviewCount || 0} reviews)</span>
                 </div>
-                <Separator orientation="vertical" className="h-4" />
-                <div className="text-muted-foreground">
+                <Separator orientation="vertical" className="h-6" />
+                <div className="text-muted-foreground font-medium">
                   {listing.purchaseCount || 0} enrolled
                 </div>
               </div>
 
-              <div className="prose prose-slate max-w-none">
-                <h3 className="font-serif text-xl font-bold mb-4">Description</h3>
-                <p className="whitespace-pre-wrap">{listing.description}</p>
+              <div className="prose prose-lg prose-slate dark:prose-invert max-w-none prose-headings:font-serif prose-headings:font-normal prose-headings:tracking-tight prose-p:font-medium prose-p:text-muted-foreground">
+                <h3 className="text-3xl mb-6">Description</h3>
+                <p className="whitespace-pre-wrap leading-relaxed">{listing.description}</p>
               </div>
 
               {listing.tags && listing.tags.length > 0 && (
-                <div className="mt-8 pt-8 border-t flex flex-wrap gap-2">
+                <div className="mt-12 pt-10 border-t border-border/50 flex flex-wrap gap-2">
                   {listing.tags.map(tag => (
-                    <span key={tag} className="bg-muted px-3 py-1 rounded-full text-sm text-muted-foreground">
+                    <span key={tag} className="bg-muted px-4 py-2 rounded-lg text-sm font-semibold text-foreground">
                       {tag}
                     </span>
                   ))}
@@ -113,21 +115,21 @@ export default function ListingDetail() {
             </div>
 
             {/* Creator Info */}
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="font-serif text-xl font-bold mb-6">About the Creator</h3>
-                <div className="flex items-start gap-4">
-                  <Avatar className="h-16 w-16">
-                    <AvatarFallback className="bg-primary text-primary-foreground text-xl">C</AvatarFallback>
+            <Card className="rounded-2xl border-border/50 bg-muted/10 shadow-none">
+              <CardContent className="p-8 sm:p-10">
+                <h3 className="font-serif text-3xl mb-8">About the Creator</h3>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+                  <Avatar className="h-24 w-24 border bg-background">
+                    <AvatarFallback className="bg-primary/10 text-primary text-3xl font-serif">C</AvatarFallback>
                   </Avatar>
-                  <div>
-                    <Link href={`/storefronts/creator`} className="font-bold text-lg hover:text-primary transition-colors">
+                  <div className="flex-1">
+                    <Link href={`/storefronts/creator`} className="font-bold text-2xl hover:text-primary transition-colors block mb-2">
                       Top University Scholar
                     </Link>
-                    <div className="text-sm text-muted-foreground flex items-center mt-1 mb-2">
-                      <ShieldCheck className="h-4 w-4 text-blue-500 mr-1" /> Verified Oxford Student
+                    <div className="text-sm font-medium text-muted-foreground flex items-center mb-4">
+                      <ShieldCheck className="h-5 w-5 text-primary mr-2" /> Verified Oxford Student
                     </div>
-                    <Button variant="outline" size="sm" asChild>
+                    <Button variant="outline" className="rounded-xl h-10 font-bold" asChild>
                       <Link href={`/storefronts/creator`}>View Profile</Link>
                     </Button>
                   </div>
@@ -138,31 +140,30 @@ export default function ListingDetail() {
 
           {/* Sticky Sidebar - Checkout/Booking Card */}
           <div className="space-y-6">
-            <div className="sticky top-24">
-              <Card className="shadow-lg border-primary/20 overflow-hidden">
-                <div className="bg-primary h-2 w-full"></div>
-                <CardContent className="p-6">
-                  <div className="text-3xl font-bold mb-6">{priceAmount}</div>
+            <div className="sticky top-32">
+              <Card className="shadow-2xl border-transparent rounded-3xl overflow-hidden bg-foreground text-background">
+                <CardContent className="p-8">
+                  <div className="text-5xl font-serif tracking-tight mb-8 text-primary">{priceAmount}</div>
                   
                   {isService ? (
-                    <div className="space-y-4 mb-6">
-                      <div className="flex items-center gap-3 text-sm">
-                        <Clock className="h-5 w-5 text-muted-foreground" />
+                    <div className="space-y-5 mb-8">
+                      <div className="flex items-center gap-4 text-base font-medium text-background/80">
+                        <Clock className="h-6 w-6 text-primary" />
                         <span>{(serviceOffer as any)?.durationMinutes || 60} minutes</span>
                       </div>
-                      <div className="flex items-center gap-3 text-sm">
-                        <CalendarDays className="h-5 w-5 text-muted-foreground" />
+                      <div className="flex items-center gap-4 text-base font-medium text-background/80">
+                        <CalendarDays className="h-6 w-6 text-primary" />
                         <span>1:1 Video Call</span>
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-4 mb-6">
-                      <div className="flex items-center gap-3 text-sm">
-                        <Download className="h-5 w-5 text-muted-foreground" />
+                    <div className="space-y-5 mb-8">
+                      <div className="flex items-center gap-4 text-base font-medium text-background/80">
+                        <Download className="h-6 w-6 text-primary" />
                         <span>Instant digital download</span>
                       </div>
-                      <div className="flex items-center gap-3 text-sm">
-                        <CheckCircle2 className="h-5 w-5 text-primary" />
+                      <div className="flex items-center gap-4 text-base font-medium text-background/80">
+                        <CheckCircle2 className="h-6 w-6 text-primary" />
                         <span>Lifetime access</span>
                       </div>
                     </div>
@@ -170,25 +171,25 @@ export default function ListingDetail() {
 
                   <Button 
                     size="lg" 
-                    className="w-full h-14 text-lg font-bold shadow-md"
+                    className="w-full h-16 text-lg font-bold rounded-xl shadow-none bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
                     onClick={handlePurchase}
                     disabled={checkoutMutation.isPending}
                   >
                     {checkoutMutation.isPending ? 'Processing...' : (isService ? 'Book Session' : 'Buy Now')}
                   </Button>
                   
-                  <p className="text-xs text-center text-muted-foreground mt-4">
-                    Secure payment powered by Stripe.
+                  <p className="text-sm font-medium text-center text-background/50 mt-6">
+                    Secure payment powered by Stripe
                   </p>
                 </CardContent>
               </Card>
 
               {/* Trust Badge */}
-              <div className="mt-6 flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100 text-blue-900">
-                <ShieldCheck className="h-6 w-6 shrink-0 mt-0.5" />
-                <div className="text-sm">
-                  <span className="font-bold block mb-1">Aced Guarantee</span>
-                  Verified creators, secure payments, and quality assurance.
+              <div className="mt-8 flex items-start gap-4 p-6 bg-primary/5 rounded-3xl border border-primary/10">
+                <ShieldCheck className="h-8 w-8 text-primary shrink-0" />
+                <div>
+                  <span className="font-bold block mb-1 text-foreground">Aced Guarantee</span>
+                  <p className="text-sm font-medium text-muted-foreground leading-relaxed">Verified creators, secure payments, and quality assurance.</p>
                 </div>
               </div>
             </div>

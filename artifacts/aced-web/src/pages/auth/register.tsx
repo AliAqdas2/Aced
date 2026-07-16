@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ArrowRight } from 'lucide-react';
 
 const registerSchema = z.object({
   displayName: z.string().min(2, "Name must be at least 2 characters"),
@@ -41,25 +42,25 @@ export default function Register() {
 
   return (
     <div className="w-full">
-      <h1 className="font-serif text-3xl font-bold mb-2">Create an account</h1>
-      <p className="text-muted-foreground mb-8">Join the UK's premium student marketplace.</p>
+      <h1 className="font-serif text-5xl tracking-tight mb-4">Create an account</h1>
+      <p className="text-muted-foreground mb-10 text-lg font-medium">Join the UK's premium student marketplace.</p>
 
       {registerMutation.isError && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertDescription>An error occurred. That email might already be registered.</AlertDescription>
+        <Alert variant="destructive" className="mb-6 rounded-xl border-destructive/50">
+          <AlertDescription className="font-medium">An error occurred. That email might already be registered.</AlertDescription>
         </Alert>
       )}
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <FormField
             control={form.control}
             name="displayName"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Full Name</FormLabel>
+                <FormLabel className="font-bold">Full Name</FormLabel>
                 <FormControl>
-                  <Input placeholder="John Doe" {...field} />
+                  <Input placeholder="John Doe" className="h-14 rounded-xl px-4 bg-muted/50 border-transparent focus-visible:ring-primary focus-visible:bg-background transition-all" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -70,11 +71,11 @@ export default function Register() {
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel className="font-bold">Email</FormLabel>
                 <FormControl>
-                  <Input placeholder="name@university.ac.uk" type="email" {...field} />
+                  <Input placeholder="name@university.ac.uk" type="email" className="h-14 rounded-xl px-4 bg-muted/50 border-transparent focus-visible:ring-primary focus-visible:bg-background transition-all" {...field} />
                 </FormControl>
-                <p className="text-xs text-muted-foreground mt-1">Use your university email if applying to be a creator.</p>
+                <p className="text-xs font-medium text-muted-foreground mt-2">Use your university email if applying to be a creator.</p>
                 <FormMessage />
               </FormItem>
             )}
@@ -84,9 +85,9 @@ export default function Register() {
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Password</FormLabel>
+                <FormLabel className="font-bold">Password</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="••••••••" {...field} />
+                  <Input type="password" placeholder="••••••••" className="h-14 rounded-xl px-4 bg-muted/50 border-transparent focus-visible:ring-primary focus-visible:bg-background transition-all" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -94,21 +95,22 @@ export default function Register() {
           />
           <Button 
             type="submit" 
-            className="w-full h-12 text-base font-bold shadow-md mt-6" 
+            className="w-full h-14 text-lg font-bold shadow-none rounded-xl mt-4 group" 
             disabled={registerMutation.isPending}
           >
             {registerMutation.isPending ? "Creating account..." : "Sign up"}
+            {!registerMutation.isPending && <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />}
           </Button>
         </form>
       </Form>
 
-      <p className="text-xs text-center text-muted-foreground mt-6 px-4">
-        By signing up, you agree to our <Link href="/terms" className="underline hover:text-primary">Terms of Service</Link> and <Link href="/privacy" className="underline hover:text-primary">Privacy Policy</Link>.
+      <p className="text-sm font-medium text-center text-muted-foreground mt-8 px-4">
+        By signing up, you agree to our <Link href="/terms" className="underline hover:text-primary font-bold">Terms of Service</Link> and <Link href="/privacy" className="underline hover:text-primary font-bold">Privacy Policy</Link>.
       </p>
 
-      <div className="mt-8 text-center text-sm text-muted-foreground">
+      <div className="mt-8 text-center text-sm font-medium text-muted-foreground">
         Already have an account?{' '}
-        <Link href="/auth/login" className="font-semibold text-primary hover:underline">
+        <Link href="/auth/login" className="font-bold text-primary hover:underline">
           Sign in
         </Link>
       </div>

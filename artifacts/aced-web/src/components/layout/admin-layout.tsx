@@ -73,25 +73,25 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
   if (isLoading || !isAuthenticated || !isAdmin) {
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-gray-50">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-[100dvh]">
+    <div className="flex min-h-[100dvh] bg-background">
       {/* Sidebar */}
-      <aside className="w-64 bg-[#0F1A3C] text-white flex-shrink-0 flex flex-col hidden md:flex">
-        <div className="h-16 flex items-center px-6 border-b border-white/10">
-          <Link href="/admin" className="flex items-center gap-2">
-            <img src={logoUrl} alt="Aced" className="h-8 brightness-0 invert" />
-            <span className="font-bold tracking-wider text-lg">ADMIN</span>
+      <aside className="w-72 bg-foreground text-background flex-shrink-0 flex flex-col hidden md:flex border-r border-border/10">
+        <div className="h-24 flex items-center px-8 border-b border-background/10">
+          <Link href="/admin" className="flex items-center gap-3">
+            <img src={logoUrl} alt="Aced" className="h-10 brightness-0 invert" />
+            <span className="font-bold tracking-widest uppercase text-sm">Admin</span>
           </Link>
         </div>
         
-        <div className="flex-1 overflow-y-auto py-6 px-4">
-          <nav className="flex flex-col space-y-1">
+        <div className="flex-1 overflow-y-auto py-8 px-4">
+          <nav className="flex flex-col space-y-2">
             {adminNavItems.map((item) => {
               const isActive = location === item.href || (location.startsWith(`${item.href}/`) && item.href !== '/admin');
               return (
@@ -99,13 +99,13 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    "flex items-center gap-4 rounded-xl px-4 py-3 text-sm font-bold transition-colors",
                     isActive 
-                      ? "bg-white/10 text-white" 
-                      : "text-white/60 hover:bg-white/5 hover:text-white"
+                      ? "bg-primary text-primary-foreground" 
+                      : "text-background/60 hover:bg-background/10 hover:text-background"
                   )}
                 >
-                  <item.icon className="h-4 w-4" />
+                  <item.icon className="h-5 w-5" />
                   {item.title}
                 </Link>
               );
@@ -113,17 +113,17 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
-        <div className="p-4 border-t border-white/10">
-          <Link href="/" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-white/60 hover:bg-white/5 hover:text-white transition-colors">
-            <Home className="h-4 w-4" />
+        <div className="p-6 border-t border-background/10">
+          <Link href="/" className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-background/60 hover:bg-background/10 hover:text-background transition-colors">
+            <Home className="h-5 w-5" />
             Back to App
           </Link>
         </div>
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-background">
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+      <div className="flex-1 flex flex-col overflow-hidden bg-muted/20">
+        <main className="flex-1 overflow-y-auto p-8 md:p-12">
           {children}
         </main>
       </div>
