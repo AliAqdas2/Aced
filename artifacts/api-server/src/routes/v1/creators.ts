@@ -9,11 +9,14 @@ import {
   creatorExpertiseTable,
   storefrontsTable,
   commissionRulesTable,
+  platformConfigTable,
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, requireRole } from "../../middlewares/auth";
 import { generateUploadUrl } from "../../lib/storage";
 import { logAuditEvent } from "../../lib/auth";
+import { sendEmail, buildCreatorApplicationEmail } from "../../lib/email";
+import { logger } from "../../lib/logger";
 import Stripe from "stripe";
 
 const router: IRouter = Router();
@@ -23,6 +26,32 @@ function getStripe(): Stripe {
   if (!key) throw new Error("STRIPE_SECRET_KEY not set");
   return new Stripe(key, { apiVersion: "2026-06-24.dahlia" });
 }
+
+// GET /api/v1/creator/applications/config — DBS required flag and approval email
+router.get(
+  "/creator/applications/config",
+  async (_req, res): Promise<void> => {
+    const configs = await db
+      .select()
+      .from(platformConfigTable)
+      .where(
+        eq(platformConfigTable.key, "DBS_REQUIRED")
+      );
+    // Also fetch APPROVAL_EMAIL in same query via separate call to avoid complex OR
+    const [approvalCfg] = await db
+      .select()
+      .from(platformConfigTable)
+      .where(eq(platformConfigTable.key, "APPROVAL_EMAIL"))
+      .limit(1);
+
+    const dbsRow = configs.find((r) => r.key === "DBS_REQUIRED");
+    res.json({
+      data: {
+        dbsRequired: dbsRow?.value === "true",
+      },
+    });
+  }
+);
 
 // POST /api/v1/creator/applications — submit creator application
 router.post(
@@ -96,6 +125,40 @@ router.post(
       targetId: creatorProfile.id,
       targetType: "creator_profile",
     });
+
+    // Send approval notification email (fire and forget — don't block response)
+    (async () => {
+      try {
+        const [approvalCfg] = await db
+          .select()
+          .from(platformConfigTable)
+          .where(eq(platformConfigTable.key, "APPROVAL_EMAIL"))
+          .limit(1);
+        const approvalEmail = approvalCfg?.value ?? "AcedApprovals@creativecloud.ai";
+
+        const [userInfo] = await db
+          .select({ email: usersTable.email, displayName: profilesTable.displayName })
+          .from(usersTable)
+          .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
+          .where(eq(usersTable.id, userId))
+          .limit(1);
+
+        await sendEmail({
+          to: approvalEmail,
+          subject: `New Creator Application — ${userInfo?.displayName ?? userInfo?.email ?? "Unknown"}`,
+          html: buildCreatorApplicationEmail({
+            applicantName: userInfo?.displayName ?? "Unknown",
+            applicantEmail: userInfo?.email ?? "",
+            grade: parsed.data.academicResult,
+            graduationYear: parsed.data.graduationYear,
+            headline: parsed.data.headline,
+            creatorProfileId: creatorProfile.id,
+          }),
+        });
+      } catch (err) {
+        logger.error({ err }, "Failed to send creator application approval email");
+      }
+    })();
 
     res.status(201).json({ data: creatorProfile });
   }

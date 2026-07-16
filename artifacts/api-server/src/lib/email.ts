@@ -71,6 +71,34 @@ export function buildPasswordResetEmail(link: string): EmailPayload["html"] {
   `;
 }
 
+export function buildCreatorApplicationEmail(opts: {
+  applicantName: string;
+  applicantEmail: string;
+  grade: string;
+  graduationYear: number;
+  headline: string;
+  creatorProfileId: string;
+  appUrl?: string;
+}): EmailPayload["html"] {
+  const adminUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://aced.co.uk"}/admin/applications`;
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #7B2FF7;">New Creator Application — Aced</h2>
+      <p>A new applicant has submitted a creator application and requires review.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;background:#f9fafb;">Name</td><td style="padding:8px;border:1px solid #e5e7eb;">${opts.applicantName}</td></tr>
+        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;background:#f9fafb;">Email</td><td style="padding:8px;border:1px solid #e5e7eb;">${opts.applicantEmail}</td></tr>
+        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;background:#f9fafb;">Grade</td><td style="padding:8px;border:1px solid #e5e7eb;">${opts.grade}</td></tr>
+        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;background:#f9fafb;">Graduation Year</td><td style="padding:8px;border:1px solid #e5e7eb;">${opts.graduationYear}</td></tr>
+        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;background:#f9fafb;">Headline</td><td style="padding:8px;border:1px solid #e5e7eb;">${opts.headline}</td></tr>
+      </table>
+      <p style="color:#666;">Verification documents (degree certificate, DBS check) are uploaded separately by the applicant and will appear in the admin panel.</p>
+      <a href="${adminUrl}" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#7B2FF7,#00D4FF);color:white;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:8px;">Review Application</a>
+      <p style="color:#666;font-size:12px;margin-top:24px;">Creator Profile ID: ${opts.creatorProfileId}</p>
+    </div>
+  `;
+}
+
 export function buildBookingConfirmationEmail(opts: {
   learnerName: string;
   creatorName: string;

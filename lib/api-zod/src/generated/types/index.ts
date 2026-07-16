@@ -10,6 +10,8 @@ export * from './adminDashboardResponse';
 export * from './adminDashboardResponseData';
 export * from './adminUsersResponse';
 export * from './adminUsersResponseDataItem';
+export * from './applicationConfigResponse';
+export * from './applicationConfigResponseData';
 export * from './applicationsResponse';
 export * from './applicationsResponseDataItem';
 export * from './auditLogsResponse';

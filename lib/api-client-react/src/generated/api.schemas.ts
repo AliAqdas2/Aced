@@ -549,6 +549,15 @@ export interface CommissionRulesResponse {
   data: CommissionRulesResponseDataItem[];
 }
 
+export type ApplicationConfigResponseData = {
+  dbsRequired: boolean;
+  approvalEmail: string;
+};
+
+export interface ApplicationConfigResponse {
+  data: ApplicationConfigResponseData;
+}
+
 export type CommissionRuleResponseData = { [key: string]: unknown };
 
 export interface CommissionRuleResponse {

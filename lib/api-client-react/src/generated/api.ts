@@ -22,6 +22,7 @@ import type {
 import type {
   AdminDashboardResponse,
   AdminUsersResponse,
+  ApplicationConfigResponse,
   ApplicationsResponse,
   AuditLogsResponse,
   AuthResponse,
@@ -2372,6 +2373,83 @@ export const useSubmitCreatorApplication = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getSubmitCreatorApplicationMutationOptions(options));
     }
+
+export const getGetApplicationConfigUrl = () => {
+
+
+
+
+  return `/api/v1/creator/applications/config`
+}
+
+/**
+ * @summary Get application configuration (DBS required flag, etc.)
+ */
+export const getApplicationConfig = async ( options?: RequestInit): Promise<ApplicationConfigResponse> => {
+
+  return customFetch<ApplicationConfigResponse>(getGetApplicationConfigUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetApplicationConfigQueryKey = () => {
+    return [
+    `/api/v1/creator/applications/config`
+    ] as const;
+    }
+
+
+export const getGetApplicationConfigQueryOptions = <TData = Awaited<ReturnType<typeof getApplicationConfig>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApplicationConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetApplicationConfigQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApplicationConfig>>> = ({ signal }) => getApplicationConfig({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApplicationConfig>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetApplicationConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getApplicationConfig>>>
+export type GetApplicationConfigQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get application configuration (DBS required flag, etc.)
+ */
+
+export function useGetApplicationConfig<TData = Awaited<ReturnType<typeof getApplicationConfig>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApplicationConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetApplicationConfigQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetVerificationUploadUrlUrl = () => {
 

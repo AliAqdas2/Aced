@@ -627,6 +627,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/CreatorProfileResponse"
 
+  /v1/creator/applications/config:
+    get:
+      operationId: getApplicationConfig
+      tags: [creators]
+      summary: Get application configuration (DBS required flag, etc.)
+      responses:
+        "200":
+          description: Application config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationConfigResponse"
+
   /v1/creator/verifications/upload-url:
     post:
       operationId: getVerificationUploadUrl
@@ -1837,6 +1850,17 @@ components:
           type: array
           items:
             type: object
+
+    ApplicationConfigResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [dbsRequired]
+          properties:
+            dbsRequired:
+              type: boolean
 
     CommissionRuleResponse:
       type: object

@@ -597,6 +597,17 @@ export const SubmitCreatorApplicationResponse = zod.object({
 
 
 /**
+ * @summary Get application configuration (DBS required flag, etc.)
+ */
+export const GetApplicationConfigResponse = zod.object({
+  "data": zod.object({
+  "dbsRequired": zod.boolean(),
+  "approvalEmail": zod.string()
+})
+})
+
+
+/**
  * @summary Get signed URL for verification document upload
  */
 export const GetVerificationUploadUrlBody = zod.object({
