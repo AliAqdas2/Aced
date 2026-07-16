@@ -1,0 +1,399 @@
+import { Router, type IRouter } from "express";
+import { z } from "zod";
+import { db } from "@workspace/db";
+import {
+  availabilityRulesTable,
+  availabilityExceptionsTable,
+  bookingHoldsTable,
+  bookingsTable,
+  serviceOffersTable,
+  creatorProfilesTable,
+  listingsTable,
+} from "@workspace/db";
+import { eq, and, gte, lte, or } from "drizzle-orm";
+import { requireAuth, requireRole } from "../../middlewares/auth";
+
+const router: IRouter = Router();
+
+// GET /api/v1/services/:id/availability — public availability slots
+router.get("/services/:id/availability", async (req, res): Promise<void> => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const timezone = (req.query["timezone"] as string) ?? "Europe/London";
+  const fromDate = (req.query["from"] as string) ?? new Date().toISOString().split("T")[0];
+  const toDate =
+    (req.query["to"] as string) ??
+    new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+  const [listing] = await db
+    .select()
+    .from(listingsTable)
+    .where(and(eq(listingsTable.id, id), eq(listingsTable.status, "published")))
+    .limit(1);
+
+  if (!listing) {
+    res.status(404).json({ error: "Listing not found" });
+    return;
+  }
+
+  const [offer] = await db
+    .select()
+    .from(serviceOffersTable)
+    .where(eq(serviceOffersTable.listingId, id))
+    .limit(1);
+
+  if (!offer) {
+    res.status(404).json({ error: "Service offer not found" });
+    return;
+  }
+
+  const rules = await db
+    .select()
+    .from(availabilityRulesTable)
+    .where(
+      and(
+        eq(availabilityRulesTable.creatorId, listing.creatorId),
+        eq(availabilityRulesTable.isActive, true)
+      )
+    );
+
+  const exceptions = await db
+    .select()
+    .from(availabilityExceptionsTable)
+    .where(
+      and(
+        eq(availabilityExceptionsTable.creatorId, listing.creatorId),
+        gte(availabilityExceptionsTable.exceptionDate, fromDate),
+        lte(availabilityExceptionsTable.exceptionDate, toDate)
+      )
+    );
+
+  // Get existing confirmed bookings in the range
+  const existingBookings = await db
+    .select()
+    .from(bookingsTable)
+    .where(
+      and(
+        eq(bookingsTable.creatorId, listing.creatorId),
+        gte(bookingsTable.scheduledStartAt, new Date(fromDate)),
+        lte(bookingsTable.scheduledStartAt, new Date(toDate + "T23:59:59Z"))
+      )
+    );
+
+  // Generate available slots
+  const slots = generateSlots({
+    rules,
+    exceptions,
+    existingBookings,
+    offer,
+    fromDate,
+    toDate,
+    timezone,
+  });
+
+  res.json({
+    data: {
+      listingId: id,
+      serviceOfferId: offer.id,
+      durationMinutes: offer.durationMinutes,
+      timezone,
+      slots,
+    },
+  });
+});
+
+function generateSlots(opts: {
+  rules: any[];
+  exceptions: any[];
+  existingBookings: any[];
+  offer: any;
+  fromDate: string;
+  toDate: string;
+  timezone: string;
+}): Array<{ startAt: string; endAt: string; available: boolean }> {
+  const slots: Array<{ startAt: string; endAt: string; available: boolean }> = [];
+  const { rules, exceptions, existingBookings, offer } = opts;
+
+  const from = new Date(opts.fromDate + "T00:00:00Z");
+  const to = new Date(opts.toDate + "T23:59:59Z");
+  const minNoticeMs = offer.minNoticeHours * 60 * 60 * 1000;
+  const now = new Date();
+
+  const current = new Date(from);
+  while (current <= to) {
+    const dayOfWeek = current.getUTCDay();
+    const dateStr = current.toISOString().split("T")[0];
+
+    // Check exceptions
+    const exception = exceptions.find((e) => e.exceptionDate === dateStr);
+    if (exception?.isBlocked) {
+      current.setUTCDate(current.getUTCDate() + 1);
+      continue;
+    }
+
+    // Find rules for this day
+    const dayRules = rules.filter((r) => r.dayOfWeek === dayOfWeek);
+
+    for (const rule of dayRules) {
+      // Parse time "HH:MM"
+      const [sh, sm] = rule.startTimeUtc.split(":").map(Number);
+      const [eh, em] = rule.endTimeUtc.split(":").map(Number);
+
+      const slotStart = new Date(current);
+      slotStart.setUTCHours(sh, sm, 0, 0);
+
+      const windowEnd = new Date(current);
+      windowEnd.setUTCHours(eh, em, 0, 0);
+
+      while (slotStart < windowEnd) {
+        const slotEnd = new Date(slotStart.getTime() + offer.durationMinutes * 60 * 1000);
+        if (slotEnd > windowEnd) break;
+
+        // Skip slots too soon
+        const available =
+          slotStart.getTime() - now.getTime() >= minNoticeMs &&
+          !existingBookings.some(
+            (b) =>
+              ["confirmed", "held", "pending_payment", "in_progress"].includes(b.status) &&
+              b.scheduledStartAt < slotEnd &&
+              b.scheduledEndAt > slotStart
+          );
+
+        slots.push({
+          startAt: slotStart.toISOString(),
+          endAt: slotEnd.toISOString(),
+          available,
+        });
+
+        // Move to next slot (add duration + buffer)
+        const nextStart = new Date(
+          slotEnd.getTime() + offer.bufferMinutesAfter * 60 * 1000
+        );
+        slotStart.setTime(nextStart.getTime());
+      }
+    }
+
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+
+  return slots.slice(0, 200); // cap response size
+}
+
+// POST /api/v1/bookings/holds — atomic slot reservation
+router.post("/bookings/holds", requireAuth, async (req, res): Promise<void> => {
+  const Body = z.object({
+    listingId: z.string().uuid(),
+    serviceOfferId: z.string().uuid(),
+    startAt: z.string().datetime(),
+    timezone: z.string().default("Europe/London"),
+  });
+  const parsed = Body.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+    return;
+  }
+
+  const { listingId, serviceOfferId, startAt, timezone } = parsed.data;
+  const learnerId = req.session.userId!;
+
+  const [offer] = await db
+    .select()
+    .from(serviceOffersTable)
+    .where(eq(serviceOffersTable.id, serviceOfferId))
+    .limit(1);
+
+  if (!offer) {
+    res.status(404).json({ error: "Service offer not found" });
+    return;
+  }
+
+  const startDate = new Date(startAt);
+  const endDate = new Date(startDate.getTime() + offer.durationMinutes * 60 * 1000);
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 min hold
+
+  // Canonical interval-overlap check: A overlaps B when A.start < B.end && A.end > B.start.
+  // Fetch all bookings for this service offer that touch the new slot's time range.
+  const overlappingBookings = await db
+    .select()
+    .from(bookingsTable)
+    .where(
+      and(
+        eq(bookingsTable.serviceOfferId, serviceOfferId),
+        // existing.start < newEnd AND existing.end > newStart
+        lte(bookingsTable.scheduledStartAt, endDate),
+        gte(bookingsTable.scheduledEndAt, startDate)
+      )
+    );
+
+  const conflicting = overlappingBookings.filter((b) =>
+    ["confirmed", "held", "pending_payment", "in_progress"].includes(b.status)
+  );
+
+  if (conflicting.length > 0) {
+    res.status(409).json({ error: "Slot no longer available", code: "SLOT_TAKEN" });
+    return;
+  }
+
+  // Check active holds using the same canonical overlap logic.
+  const now = new Date();
+  const overlappingHolds = await db
+    .select()
+    .from(bookingHoldsTable)
+    .where(
+      and(
+        eq(bookingHoldsTable.serviceOfferId, serviceOfferId),
+        eq(bookingHoldsTable.status, "active"),
+        gte(bookingHoldsTable.expiresAt, now),
+        // existing.holdStart < newEnd AND existing.holdEnd > newStart
+        lte(bookingHoldsTable.holdStartsAt, endDate),
+        gte(bookingHoldsTable.holdEndsAt, startDate)
+      )
+    );
+
+  if (overlappingHolds.length > 0) {
+    res.status(409).json({ error: "Slot is held by another user", code: "SLOT_HELD" });
+    return;
+  }
+
+  const [hold] = await db
+    .insert(bookingHoldsTable)
+    .values({
+      listingId,
+      serviceOfferId,
+      learnerId,
+      holdStartsAt: startDate,
+      holdEndsAt: endDate,
+      expiresAt,
+      status: "active",
+    })
+    .returning();
+
+  res.status(201).json({ data: hold });
+});
+
+// --- Creator availability management ---
+
+// GET /api/v1/creator/availability/rules
+router.get(
+  "/creator/availability/rules",
+  requireRole("creator"),
+  async (req, res): Promise<void> => {
+    const [cp] = await db
+      .select()
+      .from(creatorProfilesTable)
+      .where(eq(creatorProfilesTable.userId, req.session.userId!))
+      .limit(1);
+
+    if (!cp) {
+      res.status(404).json({ error: "Creator profile not found" });
+      return;
+    }
+
+    const rules = await db
+      .select()
+      .from(availabilityRulesTable)
+      .where(eq(availabilityRulesTable.creatorId, cp.id))
+      .orderBy(availabilityRulesTable.dayOfWeek);
+
+    res.json({ data: rules });
+  }
+);
+
+// POST /api/v1/creator/availability/rules
+router.post(
+  "/creator/availability/rules",
+  requireRole("creator"),
+  async (req, res): Promise<void> => {
+    const Body = z.object({
+      dayOfWeek: z.number().int().min(0).max(6),
+      startTimeUtc: z.string().regex(/^\d{2}:\d{2}$/),
+      endTimeUtc: z.string().regex(/^\d{2}:\d{2}$/),
+    });
+    const parsed = Body.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+      return;
+    }
+
+    const [cp] = await db
+      .select()
+      .from(creatorProfilesTable)
+      .where(eq(creatorProfilesTable.userId, req.session.userId!))
+      .limit(1);
+
+    if (!cp) {
+      res.status(404).json({ error: "Creator profile not found" });
+      return;
+    }
+
+    const [rule] = await db
+      .insert(availabilityRulesTable)
+      .values({ creatorId: cp.id, ...parsed.data })
+      .returning();
+
+    res.status(201).json({ data: rule });
+  }
+);
+
+// DELETE /api/v1/creator/availability/rules/:id
+router.delete(
+  "/creator/availability/rules/:id",
+  requireRole("creator"),
+  async (req, res): Promise<void> => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    const [cp] = await db
+      .select()
+      .from(creatorProfilesTable)
+      .where(eq(creatorProfilesTable.userId, req.session.userId!))
+      .limit(1);
+
+    await db
+      .delete(availabilityRulesTable)
+      .where(
+        and(
+          eq(availabilityRulesTable.id, id),
+          eq(availabilityRulesTable.creatorId, cp.id)
+        )
+      );
+
+    res.json({ data: { success: true } });
+  }
+);
+
+// POST /api/v1/creator/availability/exceptions
+router.post(
+  "/creator/availability/exceptions",
+  requireRole("creator"),
+  async (req, res): Promise<void> => {
+    const Body = z.object({
+      exceptionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      isBlocked: z.boolean().default(true),
+      reason: z.string().optional(),
+    });
+    const parsed = Body.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request" });
+      return;
+    }
+
+    const [cp] = await db
+      .select()
+      .from(creatorProfilesTable)
+      .where(eq(creatorProfilesTable.userId, req.session.userId!))
+      .limit(1);
+
+    if (!cp) {
+      res.status(404).json({ error: "Creator profile not found" });
+      return;
+    }
+
+    const [exception] = await db
+      .insert(availabilityExceptionsTable)
+      .values({ creatorId: cp.id, ...parsed.data })
+      .returning();
+
+    res.status(201).json({ data: exception });
+  }
+);
+
+export default router;

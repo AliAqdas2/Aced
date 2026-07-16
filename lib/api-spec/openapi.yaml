@@ -2,21 +2,46 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 1.0.0
+  description: Aced Marketplace API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication and account management
+  - name: taxonomy
+    description: Universities, courses and modules
+  - name: creators
+    description: Creator profiles and applications
+  - name: storefronts
+    description: Creator storefronts
+  - name: listings
+    description: Service offers and digital products
+  - name: availability
+    description: Availability rules and booking holds
+  - name: checkout
+    description: Orders, payments and Stripe checkout
+  - name: library
+    description: Buyer library, entitlements and bookings
+  - name: reviews
+    description: Verified purchase reviews
+  - name: search
+    description: Marketplace search and discovery
+  - name: notifications
+    description: Notifications and messaging
+  - name: admin
+    description: Admin and operations portal
+  - name: creator-dashboard
+    description: Creator dashboard and earnings
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +49,1843 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /v1/auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /v1/auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout and destroy session
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /v1/auth/magic-link:
+    post:
+      operationId: requestMagicLink
+      tags: [auth]
+      summary: Request a magic link email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Magic link sent (if email exists)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /v1/auth/password-reset/request:
+    post:
+      operationId: requestPasswordReset
+      tags: [auth]
+      summary: Request password reset email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Reset link sent (if email exists)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /v1/auth/password-reset/confirm:
+    post:
+      operationId: confirmPasswordReset
+      tags: [auth]
+      summary: Confirm password reset with token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /v1/auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/taxonomy/universities:
+    get:
+      operationId: listUniversities
+      tags: [taxonomy]
+      summary: List universities
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: countryId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Universities list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UniversitiesResponse"
+
+  /v1/taxonomy/universities/{slug}:
+    get:
+      operationId: getUniversity
+      tags: [taxonomy]
+      summary: Get university by slug with courses
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: University detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UniversityDetailResponse"
+
+  /v1/taxonomy/courses/{id}/modules:
+    get:
+      operationId: listModules
+      tags: [taxonomy]
+      summary: List modules for a course
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Modules list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModulesResponse"
+
+  /v1/marketplace/search:
+    get:
+      operationId: searchMarketplace
+      tags: [search]
+      summary: Search creators and listings
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [service_offer, digital_product, recorded_course, group_session]
+        - name: universityId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: courseId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: minPrice
+          in: query
+          schema:
+            type: integer
+        - name: maxPrice
+          in: query
+          schema:
+            type: integer
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [recommended, rating, newest, most_booked, price_asc, price_desc]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            maximum: 50
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+
+  /v1/marketplace/featured:
+    get:
+      operationId: getFeatured
+      tags: [search]
+      summary: Get featured/curated content for homepage
+      responses:
+        "200":
+          description: Featured content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeaturedResponse"
+
+  /v1/storefronts/{slug}:
+    get:
+      operationId: getStorefront
+      tags: [storefronts]
+      summary: Get public creator storefront
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Storefront detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorefrontResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/listings/{id}:
+    get:
+      operationId: getListing
+      tags: [listings]
+      summary: Get public listing detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Listing detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListingDetailResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/services/{id}/availability:
+    get:
+      operationId: getServiceAvailability
+      tags: [availability]
+      summary: Get timezone-aware availability slots for a service
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: timezone
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Available slots
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityResponse"
+
+  /v1/bookings/holds:
+    post:
+      operationId: createBookingHold
+      tags: [availability]
+      summary: Atomically hold a booking slot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingHoldRequest"
+      responses:
+        "201":
+          description: Hold created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingHoldResponse"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /v1/checkout/sessions:
+    post:
+      operationId: createCheckoutSession
+      tags: [checkout]
+      summary: Create Stripe Checkout session for an order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCheckoutRequest"
+      responses:
+        "201":
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutSessionResponse"
+
+  /v1/webhooks/stripe:
+    post:
+      operationId: stripeWebhook
+      tags: [checkout]
+      summary: Process Stripe webhook events
+      responses:
+        "200":
+          description: Event received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+
+  /v1/me/orders:
+    get:
+      operationId: getMyOrders
+      tags: [library]
+      summary: Get buyer order history
+      responses:
+        "200":
+          description: Orders list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrdersResponse"
+
+  /v1/me/library:
+    get:
+      operationId: getMyLibrary
+      tags: [library]
+      summary: Get buyer's entitled products and courses
+      responses:
+        "200":
+          description: Library items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LibraryResponse"
+
+  /v1/me/bookings:
+    get:
+      operationId: getMyBookings
+      tags: [library]
+      summary: Get learner bookings
+      responses:
+        "200":
+          description: Bookings list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingsResponse"
+
+  /v1/assets/{id}/download-url:
+    post:
+      operationId: getAssetDownloadUrl
+      tags: [library]
+      summary: Get short-lived signed download URL for an asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Download URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DownloadUrlResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /v1/reviews:
+    post:
+      operationId: submitReview
+      tags: [reviews]
+      summary: Submit a verified purchase review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReviewRequest"
+      responses:
+        "201":
+          description: Review submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewResponse"
+
+  /v1/reports:
+    post:
+      operationId: createReport
+      tags: [admin]
+      summary: Report content or a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReportRequest"
+      responses:
+        "201":
+          description: Report created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportResponse"
+
+  /v1/me/notifications:
+    get:
+      operationId: getMyNotifications
+      tags: [notifications]
+      summary: Get user notifications
+      responses:
+        "200":
+          description: Notifications list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationsResponse"
+
+  /v1/me/notifications/unread-count:
+    get:
+      operationId: getNotificationUnreadCount
+      tags: [notifications]
+      summary: Get unread notification count
+      responses:
+        "200":
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnreadCountResponse"
+
+  /v1/me/conversations:
+    get:
+      operationId: getMyConversations
+      tags: [notifications]
+      summary: Get user conversations
+      responses:
+        "200":
+          description: Conversations list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationsResponse"
+    post:
+      operationId: createConversation
+      tags: [notifications]
+      summary: Start a new conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateConversationRequest"
+      responses:
+        "201":
+          description: Conversation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationResponse"
+
+  /v1/creator/applications:
+    post:
+      operationId: submitCreatorApplication
+      tags: [creators]
+      summary: Submit creator application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatorApplicationRequest"
+      responses:
+        "201":
+          description: Application submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatorProfileResponse"
+
+  /v1/creator/verifications/upload-url:
+    post:
+      operationId: getVerificationUploadUrl
+      tags: [creators]
+      summary: Get signed URL for verification document upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+
+  /v1/creator/listings:
+    get:
+      operationId: getCreatorListings
+      tags: [listings]
+      summary: Get creator's own listings
+      responses:
+        "200":
+          description: Listings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListingsResponse"
+    post:
+      operationId: createListing
+      tags: [listings]
+      summary: Create a new listing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateListingRequest"
+      responses:
+        "201":
+          description: Listing created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListingResponse"
+
+  /v1/creator/storefront:
+    get:
+      operationId: getCreatorStorefront
+      tags: [storefronts]
+      summary: Get creator's own storefront
+      responses:
+        "200":
+          description: Storefront
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorefrontDataResponse"
+    patch:
+      operationId: updateCreatorStorefront
+      tags: [storefronts]
+      summary: Update creator storefront
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStorefrontRequest"
+      responses:
+        "200":
+          description: Updated storefront
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorefrontDataResponse"
+
+  /v1/creator/dashboard:
+    get:
+      operationId: getCreatorDashboard
+      tags: [creator-dashboard]
+      summary: Get creator dashboard KPIs and actions
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatorDashboardResponse"
+
+  /v1/creator/earnings:
+    get:
+      operationId: getCreatorEarnings
+      tags: [creator-dashboard]
+      summary: Get creator earnings ledger
+      responses:
+        "200":
+          description: Earnings data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EarningsResponse"
+
+  /v1/creator/bookings:
+    get:
+      operationId: getCreatorBookings
+      tags: [creator-dashboard]
+      summary: Get creator bookings
+      responses:
+        "200":
+          description: Bookings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingsResponse"
+
+  /v1/creator/stripe/onboard:
+    post:
+      operationId: startStripeOnboarding
+      tags: [creators]
+      summary: Start Stripe Connect onboarding
+      responses:
+        "200":
+          description: Onboarding URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeOnboardingResponse"
+
+  /v1/creator/stripe/status:
+    get:
+      operationId: getStripeStatus
+      tags: [creators]
+      summary: Get creator Stripe Connect status
+      responses:
+        "200":
+          description: Stripe status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeStatusResponse"
+
+  /v1/creator/availability/rules:
+    get:
+      operationId: getAvailabilityRules
+      tags: [availability]
+      summary: Get creator availability rules
+      responses:
+        "200":
+          description: Rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityRulesResponse"
+    post:
+      operationId: createAvailabilityRule
+      tags: [availability]
+      summary: Create availability rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAvailabilityRuleRequest"
+      responses:
+        "201":
+          description: Rule created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityRuleResponse"
+
+  /v1/admin/dashboard:
+    get:
+      operationId: getAdminDashboard
+      tags: [admin]
+      summary: Get admin operations dashboard metrics
+      responses:
+        "200":
+          description: Dashboard metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminDashboardResponse"
+
+  /v1/admin/applications:
+    get:
+      operationId: getAdminApplications
+      tags: [admin]
+      summary: Get creator applications queue
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Applications
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationsResponse"
+
+  /v1/admin/users:
+    get:
+      operationId: getAdminUsers
+      tags: [admin]
+      summary: Search and list users
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: role
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUsersResponse"
+
+  /v1/admin/orders:
+    get:
+      operationId: getAdminOrders
+      tags: [admin]
+      summary: Get all orders
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Orders
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrdersResponse"
+
+  /v1/admin/listings:
+    get:
+      operationId: getAdminListings
+      tags: [admin]
+      summary: Get listing moderation queue
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Listings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListingsResponse"
+
+  /v1/admin/reports:
+    get:
+      operationId: getAdminReports
+      tags: [admin]
+      summary: Get reports/cases queue
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reports
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportsResponse"
+
+  /v1/admin/audit-logs:
+    get:
+      operationId: getAuditLogs
+      tags: [admin]
+      summary: Get audit logs
+      parameters:
+        - name: actorId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: action
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogsResponse"
+
+  /v1/admin/commission-rules:
+    get:
+      operationId: getCommissionRules
+      tags: [admin]
+      summary: Get commission rules
+      responses:
+        "200":
+          description: Commission rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommissionRulesResponse"
+    post:
+      operationId: createCommissionRule
+      tags: [admin]
+      summary: Create a commission rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommissionRuleRequest"
+      responses:
+        "201":
+          description: Rule created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommissionRuleResponse"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+        traceId:
+          type: string
+
+    SuccessResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+            success:
+              type: boolean
+
+    RegisterRequest:
+      type: object
+      required: [email, password, displayName]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        displayName:
+          type: string
+          minLength: 2
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthUser:
+      type: object
+      required: [id, email, role, emailVerified]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        role:
+          type: string
+        emailVerified:
+          type: boolean
+
+    AuthResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/AuthUser"
+
+    MeResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+            role:
+              type: string
+            status:
+              type: string
+            emailVerified:
+              type: boolean
+            timezone:
+              type: string
+            profile:
+              type: object
+              nullable: true
+            creatorProfile:
+              type: object
+              nullable: true
+
+    University:
+      type: object
+      required: [id, name, slug]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        status:
+          type: string
+        website:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    UniversitiesResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/University"
+
+    UniversityDetailResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          allOf:
+            - $ref: "#/components/schemas/University"
+            - type: object
+              properties:
+                courses:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Course"
+
+    Course:
+      type: object
+      required: [id, name, slug]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        faculty:
+          type: string
+          nullable: true
+        level:
+          type: string
+          nullable: true
+
+    Module:
+      type: object
+      required: [id, name, slug]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        code:
+          type: string
+          nullable: true
+
+    ModulesResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Module"
+
+    Listing:
+      type: object
+      required: [id, title, type, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        viewCount:
+          type: integer
+        purchaseCount:
+          type: integer
+        averageRating:
+          type: integer
+          nullable: true
+        reviewCount:
+          type: integer
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    PriceRecord:
+      type: object
+      required: [id, amountMinorUnits, currency]
+      properties:
+        id:
+          type: string
+          format: uuid
+        amountMinorUnits:
+          type: integer
+        currency:
+          type: string
+        isActive:
+          type: boolean
+
+    ListingDetailResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            listing:
+              $ref: "#/components/schemas/Listing"
+            price:
+              $ref: "#/components/schemas/PriceRecord"
+              nullable: true
+            serviceOffer:
+              type: object
+              nullable: true
+            product:
+              type: object
+              nullable: true
+            reviews:
+              type: array
+              items:
+                $ref: "#/components/schemas/Review"
+
+    ListingResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Listing"
+
+    ListingsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Listing"
+
+    StorefrontResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            storefront:
+              type: object
+            creator:
+              type: object
+            listings:
+              type: array
+              items:
+                type: object
+            reviews:
+              type: array
+              items:
+                type: object
+
+    StorefrontDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          nullable: true
+
+    UpdateStorefrontRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+        slug:
+          type: string
+        bio:
+          type: string
+        coverImageUrl:
+          type: string
+          nullable: true
+        seoTitle:
+          type: string
+          nullable: true
+        seoDescription:
+          type: string
+          nullable: true
+        policies:
+          type: string
+          nullable: true
+
+    SearchResult:
+      allOf:
+        - $ref: "#/components/schemas/Listing"
+        - type: object
+          properties:
+            activePrice:
+              $ref: "#/components/schemas/PriceRecord"
+              nullable: true
+            creator:
+              type: object
+
+    SearchResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResult"
+        meta:
+          type: object
+          properties:
+            hasMore:
+              type: boolean
+            count:
+              type: integer
+
+    FeaturedResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            universities:
+              type: array
+              items:
+                $ref: "#/components/schemas/University"
+            recentListings:
+              type: array
+              items:
+                $ref: "#/components/schemas/Listing"
+
+    AvailabilitySlot:
+      type: object
+      required: [startAt, endAt, available]
+      properties:
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: string
+          format: date-time
+        available:
+          type: boolean
+
+    AvailabilityResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            listingId:
+              type: string
+              format: uuid
+            durationMinutes:
+              type: integer
+            timezone:
+              type: string
+            slots:
+              type: array
+              items:
+                $ref: "#/components/schemas/AvailabilitySlot"
+
+    CreateBookingHoldRequest:
+      type: object
+      required: [listingId, serviceOfferId, startAt]
+      properties:
+        listingId:
+          type: string
+          format: uuid
+        serviceOfferId:
+          type: string
+          format: uuid
+        startAt:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+
+    BookingHoldResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            holdStartsAt:
+              type: string
+              format: date-time
+            holdEndsAt:
+              type: string
+              format: date-time
+            expiresAt:
+              type: string
+              format: date-time
+            status:
+              type: string
+
+    CreateCheckoutRequest:
+      type: object
+      required: [listingId]
+      properties:
+        listingId:
+          type: string
+          format: uuid
+        holdId:
+          type: string
+          format: uuid
+        idempotencyKey:
+          type: string
+
+    CheckoutSessionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            orderId:
+              type: string
+              format: uuid
+            checkoutUrl:
+              type: string
+              nullable: true
+            sessionId:
+              type: string
+
+    Order:
+      type: object
+      required: [id, status, totalMinorUnits, currency]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        currency:
+          type: string
+        totalMinorUnits:
+          type: integer
+        platformFeeMinorUnits:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    OrdersResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Order"
+
+    LibraryResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+
+    BookingsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+
+    DownloadUrlResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            url:
+              type: string
+            expiresInSeconds:
+              type: integer
+            fileName:
+              type: string
+
+    Review:
+      type: object
+      required: [id, overallRating]
+      properties:
+        id:
+          type: string
+          format: uuid
+        overallRating:
+          type: integer
+        body:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateReviewRequest:
+      type: object
+      required: [orderItemId, overallRating]
+      properties:
+        orderItemId:
+          type: string
+          format: uuid
+        overallRating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        knowledgeRating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        communicationRating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        usefulnessRating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        body:
+          type: string
+
+    ReviewResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Review"
+
+    CreateReportRequest:
+      type: object
+      required: [subjectType, subjectId, category, description]
+      properties:
+        subjectType:
+          type: string
+          enum: [user, listing, review, message, asset]
+        subjectId:
+          type: string
+          format: uuid
+        category:
+          type: string
+        description:
+          type: string
+
+    ReportResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+
+    ReportsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+
+    NotificationsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+
+    UnreadCountResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            count:
+              type: integer
+
+    ConversationsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+
+    ConversationResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+
+    CreateConversationRequest:
+      type: object
+      required: [recipientId, firstMessage]
+      properties:
+        recipientId:
+          type: string
+          format: uuid
+        listingId:
+          type: string
+          format: uuid
+        orderId:
+          type: string
+          format: uuid
+        firstMessage:
+          type: string
+
+    CreatorApplicationRequest:
+      type: object
+      required: [headline, universityId, courseId, graduationYear, academicResult, agreedToTerms]
+      properties:
+        headline:
+          type: string
+        universityId:
+          type: string
+          format: uuid
+        courseId:
+          type: string
+          format: uuid
+        graduationYear:
+          type: integer
+        academicResult:
+          type: string
+        agreedToTerms:
+          type: boolean
+
+    CreatorProfileResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+
+    UploadUrlRequest:
+      type: object
+      required: [fileName, mimeType, sizeBytes, claimType]
+      properties:
+        fileName:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+        claimType:
+          type: string
+
+    UploadUrlResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            uploadUrl:
+              type: string
+            storageKey:
+              type: string
+            expiresInSeconds:
+              type: integer
+
+    CreateListingRequest:
+      type: object
+      required: [type, title, description, price]
+      properties:
+        type:
+          type: string
+          enum: [service_offer, digital_product, recorded_course, group_session]
+        title:
+          type: string
+        description:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        primaryUniversityId:
+          type: string
+          format: uuid
+        primaryCourseId:
+          type: string
+          format: uuid
+        price:
+          type: object
+          required: [amountMinorUnits]
+          properties:
+            amountMinorUnits:
+              type: integer
+            currency:
+              type: string
+
+    AvailabilityRulesResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+
+    AvailabilityRuleResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+
+    CreateAvailabilityRuleRequest:
+      type: object
+      required: [dayOfWeek, startTimeUtc, endTimeUtc]
+      properties:
+        dayOfWeek:
+          type: integer
+          minimum: 0
+          maximum: 6
+        startTimeUtc:
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+        endTimeUtc:
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+
+    StripeOnboardingResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            onboardingUrl:
+              type: string
+
+    StripeStatusResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            status:
+              type: string
+            payoutsEnabled:
+              type: boolean
+            chargesEnabled:
+              type: boolean
+
+    CreatorDashboardResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+
+    EarningsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+
+    AdminDashboardResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            gmvMinorUnits:
+              type: integer
+            platformRevenueMinorUnits:
+              type: integer
+            totalOrders:
+              type: integer
+            activeCreators:
+              type: integer
+            pendingApplications:
+              type: integer
+            pendingListingModeration:
+              type: integer
+            openReports:
+              type: integer
+
+    ApplicationsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+
+    AdminUsersResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+
+    AuditLogsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+
+    CommissionRulesResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+
+    CommissionRuleResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+
+    CreateCommissionRuleRequest:
+      type: object
+      required: [scope, rateBasisPoints]
+      properties:
+        scope:
+          type: string
+          enum: [global, creator, category]
+        scopeId:
+          type: string
+          format: uuid
+        offerType:
+          type: string
+        rateBasisPoints:
+          type: integer
+          minimum: 0
+          maximum: 10000
+        description:
+          type: string
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Access denied
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: Resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

@@ -1,0 +1,1 @@
+- [Aced backend architecture](aced-backend.md) — Express 5, Drizzle ORM, session auth, Stripe Connect; key env vars and codegen quirk documented.
