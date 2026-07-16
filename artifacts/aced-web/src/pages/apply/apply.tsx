@@ -10,6 +10,7 @@ import {
   getVerificationUploadUrl,
   useGetApplicationConfig,
   getGetApplicationConfigQueryKey,
+  useGetApplicationStatus,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -421,29 +422,194 @@ export default function Apply() {
   );
 }
 
+// ─── Status icons ─────────────────────────────────────────────────────────────
+
+function ClockIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 6 9 17l-5-5"/>
+    </svg>
+  );
+}
+
+function XIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+    </svg>
+  );
+}
+
+function ClipboardIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+      <path d="M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1Z"/>
+      <path d="m9 14 2 2 4-4"/>
+    </svg>
+  );
+}
+
+// ─── Sub-views ────────────────────────────────────────────────────────────────
+
+function PendingStatus({ status, submittedAt }: { status: string; submittedAt: string }) {
+  const submitted = new Date(submittedAt);
+  const reviewBy = new Date(submitted.getTime() + 48 * 60 * 60 * 1000);
+  const label =
+    status === 'under_review' ? 'Under Review' :
+    status === 'changes_requested' ? 'Changes Requested' :
+    'Application Received';
+
+  return (
+    <>
+      <div className="h-20 w-20 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-6">
+        <ClockIcon />
+      </div>
+      <h1 className="text-3xl font-bold font-serif mb-3">{label}</h1>
+      <p className="text-muted-foreground mb-6">
+        {status === 'changes_requested'
+          ? "Our team has requested some changes to your application. We'll be in touch by email with the details."
+          : "Thanks for applying to join as an Ace! Our team is reviewing your academic credentials."}
+      </p>
+      <div className="p-4 bg-muted rounded-lg mb-6 text-sm text-left space-y-2">
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Submitted</span>
+          <span className="font-medium">{submitted.toLocaleDateString(undefined, { dateStyle: 'medium' })}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Estimated review by</span>
+          <span className="font-medium">{reviewBy.toLocaleDateString(undefined, { dateStyle: 'medium' })}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Status</span>
+          <span className="font-medium capitalize">{status.replace('_', ' ')}</span>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground mb-6">We'll send you an email when a decision has been made.</p>
+      <Button size="lg" className="w-full" asChild>
+        <Link href="/dashboard">Return to Dashboard</Link>
+      </Button>
+    </>
+  );
+}
+
+function ApprovedStatus() {
+  return (
+    <>
+      <div className="h-20 w-20 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-6">
+        <CheckIcon />
+      </div>
+      <h1 className="text-3xl font-bold font-serif mb-3">You're Approved! 🎉</h1>
+      <p className="text-muted-foreground mb-6">
+        Congratulations — your application has been approved. You're ready to start earning on Aced.
+      </p>
+      <div className="p-4 bg-muted rounded-lg mb-6 text-sm text-left">
+        <div className="font-semibold mb-2">Get started:</div>
+        <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
+          <li>Set up your Stripe account to receive payouts</li>
+          <li>Customise your creator studio and storefront</li>
+          <li>Create your first listing and go live</li>
+        </ol>
+      </div>
+      <div className="space-y-3">
+        <Button size="lg" className="w-full" asChild>
+          <Link href="/creator/stripe/setup">Set Up Stripe Payouts</Link>
+        </Button>
+        <Button size="lg" variant="outline" className="w-full" asChild>
+          <Link href="/studio">Go to My Studio</Link>
+        </Button>
+      </div>
+    </>
+  );
+}
+
+function RejectedStatus() {
+  return (
+    <>
+      <div className="h-20 w-20 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto mb-6">
+        <XIcon />
+      </div>
+      <h1 className="text-3xl font-bold font-serif mb-3">Application Unsuccessful</h1>
+      <p className="text-muted-foreground mb-6">
+        Unfortunately we weren't able to approve your application at this time. This is usually due to academic credential requirements not being met.
+      </p>
+      <div className="p-4 bg-muted rounded-lg mb-6 text-sm text-left">
+        <div className="font-semibold mb-2">What happens next:</div>
+        <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+          <li>You can re-apply once you have additional supporting credentials</li>
+          <li>Check your email for specific feedback from our team</li>
+          <li>You may continue browsing and booking sessions as a learner</li>
+        </ul>
+      </div>
+      <div className="space-y-3">
+        <Button size="lg" className="w-full" asChild>
+          <Link href="/apply">Re-apply</Link>
+        </Button>
+        <Button size="lg" variant="outline" className="w-full" asChild>
+          <Link href="/dashboard">Back to Dashboard</Link>
+        </Button>
+      </div>
+    </>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export function ApplyStatus() {
+  const { data, isLoading } = useGetApplicationStatus();
+  const application = data?.data;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-muted/20 flex items-center justify-center">
+        <div className="text-muted-foreground text-sm animate-pulse">Loading your application…</div>
+      </div>
+    );
+  }
+
+  // No application found — show the generic confirmation (just submitted flow)
+  if (!application) {
+    return (
+      <div className="min-h-screen bg-muted/20 flex flex-col items-center py-20 px-4">
+        <Card className="max-w-md w-full text-center">
+          <CardContent className="pt-12 pb-12 px-6">
+            <div className="h-20 w-20 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-6">
+              <ClipboardIcon />
+            </div>
+            <h1 className="text-3xl font-bold font-serif mb-4">Application Received</h1>
+            <p className="text-muted-foreground mb-8">
+              Thanks for applying! Our team is reviewing your academic credentials. We aim to process all applications within 48 hours.
+            </p>
+            <Button size="lg" className="w-full" asChild>
+              <Link href="/dashboard">Return to Dashboard</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const { status, createdAt } = application;
+
   return (
     <div className="min-h-screen bg-muted/20 flex flex-col items-center py-20 px-4">
       <Card className="max-w-md w-full text-center">
         <CardContent className="pt-12 pb-12 px-6">
-          <div className="h-20 w-20 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="h-10 w-10" />
-          </div>
-          <h1 className="text-3xl font-bold font-serif mb-4">Application Received</h1>
-          <p className="text-muted-foreground mb-8">
-            Thanks for applying to join as an Ace! Our team is reviewing your academic credentials and documents. We aim to process all applications within 48 hours.
-          </p>
-          <div className="p-4 bg-muted rounded-lg mb-8 text-sm text-left">
-            <div className="font-semibold mb-2">Next steps:</div>
-            <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
-              <li>Wait for email confirmation of your review outcome</li>
-              <li>Set up your Stripe account for payouts</li>
-              <li>Create your storefront and first listing</li>
-            </ol>
-          </div>
-          <Button size="lg" className="w-full" asChild>
-            <Link href="/dashboard">Return to Dashboard</Link>
-          </Button>
+          {status === 'approved' ? (
+            <ApprovedStatus />
+          ) : status === 'closed' ? (
+            <RejectedStatus />
+          ) : (
+            <PendingStatus status={status} submittedAt={createdAt} />
+          )}
         </CardContent>
       </Card>
     </div>

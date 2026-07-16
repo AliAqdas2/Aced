@@ -4380,3 +4380,64 @@ export const useCreateCommissionRule = <TError = ErrorType<unknown>,
       return useMutation(getCreateCommissionRuleMutationOptions(options));
     }
 
+
+// ─── Creator Application Status ─────────────────────────────────────────────
+
+export interface ApplicationStatusData {
+  id: string;
+  status: 'draft' | 'submitted' | 'under_review' | 'changes_requested' | 'approved' | 'suspended' | 'closed';
+  headline: string | null;
+  stripeAccountStatus: string;
+  verifiedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  expertise: { id: string; academicResult: string | null; graduationYear: number | null }[];
+  verifications: { id: string; claimType: string; status: string }[];
+}
+
+export interface ApplicationStatusResponse {
+  data: ApplicationStatusData | null;
+}
+
+export const getGetApplicationStatusUrl = () => {
+  return `/api/v1/creator/applications/status`;
+};
+
+/**
+ * @summary Get the current user's creator application status
+ */
+export const getApplicationStatus = async (options?: RequestInit): Promise<ApplicationStatusResponse> => {
+  return customFetch<ApplicationStatusResponse>(getGetApplicationStatusUrl(), {
+    ...options,
+    method: 'GET',
+  });
+};
+
+export const getGetApplicationStatusQueryKey = () => {
+  return [`/api/v1/creator/applications/status`] as const;
+};
+
+export const getGetApplicationStatusQueryOptions = <TData = Awaited<ReturnType<typeof getApplicationStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getApplicationStatus>>, TError, TData>; request?: SecondParameter<typeof customFetch> }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetApplicationStatusQueryKey();
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApplicationStatus>>> = ({ signal }) =>
+    getApplicationStatus({ signal, ...requestOptions });
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getApplicationStatus>>, TError, TData> & { queryKey: QueryKey };
+};
+
+export type GetApplicationStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getApplicationStatus>>>;
+export type GetApplicationStatusQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the current user's creator application status
+ */
+export function useGetApplicationStatus<TData = Awaited<ReturnType<typeof getApplicationStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getApplicationStatus>>, TError, TData>; request?: SecondParameter<typeof customFetch> }
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetApplicationStatusQueryOptions(options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
