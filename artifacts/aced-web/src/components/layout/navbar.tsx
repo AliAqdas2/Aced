@@ -64,7 +64,7 @@ export function Navbar() {
             </Link>
             {!isCreator && (
               <Link href="/become-a-creator" className="text-sm font-bold tracking-tight hover:text-primary transition-colors">
-                Become a Creator
+                Join as an Ace
               </Link>
             )}
           </div>

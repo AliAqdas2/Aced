@@ -62,7 +62,7 @@ export function HowItWorks() {
 export function BecomeACreator() {
   return (
     <div className="container mx-auto px-4 py-20 max-w-4xl">
-      <h1 className="font-serif text-4xl md:text-5xl font-bold mb-6 text-center">Become a Creator</h1>
+      <h1 className="font-serif text-4xl md:text-5xl font-bold mb-6 text-center">Join as an Ace</h1>
       <p className="text-xl text-muted-foreground text-center mb-16 max-w-2xl mx-auto">
         Monetise your academic success. Join the UK's premium marketplace for top students.
       </p>
