@@ -331,6 +331,77 @@ router.get(
   }
 );
 
+// GET /api/v1/admin/orders/export — download all paid orders as CSV
+router.get(
+  "/admin/orders/export",
+  requireRole("finance"),
+  async (_req, res): Promise<void> => {
+    const rows = await db
+      .select({
+        orderId: ordersTable.id,
+        createdAt: ordersTable.createdAt,
+        buyerEmail: usersTable.email,
+        listingTitle: orderItemsTable.listingTitleSnapshot,
+        creatorId: orderItemsTable.creatorIdSnapshot,
+        grossMinorUnits: orderItemsTable.unitAmountMinorUnits,
+        platformFeeMinorUnits: orderItemsTable.platformFeeMinorUnits,
+        creatorProceedsMinorUnits: orderItemsTable.creatorProceedsMinorUnits,
+        commissionRateBasisPoints: orderItemsTable.commissionRateBasisPoints,
+      })
+      .from(ordersTable)
+      .innerJoin(usersTable, eq(usersTable.id, ordersTable.buyerId))
+      .innerJoin(orderItemsTable, eq(orderItemsTable.orderId, ordersTable.id))
+      .where(eq(ordersTable.status, "paid"))
+      .orderBy(desc(ordersTable.createdAt));
+
+    const headers = [
+      "Order ID",
+      "Date",
+      "Buyer Email",
+      "Creator ID",
+      "Listing Title",
+      "Gross Amount (£)",
+      "Platform Fee (£)",
+      "Creator Proceeds (£)",
+      "Commission Rate",
+    ];
+
+    // Neutralize CSV formula injection: prefix values starting with formula
+    // characters (=, +, -, @, TAB, CR) with a tab so spreadsheet apps treat
+    // the cell as plain text rather than a formula.
+    const sanitize = (v: string): string => {
+      const s = String(v);
+      return /^[=+\-@\t\r]/.test(s) ? `\t${s}` : s;
+    };
+    const escape = (v: string) => `"${sanitize(v).replace(/"/g, '""')}"`;
+    const toGBP = (minor: number) => (minor / 100).toFixed(2);
+
+    const csvRows = [
+      headers.map(escape).join(","),
+      ...rows.map((r) =>
+        [
+          r.orderId,
+          r.createdAt.toISOString(),
+          r.buyerEmail,
+          r.creatorId,
+          r.listingTitle,
+          toGBP(r.grossMinorUnits),
+          toGBP(r.platformFeeMinorUnits),
+          toGBP(r.creatorProceedsMinorUnits),
+          `${(r.commissionRateBasisPoints / 100).toFixed(1)}%`,
+        ]
+          .map(escape)
+          .join(",")
+      ),
+    ].join("\r\n");
+
+    const filename = `aced-transactions-${new Date().toISOString().split("T")[0]}.csv`;
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(csvRows);
+  }
+);
+
 // POST /api/v1/admin/orders/:id/refund
 router.post(
   "/admin/orders/:id/refund",
