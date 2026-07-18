@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
+import { syncBookingCreated } from "../../lib/calendar-sync";
 import { db } from "@workspace/db";
 import {
   availabilityRulesTable,
@@ -403,6 +404,25 @@ router.post("/bookings/confirm", requireAuth, async (req, res): Promise<void> =>
       learnerTimezone: timezone,
     })
     .returning();
+
+  // Fire-and-forget calendar sync
+  const [cp] = await db
+    .select({ userId: creatorProfilesTable.userId })
+    .from(creatorProfilesTable)
+    .where(eq(creatorProfilesTable.id, listing.creatorId))
+    .limit(1);
+
+  if (cp) {
+    syncBookingCreated({
+      bookingId: booking.id,
+      listingTitle: listing.title,
+      scheduledStartAt: startDate,
+      scheduledEndAt: endDate,
+      meetingLink: null,
+      learnerId,
+      creatorUserId: cp.userId,
+    }).catch(() => {});
+  }
 
   res.status(201).json({ data: { bookingId: booking.id, status: "confirmed" } });
 });

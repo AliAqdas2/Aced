@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
+import { syncBookingCancelled } from "../../lib/calendar-sync";
 import { db } from "@workspace/db";
 import {
   entitlementsTable,
@@ -337,6 +338,9 @@ router.post("/bookings/:id/cancel", requireAuth, async (req, res): Promise<void>
     .set({ status: "cancelled", cancellationReason: parsed.data.reason })
     .where(eq(bookingsTable.id, id))
     .returning();
+
+  // Fire-and-forget calendar event deletion — looks up all mapping rows internally
+  syncBookingCancelled(booking.id).catch(() => {});
 
   res.json({ data: updated });
 });

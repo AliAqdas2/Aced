@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
+import { syncBookingCreated } from "../../lib/calendar-sync";
 import { db } from "@workspace/db";
 import {
   ordersTable,
@@ -385,7 +386,7 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
             .where(eq(listingsTable.id, hold.listingId))
             .limit(1);
 
-          await db.insert(bookingsTable).values({
+          const [newBooking] = await db.insert(bookingsTable).values({
             holdId,
             orderId,
             learnerId: order.buyerId,
@@ -395,7 +396,27 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
             scheduledStartAt: hold.holdStartsAt,
             scheduledEndAt: hold.holdEndsAt,
             status: "confirmed",
-          });
+          }).returning();
+
+          // Sync to calendars — fire-and-forget, must not block webhook
+          if (newBooking) {
+            const [cp] = await db.select({ userId: creatorProfilesTable.userId })
+              .from(creatorProfilesTable)
+              .where(eq(creatorProfilesTable.id, listing.creatorId))
+              .limit(1);
+
+            if (cp) {
+              syncBookingCreated({
+                bookingId: newBooking.id,
+                listingTitle: listing.title,
+                scheduledStartAt: hold.holdStartsAt,
+                scheduledEndAt: hold.holdEndsAt,
+                meetingLink: null,
+                learnerId: order.buyerId,
+                creatorUserId: cp.userId,
+              }).catch(() => {}); // non-blocking
+            }
+          }
         }
       }
 

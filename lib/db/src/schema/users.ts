@@ -109,6 +109,27 @@ export const emailVerificationsTable = pgTable("email_verifications", {
     .defaultNow(),
 });
 
+export const calendarProviderEnum = pgEnum("calendar_provider", ["google", "microsoft"]);
+
+export const calendarConnectionsTable = pgTable("calendar_connections", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  provider: calendarProviderEnum("provider").notNull(),
+  encryptedAccessToken: text("encrypted_access_token").notNull(),
+  encryptedRefreshToken: text("encrypted_refresh_token").notNull(),
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  providerEmail: text("provider_email"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export type CalendarConnection = typeof calendarConnectionsTable.$inferSelect;
+
 export const insertUserSchema = createInsertSchema(usersTable).omit({
   id: true,
   createdAt: true,

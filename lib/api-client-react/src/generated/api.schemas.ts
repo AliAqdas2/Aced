@@ -800,6 +800,25 @@ export interface CreateAvailabilityExceptionRequest {
   reason?: string;
 }
 
+export type CalendarConnectionsResponseDataItemProvider = typeof CalendarConnectionsResponseDataItemProvider[keyof typeof CalendarConnectionsResponseDataItemProvider];
+
+
+export const CalendarConnectionsResponseDataItemProvider = {
+  google: 'google',
+  microsoft: 'microsoft',
+} as const;
+
+export type CalendarConnectionsResponseDataItem = {
+  id?: string;
+  provider?: CalendarConnectionsResponseDataItemProvider;
+  providerEmail?: string | null;
+  createdAt?: string;
+};
+
+export interface CalendarConnectionsResponse {
+  data: CalendarConnectionsResponseDataItem[];
+}
+
 /**
  * Resource not found
  */
@@ -883,6 +902,14 @@ to?: string;
 
 export type StripeWebhook200 = {
   received?: boolean;
+};
+
+export type InitiateGoogleCalendarOAuthParams = {
+returnTo?: string;
+};
+
+export type InitiateMicrosoftCalendarOAuthParams = {
+returnTo?: string;
 };
 
 export type GetAdminApplicationsParams = {

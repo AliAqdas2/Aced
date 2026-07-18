@@ -999,6 +999,54 @@ export const UpdateProfileResponse = zod.object({
 
 
 /**
+ * @summary List connected calendar accounts
+ */
+export const ListCalendarConnectionsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.uuid().optional(),
+  "provider": zod.enum(['google', 'microsoft']).optional(),
+  "providerEmail": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}))
+})
+
+
+/**
+ * @summary Disconnect a calendar provider
+ */
+export const DisconnectCalendarParams = zod.object({
+  "provider": zod.enum(['google', 'microsoft'])
+})
+
+export const DisconnectCalendarResponse = zod.object({
+  "data": zod.object({
+  "message": zod.string().optional(),
+  "success": zod.boolean().optional()
+})
+})
+
+
+/**
+ * @summary Start Google Calendar OAuth flow
+ */
+export const InitiateGoogleCalendarOAuthQueryParams = zod.object({
+  "returnTo": zod.coerce.string().optional()
+})
+
+export const InitiateGoogleCalendarOAuthResponse = zod.void()
+
+
+/**
+ * @summary Start Microsoft (Outlook) Calendar OAuth flow
+ */
+export const InitiateMicrosoftCalendarOAuthQueryParams = zod.object({
+  "returnTo": zod.coerce.string().optional()
+})
+
+export const InitiateMicrosoftCalendarOAuthResponse = zod.void()
+
+
+/**
  * @summary Get a public student profile by user ID
  */
 export const GetStudentProfileParams = zod.object({

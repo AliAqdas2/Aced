@@ -7,6 +7,7 @@ import {
   Clock, 
   FileText, 
   MessageSquare, 
+  Settings,
   Store, 
   Wallet
 } from 'lucide-react';
@@ -44,6 +45,11 @@ const studioNavItems = [
     title: 'Earnings',
     href: '/studio/earnings',
     icon: Wallet,
+  },
+  {
+    title: 'Settings',
+    href: '/studio/settings',
+    icon: Settings,
   },
   {
     title: 'Messages',

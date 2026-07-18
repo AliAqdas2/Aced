@@ -3,11 +3,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/hooks/use-auth';
-import {
-  useUpdateProfile,
-  useListUniversities,
-  getGetMeQueryKey,
-} from '@workspace/api-client-react';
+import { useUpdateProfile, getGetMeQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,26 +17,17 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { CheckCircle, ExternalLink } from 'lucide-react';
-import { Link } from 'wouter';
+import { CheckCircle } from 'lucide-react';
 import { CalendarConnectCard } from '@/components/calendar-connect-card';
 
 const profileSchema = z.object({
   displayName: z.string().min(1, 'Name is required').max(100),
   bio: z.string().max(500).optional(),
-  universityId: z.string().uuid().optional().nullable(),
 });
 
 type ProfileForm = z.infer<typeof profileSchema>;
 
-export default function Profile() {
+export default function StudioSettings() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [saved, setSaved] = useState(false);
@@ -48,28 +35,21 @@ export default function Profile() {
   const profile = user?.profile as {
     displayName?: string;
     bio?: string;
-    universityId?: string | null;
   } | null;
-
-  const { data: uniData } = useListUniversities();
-  const universities = (uniData?.data ?? []) as Array<{ id: string; name: string }>;
 
   const form = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
       displayName: profile?.displayName ?? '',
       bio: profile?.bio ?? '',
-      universityId: profile?.universityId ?? null,
     },
   });
 
-  // Re-populate when user data arrives
   useEffect(() => {
     if (profile) {
       form.reset({
         displayName: profile.displayName ?? '',
         bio: profile.bio ?? '',
-        universityId: profile.universityId ?? null,
       });
     }
   }, [user]);
@@ -87,36 +67,21 @@ export default function Profile() {
   function onSubmit(values: ProfileForm) {
     setSaved(false);
     updateMutation.mutate({
-      data: {
-        displayName: values.displayName,
-        bio: values.bio ?? '',
-        universityId: values.universityId ?? null,
-      },
+      data: { displayName: values.displayName, bio: values.bio ?? '' },
     });
   }
 
-  const publicProfileUrl = user?.id ? `/students/${user.id}` : null;
-
   return (
     <div className="space-y-6 max-w-2xl">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold font-serif">Settings</h1>
-          <p className="text-muted-foreground">Manage your account settings and preferences.</p>
-        </div>
-        {publicProfileUrl && (
-          <Button variant="outline" size="sm" className="gap-2 mt-1" asChild>
-            <Link href={publicProfileUrl}>
-              <ExternalLink className="h-4 w-4" />
-              View public profile
-            </Link>
-          </Button>
-        )}
+      <div>
+        <h1 className="text-3xl font-bold font-serif">Settings</h1>
+        <p className="text-muted-foreground">Manage your creator account settings.</p>
       </div>
 
+      {/* Profile */}
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-          <Card>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <Card className="border-border/50">
             <CardHeader>
               <CardTitle>Profile Information</CardTitle>
             </CardHeader>
@@ -138,9 +103,6 @@ export default function Profile() {
               <div className="space-y-2">
                 <FormLabel className="text-sm font-medium">Email Address</FormLabel>
                 <Input value={user?.email ?? ''} disabled />
-                <p className="text-xs text-muted-foreground">
-                  Email addresses cannot be changed directly.
-                </p>
               </div>
 
               <FormField
@@ -148,48 +110,19 @@ export default function Profile() {
                 name="bio"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Bio <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                    <FormLabel>
+                      Bio{' '}
+                      <span className="text-muted-foreground font-normal">(optional)</span>
+                    </FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Tell other students a little about yourself…"
+                        placeholder="Tell students about yourself and your teaching style…"
                         className="resize-none"
                         rows={3}
                         {...field}
                       />
                     </FormControl>
                     <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="universityId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>University <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
-                    <Select
-                      value={field.value ?? ''}
-                      onValueChange={(v) => field.onChange(v || null)}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select your university" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="">None</SelectItem>
-                        {universities.map((u) => (
-                          <SelectItem key={u.id} value={u.id}>
-                            {u.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                    <p className="text-xs text-muted-foreground">
-                      Shown on your public profile so students can find peers at the same uni.
-                    </p>
                   </FormItem>
                 )}
               />
@@ -204,16 +137,14 @@ export default function Profile() {
                     Saved
                   </span>
                 )}
-                {updateMutation.isError && (
-                  <span className="text-sm text-destructive">Failed to save. Try again.</span>
-                )}
               </div>
             </CardContent>
           </Card>
         </form>
       </Form>
 
-      <CalendarConnectCard returnTo="/profile" />
+      {/* Calendar */}
+      <CalendarConnectCard returnTo="/studio/settings" />
     </div>
   );
 }

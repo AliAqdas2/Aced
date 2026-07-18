@@ -50,6 +50,7 @@ import StudioAvailability from '@/pages/creator/studio-availability';
 import StudioBookings from '@/pages/creator/studio-bookings';
 import StudioEarnings from '@/pages/creator/studio-earnings';
 import StudioMessages from '@/pages/creator/studio-messages';
+import StudioSettings from '@/pages/creator/studio-settings';
 
 // Admin Pages
 import AdminDashboard from '@/pages/admin/admin-dashboard';
@@ -164,6 +165,9 @@ function Router() {
       </Route>
       <Route path="/studio/messages">
         <StudioLayout><StudioMessages /></StudioLayout>
+      </Route>
+      <Route path="/studio/settings">
+        <StudioLayout><StudioSettings /></StudioLayout>
       </Route>
 
       {/* Learner Dashboard Routes */}

@@ -36,6 +36,8 @@ tags:
     description: Admin and operations portal
   - name: creator-dashboard
     description: Creator dashboard and earnings
+  - name: profile
+    description: User profile and calendar connections
 paths:
   /healthz:
     get:
@@ -979,6 +981,67 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UpdateProfileResponse"
+
+  /v1/profile/calendars:
+    get:
+      operationId: listCalendarConnections
+      tags: [profile]
+      summary: List connected calendar accounts
+      responses:
+        "200":
+          description: Connected calendars
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarConnectionsResponse"
+
+  /v1/profile/calendars/{provider}:
+    delete:
+      operationId: disconnectCalendar
+      tags: [profile]
+      summary: Disconnect a calendar provider
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [google, microsoft]
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /v1/auth/google/calendar:
+    get:
+      operationId: initiateGoogleCalendarOAuth
+      tags: [profile]
+      summary: Start Google Calendar OAuth flow
+      parameters:
+        - name: returnTo
+          in: query
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to Google OAuth
+
+  /v1/auth/microsoft/calendar:
+    get:
+      operationId: initiateMicrosoftCalendarOAuth
+      tags: [profile]
+      summary: Start Microsoft (Outlook) Calendar OAuth flow
+      parameters:
+        - name: returnTo
+          in: query
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to Microsoft OAuth
 
   /v1/students/{id}:
     get:
@@ -2491,6 +2554,28 @@ components:
         reason:
           type: string
 
+
+    CalendarConnectionsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              provider:
+                type: string
+                enum: [google, microsoft]
+              providerEmail:
+                type: string
+                nullable: true
+              createdAt:
+                type: string
+                format: date-time
 
   responses:
     NotFound:
