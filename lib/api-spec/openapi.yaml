@@ -827,6 +827,76 @@ paths:
               schema:
                 $ref: "#/components/schemas/AvailabilityRuleResponse"
 
+  /v1/creator/availability/rules/{id}:
+    delete:
+      operationId: deleteAvailabilityRule
+      tags: [availability]
+      summary: Delete an availability rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Rule deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /v1/creator/availability/exceptions:
+    get:
+      operationId: getAvailabilityExceptions
+      tags: [availability]
+      summary: Get creator availability exceptions (blocked dates)
+      responses:
+        "200":
+          description: Exceptions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityExceptionsResponse"
+    post:
+      operationId: createAvailabilityException
+      tags: [availability]
+      summary: Block a date
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAvailabilityExceptionRequest"
+      responses:
+        "201":
+          description: Exception created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityExceptionResponse"
+
+  /v1/creator/availability/exceptions/{id}:
+    delete:
+      operationId: deleteAvailabilityException
+      tags: [availability]
+      summary: Remove a blocked date
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Exception removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
   /v1/admin/dashboard:
     get:
       operationId: getAdminDashboard
@@ -1804,7 +1874,7 @@ components:
 
     CreateListingRequest:
       type: object
-      required: [type, title, description, price]
+      required: [type, title, description]
       properties:
         type:
           type: string
@@ -1823,14 +1893,36 @@ components:
         primaryCourseId:
           type: string
           format: uuid
+        isFree:
+          type: boolean
+          description: If true, listing is free and price is ignored
         price:
           type: object
-          required: [amountMinorUnits]
           properties:
             amountMinorUnits:
               type: integer
+              minimum: 0
             currency:
               type: string
+        serviceOffer:
+          type: object
+          properties:
+            durationMinutes:
+              type: integer
+              enum: [30, 45, 60, 90]
+            deliveryMode:
+              type: string
+              enum: [online, in_person, hybrid]
+            minNoticeHours:
+              type: integer
+            bookingHorizonDays:
+              type: integer
+            cancellationHoursNotice:
+              type: integer
+            bufferMinutesBefore:
+              type: integer
+            bufferMinutesAfter:
+              type: integer
 
     AvailabilityRulesResponse:
       type: object
@@ -1840,6 +1932,18 @@ components:
           type: array
           items:
             type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              dayOfWeek:
+                type: integer
+              startTimeUtc:
+                type: string
+              endTimeUtc:
+                type: string
+              isActive:
+                type: boolean
 
     AvailabilityRuleResponse:
       type: object
@@ -1847,6 +1951,18 @@ components:
       properties:
         data:
           type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            dayOfWeek:
+              type: integer
+            startTimeUtc:
+              type: string
+            endTimeUtc:
+              type: string
+            isActive:
+              type: boolean
 
     CreateAvailabilityRuleRequest:
       type: object
@@ -1858,10 +1974,8 @@ components:
           maximum: 6
         startTimeUtc:
           type: string
-          pattern: '^\d{2}:\d{2}$'
         endTimeUtc:
           type: string
-          pattern: '^\d{2}:\d{2}$'
 
     StripeOnboardingResponse:
       type: object
@@ -2177,6 +2291,59 @@ components:
           maximum: 10000
         description:
           type: string
+
+    AvailabilityExceptionsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              exceptionDate:
+                type: string
+                format: date
+              isBlocked:
+                type: boolean
+              reason:
+                type: string
+                nullable: true
+
+    AvailabilityExceptionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            exceptionDate:
+              type: string
+              format: date
+            isBlocked:
+              type: boolean
+            reason:
+              type: string
+              nullable: true
+
+    CreateAvailabilityExceptionRequest:
+      type: object
+      required: [exceptionDate]
+      properties:
+        exceptionDate:
+          type: string
+          format: date
+        isBlocked:
+          type: boolean
+        reason:
+          type: string
+
 
   responses:
     NotFound:

@@ -663,6 +663,10 @@ export const GetCreatorListingsResponse = zod.object({
 /**
  * @summary Create a new listing
  */
+export const createListingBodyPriceAmountMinorUnitsMin = 0;
+
+
+
 export const CreateListingBody = zod.object({
   "type": zod.enum(['service_offer', 'digital_product', 'recorded_course', 'group_session']),
   "title": zod.string(),
@@ -670,10 +674,20 @@ export const CreateListingBody = zod.object({
   "tags": zod.array(zod.string()).optional(),
   "primaryUniversityId": zod.uuid().optional(),
   "primaryCourseId": zod.uuid().optional(),
+  "isFree": zod.boolean().optional().describe('If true, listing is free and price is ignored'),
   "price": zod.object({
-  "amountMinorUnits": zod.number(),
+  "amountMinorUnits": zod.number().min(createListingBodyPriceAmountMinorUnitsMin).optional(),
   "currency": zod.string().optional()
-})
+}).optional(),
+  "serviceOffer": zod.object({
+  "durationMinutes": zod.union([zod.literal(30),zod.literal(45),zod.literal(60),zod.literal(90)]).optional(),
+  "deliveryMode": zod.enum(['online', 'in_person', 'hybrid']).optional(),
+  "minNoticeHours": zod.number().optional(),
+  "bookingHorizonDays": zod.number().optional(),
+  "cancellationHoursNotice": zod.number().optional(),
+  "bufferMinutesBefore": zod.number().optional(),
+  "bufferMinutesAfter": zod.number().optional()
+}).optional()
 })
 
 export const CreateListingResponse = zod.object({
@@ -780,8 +794,12 @@ export const GetStripeStatusResponse = zod.object({
  * @summary Get creator availability rules
  */
 export const GetAvailabilityRulesResponse = zod.object({
-  "data": zod.array(zod.looseObject({
-
+  "data": zod.array(zod.object({
+  "id": zod.uuid().optional(),
+  "dayOfWeek": zod.number().optional(),
+  "startTimeUtc": zod.string().optional(),
+  "endTimeUtc": zod.string().optional(),
+  "isActive": zod.boolean().optional()
 }))
 })
 
@@ -792,19 +810,83 @@ export const GetAvailabilityRulesResponse = zod.object({
 export const createAvailabilityRuleBodyDayOfWeekMin = 0;
 export const createAvailabilityRuleBodyDayOfWeekMax = 6;
 
-export const createAvailabilityRuleBodyStartTimeUtcRegExp = new RegExp('^\\d{2}:\\d{2}$');
-export const createAvailabilityRuleBodyEndTimeUtcRegExp = new RegExp('^\\d{2}:\\d{2}$');
 
 
 export const CreateAvailabilityRuleBody = zod.object({
   "dayOfWeek": zod.number().min(createAvailabilityRuleBodyDayOfWeekMin).max(createAvailabilityRuleBodyDayOfWeekMax),
-  "startTimeUtc": zod.string().regex(createAvailabilityRuleBodyStartTimeUtcRegExp),
-  "endTimeUtc": zod.string().regex(createAvailabilityRuleBodyEndTimeUtcRegExp)
+  "startTimeUtc": zod.string(),
+  "endTimeUtc": zod.string()
 })
 
 export const CreateAvailabilityRuleResponse = zod.object({
-  "data": zod.looseObject({
+  "data": zod.object({
+  "id": zod.uuid().optional(),
+  "dayOfWeek": zod.number().optional(),
+  "startTimeUtc": zod.string().optional(),
+  "endTimeUtc": zod.string().optional(),
+  "isActive": zod.boolean().optional()
+})
+})
 
+
+/**
+ * @summary Delete an availability rule
+ */
+export const DeleteAvailabilityRuleParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const DeleteAvailabilityRuleResponse = zod.object({
+  "data": zod.object({
+  "message": zod.string().optional(),
+  "success": zod.boolean().optional()
+})
+})
+
+
+/**
+ * @summary Get creator availability exceptions (blocked dates)
+ */
+export const GetAvailabilityExceptionsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.uuid().optional(),
+  "exceptionDate": zod.coerce.date().optional(),
+  "isBlocked": zod.boolean().optional(),
+  "reason": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Block a date
+ */
+export const CreateAvailabilityExceptionBody = zod.object({
+  "exceptionDate": zod.coerce.date(),
+  "isBlocked": zod.boolean().optional(),
+  "reason": zod.string().optional()
+})
+
+export const CreateAvailabilityExceptionResponse = zod.object({
+  "data": zod.object({
+  "id": zod.uuid().optional(),
+  "exceptionDate": zod.coerce.date().optional(),
+  "isBlocked": zod.boolean().optional(),
+  "reason": zod.string().nullish()
+})
+})
+
+
+/**
+ * @summary Remove a blocked date
+ */
+export const DeleteAvailabilityExceptionParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const DeleteAvailabilityExceptionResponse = zod.object({
+  "data": zod.object({
+  "message": zod.string().optional(),
+  "success": zod.boolean().optional()
 })
 })
 

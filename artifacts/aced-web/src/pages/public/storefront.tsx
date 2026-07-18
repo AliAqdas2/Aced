@@ -3,7 +3,7 @@ import { useGetStorefront, getGetStorefrontQueryKey } from '@workspace/api-clien
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Star, ShieldCheck, MapPin, BookOpen, User, GraduationCap, ArrowUpRight } from 'lucide-react';
+import { Star, ShieldCheck, MapPin, BookOpen, User, GraduationCap, ArrowUpRight, Clock, Calendar } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function Storefront() {
@@ -91,25 +91,56 @@ export default function Storefront() {
 
               <TabsContent value="listings" className="mt-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {listings?.map((listing: any) => (
-                    <Link key={listing.id} href={`/listings/${listing.id}`}>
-                      <Card className="hover-elevate cursor-pointer h-full flex flex-col group overflow-hidden border-border/50 hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 rounded-2xl bg-background shadow-sm hover:shadow-xl">
-                        <div className="aspect-[4/3] bg-muted relative border-b border-border/50 overflow-hidden">
-                          <div className="absolute inset-0 flex items-center justify-center bg-primary/5 group-hover:bg-primary/10 transition-colors">
-                            {listing.type === 'service_offer' ? <User className="h-12 w-12 text-primary/30 group-hover:scale-110 transition-transform duration-500" /> : <BookOpen className="h-12 w-12 text-primary/30 group-hover:scale-110 transition-transform duration-500" />}
+                  {listings?.map((listing: any) => {
+                    const isSession = listing.type === 'service_offer' || listing.type === 'group_session';
+                    const priceMinorUnits = listing.price ?? listing.activePrice?.amountMinorUnits;
+                    const isFree = !priceMinorUnits || priceMinorUnits === 0;
+                    return (
+                      <Card key={listing.id} className="h-full flex flex-col group overflow-hidden border-border/50 hover:border-primary/50 transition-all duration-300 hover:-translate-y-1 rounded-2xl bg-background shadow-sm hover:shadow-xl">
+                        <Link href={`/listings/${listing.id}`} className="block flex-1">
+                          <div className="aspect-[4/3] bg-muted relative border-b border-border/50 overflow-hidden">
+                            <div className="absolute inset-0 flex items-center justify-center bg-primary/5 group-hover:bg-primary/10 transition-colors">
+                              {isSession
+                                ? <User className="h-12 w-12 text-primary/30 group-hover:scale-110 transition-transform duration-500" />
+                                : <BookOpen className="h-12 w-12 text-primary/30 group-hover:scale-110 transition-transform duration-500" />}
+                            </div>
+                            {isSession && listing.serviceOffer?.durationMinutes && (
+                              <div className="absolute top-3 right-3 bg-background/90 backdrop-blur-sm text-foreground text-xs font-bold px-2.5 py-1 rounded-full border border-border/50 flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {listing.serviceOffer.durationMinutes} min
+                              </div>
+                            )}
                           </div>
-                        </div>
-                        <CardContent className="p-6 flex flex-col flex-1">
-                          <div className="text-xs font-bold text-primary tracking-widest uppercase mb-3">{listing.type.replace('_', ' ')}</div>
-                          <h3 className="font-bold text-xl mb-4 line-clamp-2 group-hover:text-primary transition-colors leading-tight">{listing.title}</h3>
-                          <div className="mt-auto pt-5 flex justify-between items-center text-sm border-t border-border/50">
-                            <div className="font-bold text-lg text-foreground">£{(listing.price / 100).toFixed(2)}</div>
-                            <div className="text-muted-foreground font-medium flex items-center"><Star className="h-4 w-4 text-primary fill-primary mr-1.5" /> 5.0</div>
+                          <CardContent className="p-6 flex flex-col flex-1">
+                            <div className="text-xs font-bold text-primary tracking-widest uppercase mb-3">
+                              {listing.type.replace(/_/g, ' ')}
+                            </div>
+                            <h3 className="font-bold text-xl mb-4 line-clamp-2 group-hover:text-primary transition-colors leading-tight">
+                              {listing.title}
+                            </h3>
+                            <div className="mt-auto pt-5 flex justify-between items-center text-sm border-t border-border/50">
+                              <div className="font-bold text-lg text-foreground">
+                                {isFree ? 'Free' : `£${(priceMinorUnits / 100).toFixed(2)}`}
+                              </div>
+                              <div className="text-muted-foreground font-medium flex items-center">
+                                <Star className="h-4 w-4 text-primary fill-primary mr-1.5" /> 5.0
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Link>
+                        {isSession && (
+                          <div className="px-6 pb-5">
+                            <Link href={`/listings/${listing.id}`}>
+                              <Button className="w-full gap-2 rounded-xl" size="sm">
+                                <Calendar className="h-4 w-4" />
+                                Book a session
+                              </Button>
+                            </Link>
                           </div>
-                        </CardContent>
+                        )}
                       </Card>
-                    </Link>
-                  ))}
+                    );
+                  })}
                   {(!listings || listings.length === 0) && (
                     <div className="col-span-full text-center py-24 border border-dashed rounded-2xl bg-muted/20">
                       <p className="text-muted-foreground font-medium text-lg">No listings available right now.</p>

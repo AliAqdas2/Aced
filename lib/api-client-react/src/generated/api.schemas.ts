@@ -443,8 +443,38 @@ export const CreateListingRequestType = {
 } as const;
 
 export type CreateListingRequestPrice = {
-  amountMinorUnits: number;
+  /** @minimum 0 */
+  amountMinorUnits?: number;
   currency?: string;
+};
+
+export type CreateListingRequestServiceOfferDurationMinutes = typeof CreateListingRequestServiceOfferDurationMinutes[keyof typeof CreateListingRequestServiceOfferDurationMinutes];
+
+
+export const CreateListingRequestServiceOfferDurationMinutes = {
+  NUMBER_30: 30,
+  NUMBER_45: 45,
+  NUMBER_60: 60,
+  NUMBER_90: 90,
+} as const;
+
+export type CreateListingRequestServiceOfferDeliveryMode = typeof CreateListingRequestServiceOfferDeliveryMode[keyof typeof CreateListingRequestServiceOfferDeliveryMode];
+
+
+export const CreateListingRequestServiceOfferDeliveryMode = {
+  online: 'online',
+  in_person: 'in_person',
+  hybrid: 'hybrid',
+} as const;
+
+export type CreateListingRequestServiceOffer = {
+  durationMinutes?: CreateListingRequestServiceOfferDurationMinutes;
+  deliveryMode?: CreateListingRequestServiceOfferDeliveryMode;
+  minNoticeHours?: number;
+  bookingHorizonDays?: number;
+  cancellationHoursNotice?: number;
+  bufferMinutesBefore?: number;
+  bufferMinutesAfter?: number;
 };
 
 export interface CreateListingRequest {
@@ -454,16 +484,31 @@ export interface CreateListingRequest {
   tags?: string[];
   primaryUniversityId?: string;
   primaryCourseId?: string;
-  price: CreateListingRequestPrice;
+  /** If true, listing is free and price is ignored */
+  isFree?: boolean;
+  price?: CreateListingRequestPrice;
+  serviceOffer?: CreateListingRequestServiceOffer;
 }
 
-export type AvailabilityRulesResponseDataItem = { [key: string]: unknown };
+export type AvailabilityRulesResponseDataItem = {
+  id?: string;
+  dayOfWeek?: number;
+  startTimeUtc?: string;
+  endTimeUtc?: string;
+  isActive?: boolean;
+};
 
 export interface AvailabilityRulesResponse {
   data: AvailabilityRulesResponseDataItem[];
 }
 
-export type AvailabilityRuleResponseData = { [key: string]: unknown };
+export type AvailabilityRuleResponseData = {
+  id?: string;
+  dayOfWeek?: number;
+  startTimeUtc?: string;
+  endTimeUtc?: string;
+  isActive?: boolean;
+};
 
 export interface AvailabilityRuleResponse {
   data: AvailabilityRuleResponseData;
@@ -475,9 +520,7 @@ export interface CreateAvailabilityRuleRequest {
      * @maximum 6
      */
   dayOfWeek: number;
-  /** @pattern ^\d{2}:\d{2}$ */
   startTimeUtc: string;
-  /** @pattern ^\d{2}:\d{2}$ */
   endTimeUtc: string;
 }
 
@@ -678,6 +721,34 @@ export interface CreateCommissionRuleRequest {
      */
   rateBasisPoints: number;
   description?: string;
+}
+
+export type AvailabilityExceptionsResponseDataItem = {
+  id?: string;
+  exceptionDate?: string;
+  isBlocked?: boolean;
+  reason?: string | null;
+};
+
+export interface AvailabilityExceptionsResponse {
+  data: AvailabilityExceptionsResponseDataItem[];
+}
+
+export type AvailabilityExceptionResponseData = {
+  id?: string;
+  exceptionDate?: string;
+  isBlocked?: boolean;
+  reason?: string | null;
+};
+
+export interface AvailabilityExceptionResponse {
+  data: AvailabilityExceptionResponseData;
+}
+
+export interface CreateAvailabilityExceptionRequest {
+  exceptionDate: string;
+  isBlocked?: boolean;
+  reason?: string;
 }
 
 /**

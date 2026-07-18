@@ -6,4 +6,10 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export type AvailabilityRuleResponseData = { [key: string]: unknown };
+export type AvailabilityRuleResponseData = {
+  id?: string;
+  dayOfWeek?: number;
+  startTimeUtc?: string;
+  endTimeUtc?: string;
+  isActive?: boolean;
+};

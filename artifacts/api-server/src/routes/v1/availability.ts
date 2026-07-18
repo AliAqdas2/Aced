@@ -360,6 +360,32 @@ router.delete(
   }
 );
 
+// GET /api/v1/creator/availability/exceptions
+router.get(
+  "/creator/availability/exceptions",
+  requireRole("creator"),
+  async (req, res): Promise<void> => {
+    const [cp] = await db
+      .select()
+      .from(creatorProfilesTable)
+      .where(eq(creatorProfilesTable.userId, req.session.userId!))
+      .limit(1);
+
+    if (!cp) {
+      res.status(404).json({ error: "Creator profile not found" });
+      return;
+    }
+
+    const exceptions = await db
+      .select()
+      .from(availabilityExceptionsTable)
+      .where(eq(availabilityExceptionsTable.creatorId, cp.id))
+      .orderBy(availabilityExceptionsTable.exceptionDate);
+
+    res.json({ data: exceptions });
+  }
+);
+
 // POST /api/v1/creator/availability/exceptions
 router.post(
   "/creator/availability/exceptions",
@@ -393,6 +419,37 @@ router.post(
       .returning();
 
     res.status(201).json({ data: exception });
+  }
+);
+
+// DELETE /api/v1/creator/availability/exceptions/:id
+router.delete(
+  "/creator/availability/exceptions/:id",
+  requireRole("creator"),
+  async (req, res): Promise<void> => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    const [cp] = await db
+      .select()
+      .from(creatorProfilesTable)
+      .where(eq(creatorProfilesTable.userId, req.session.userId!))
+      .limit(1);
+
+    if (!cp) {
+      res.status(404).json({ error: "Creator profile not found" });
+      return;
+    }
+
+    await db
+      .delete(availabilityExceptionsTable)
+      .where(
+        and(
+          eq(availabilityExceptionsTable.id, id),
+          eq(availabilityExceptionsTable.creatorId, cp.id)
+        )
+      );
+
+    res.json({ data: { success: true } });
   }
 );
 

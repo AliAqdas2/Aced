@@ -6,8 +6,8 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export type CreateListingRequestPrice = {
-  /** @minimum 0 */
-  amountMinorUnits?: number;
-  currency?: string;
-};
+export interface CreateAvailabilityExceptionRequest {
+  exceptionDate: Date;
+  isBlocked?: boolean;
+  reason?: string;
+}

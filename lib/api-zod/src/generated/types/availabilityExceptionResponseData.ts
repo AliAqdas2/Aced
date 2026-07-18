@@ -6,10 +6,9 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export type AvailabilityRulesResponseDataItem = {
+export type AvailabilityExceptionResponseData = {
   id?: string;
-  dayOfWeek?: number;
-  startTimeUtc?: string;
-  endTimeUtc?: string;
-  isActive?: boolean;
+  exceptionDate?: Date;
+  isBlocked?: boolean;
+  reason?: string | null;
 };

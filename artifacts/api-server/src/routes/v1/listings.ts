@@ -23,10 +23,13 @@ const CreateListingBody = z.object({
   tags: z.array(z.string()).default([]),
   primaryUniversityId: z.string().uuid().optional(),
   primaryCourseId: z.string().uuid().optional(),
-  price: z.object({
-    amountMinorUnits: z.number().int().positive(),
-    currency: z.string().length(3).default("GBP"),
-  }),
+  isFree: z.boolean().optional(),
+  price: z
+    .object({
+      amountMinorUnits: z.number().int().nonnegative(),
+      currency: z.string().length(3).default("GBP"),
+    })
+    .optional(),
   serviceOffer: z
     .object({
       durationMinutes: z.number().int().positive(),
@@ -152,11 +155,12 @@ router.post(
       })
       .returning();
 
-    // Create price record
+    // Create price record (free if isFree=true or price omitted)
+    const isFree = parsed.data.isFree === true || !parsed.data.price;
     await db.insert(priceRecordsTable).values({
       listingId: listing.id,
-      amountMinorUnits: parsed.data.price.amountMinorUnits,
-      currency: parsed.data.price.currency,
+      amountMinorUnits: isFree ? 0 : parsed.data.price!.amountMinorUnits,
+      currency: isFree ? "GBP" : (parsed.data.price!.currency ?? "GBP"),
       isActive: true,
     });
 

@@ -30,6 +30,8 @@ import type {
   ApplicationsResponse,
   AuditLogsResponse,
   AuthResponse,
+  AvailabilityExceptionResponse,
+  AvailabilityExceptionsResponse,
   AvailabilityResponse,
   AvailabilityRuleResponse,
   AvailabilityRulesResponse,
@@ -42,6 +44,7 @@ import type {
   ConflictResponse,
   ConversationResponse,
   ConversationsResponse,
+  CreateAvailabilityExceptionRequest,
   CreateAvailabilityRuleRequest,
   CreateBookingHoldRequest,
   CreateCheckoutRequest,
@@ -3428,6 +3431,296 @@ export const useCreateAvailabilityRule = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateAvailabilityRuleMutationOptions(options));
+    }
+
+export const getDeleteAvailabilityRuleUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/creator/availability/rules/${id}`
+}
+
+/**
+ * @summary Delete an availability rule
+ */
+export const deleteAvailabilityRule = async (id: string, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getDeleteAvailabilityRuleUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAvailabilityRuleMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAvailabilityRule>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAvailabilityRule>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['deleteAvailabilityRule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAvailabilityRule>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteAvailabilityRule(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAvailabilityRuleMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAvailabilityRule>>>
+
+    export type DeleteAvailabilityRuleMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete an availability rule
+ */
+export const useDeleteAvailabilityRule = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAvailabilityRule>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAvailabilityRule>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDeleteAvailabilityRuleMutationOptions(options));
+    }
+
+export const getGetAvailabilityExceptionsUrl = () => {
+
+
+
+
+  return `/api/v1/creator/availability/exceptions`
+}
+
+/**
+ * @summary Get creator availability exceptions (blocked dates)
+ */
+export const getAvailabilityExceptions = async ( options?: RequestInit): Promise<AvailabilityExceptionsResponse> => {
+
+  return customFetch<AvailabilityExceptionsResponse>(getGetAvailabilityExceptionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAvailabilityExceptionsQueryKey = () => {
+    return [
+    `/api/v1/creator/availability/exceptions`
+    ] as const;
+    }
+
+
+export const getGetAvailabilityExceptionsQueryOptions = <TData = Awaited<ReturnType<typeof getAvailabilityExceptions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAvailabilityExceptions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAvailabilityExceptionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAvailabilityExceptions>>> = ({ signal }) => getAvailabilityExceptions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAvailabilityExceptions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAvailabilityExceptionsQueryResult = NonNullable<Awaited<ReturnType<typeof getAvailabilityExceptions>>>
+export type GetAvailabilityExceptionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get creator availability exceptions (blocked dates)
+ */
+
+export function useGetAvailabilityExceptions<TData = Awaited<ReturnType<typeof getAvailabilityExceptions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAvailabilityExceptions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAvailabilityExceptionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAvailabilityExceptionUrl = () => {
+
+
+
+
+  return `/api/v1/creator/availability/exceptions`
+}
+
+/**
+ * @summary Block a date
+ */
+export const createAvailabilityException = async (createAvailabilityExceptionRequest: CreateAvailabilityExceptionRequest, options?: RequestInit): Promise<AvailabilityExceptionResponse> => {
+
+  return customFetch<AvailabilityExceptionResponse>(getCreateAvailabilityExceptionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createAvailabilityExceptionRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateAvailabilityExceptionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAvailabilityException>>, TError,{data: BodyType<CreateAvailabilityExceptionRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAvailabilityException>>, TError,{data: BodyType<CreateAvailabilityExceptionRequest>}, TContext> => {
+
+const mutationKey = ['createAvailabilityException'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAvailabilityException>>, {data: BodyType<CreateAvailabilityExceptionRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAvailabilityException(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAvailabilityExceptionMutationResult = NonNullable<Awaited<ReturnType<typeof createAvailabilityException>>>
+    export type CreateAvailabilityExceptionMutationBody = BodyType<CreateAvailabilityExceptionRequest>
+    export type CreateAvailabilityExceptionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Block a date
+ */
+export const useCreateAvailabilityException = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAvailabilityException>>, TError,{data: BodyType<CreateAvailabilityExceptionRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAvailabilityException>>,
+        TError,
+        {data: BodyType<CreateAvailabilityExceptionRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateAvailabilityExceptionMutationOptions(options));
+    }
+
+export const getDeleteAvailabilityExceptionUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/creator/availability/exceptions/${id}`
+}
+
+/**
+ * @summary Remove a blocked date
+ */
+export const deleteAvailabilityException = async (id: string, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getDeleteAvailabilityExceptionUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAvailabilityExceptionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAvailabilityException>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAvailabilityException>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['deleteAvailabilityException'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAvailabilityException>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteAvailabilityException(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAvailabilityExceptionMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAvailabilityException>>>
+
+    export type DeleteAvailabilityExceptionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove a blocked date
+ */
+export const useDeleteAvailabilityException = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAvailabilityException>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAvailabilityException>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDeleteAvailabilityExceptionMutationOptions(options));
     }
 
 export const getGetAdminDashboardUrl = () => {

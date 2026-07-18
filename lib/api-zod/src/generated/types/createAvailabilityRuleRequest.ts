@@ -12,8 +12,6 @@ export interface CreateAvailabilityRuleRequest {
      * @maximum 6
      */
   dayOfWeek: number;
-  /** @pattern ^\d{2}:\d{2}$ */
   startTimeUtc: string;
-  /** @pattern ^\d{2}:\d{2}$ */
   endTimeUtc: string;
 }

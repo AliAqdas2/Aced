@@ -6,6 +6,7 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { CreateListingRequestPrice } from './createListingRequestPrice';
+import type { CreateListingRequestServiceOffer } from './createListingRequestServiceOffer';
 import type { CreateListingRequestType } from './createListingRequestType';
 
 export interface CreateListingRequest {
@@ -15,5 +16,8 @@ export interface CreateListingRequest {
   tags?: string[];
   primaryUniversityId?: string;
   primaryCourseId?: string;
-  price: CreateListingRequestPrice;
+  /** If true, listing is free and price is ignored */
+  isFree?: boolean;
+  price?: CreateListingRequestPrice;
+  serviceOffer?: CreateListingRequestServiceOffer;
 }

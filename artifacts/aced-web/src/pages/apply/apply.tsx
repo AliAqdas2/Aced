@@ -11,6 +11,7 @@ import {
   useGetApplicationConfig,
   getGetApplicationConfigQueryKey,
   useGetApplicationStatus,
+  getGetApplicationStatusQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -583,6 +584,7 @@ export function ApplyStatus() {
 
   const { data, isLoading } = useGetApplicationStatus({
     query: {
+      queryKey: getGetApplicationStatusQueryKey(),
       refetchInterval: (query) => {
         const status = (query.state.data as { data?: { status?: string } } | undefined)?.data?.status;
         if (status && TERMINAL_STATUSES.includes(status)) return false;
