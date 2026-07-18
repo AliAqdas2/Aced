@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -575,8 +575,28 @@ function RejectedStatus() {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+const TERMINAL_STATUSES = ['approved', 'closed'];
+const POLL_INTERVAL_MS = 30_000;
+
 export function ApplyStatus() {
-  const { data, isLoading } = useGetApplicationStatus();
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
+
+  const { data, isLoading } = useGetApplicationStatus({
+    query: {
+      refetchInterval: (query) => {
+        const status = (query.state.data as { data?: { status?: string } } | undefined)?.data?.status;
+        if (status && TERMINAL_STATUSES.includes(status)) return false;
+        return POLL_INTERVAL_MS;
+      },
+      refetchIntervalInBackground: false,
+    },
+  });
+
+  // Update last-checked timestamp whenever we get fresh data
+  useEffect(() => {
+    if (!isLoading) setLastChecked(new Date());
+  }, [data, isLoading]);
+
   const application = data?.data;
 
   if (isLoading) {
@@ -612,6 +632,8 @@ export function ApplyStatus() {
   const status = application.status ?? 'submitted';
   const createdAt = application.createdAt ?? new Date().toISOString();
 
+  const isTerminal = TERMINAL_STATUSES.includes(status);
+
   return (
     <div className="min-h-screen bg-muted/20 flex flex-col items-center py-20 px-4">
       <Card className="max-w-md w-full text-center">
@@ -625,6 +647,11 @@ export function ApplyStatus() {
           )}
         </CardContent>
       </Card>
+      {!isTerminal && lastChecked && (
+        <p className="mt-4 text-xs text-muted-foreground">
+          Last checked {lastChecked.toLocaleTimeString(undefined, { timeStyle: 'short' })} · updates automatically
+        </p>
+      )}
     </div>
   );
 }
