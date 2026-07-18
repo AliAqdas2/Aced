@@ -99,6 +99,28 @@ export function buildCreatorApplicationEmail(opts: {
   `;
 }
 
+export function buildChangesRequestedEmail(opts: {
+  applicantName: string;
+  notes: string;
+  appUrl?: string;
+}): EmailPayload["html"] {
+  const statusUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://aced.co.uk"}/creator/apply/status`;
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #7B2FF7;">Changes Requested on Your Aced Application</h2>
+      <p>Hi ${opts.applicantName},</p>
+      <p>Our team has reviewed your creator application and is asking you to make some changes before we can proceed.</p>
+      <div style="background:#f9fafb;border-left:4px solid #7B2FF7;padding:12px 16px;margin:16px 0;border-radius:4px;">
+        <p style="margin:0;font-weight:bold;">Reviewer note:</p>
+        <p style="margin:8px 0 0;">${opts.notes}</p>
+      </div>
+      <p>Please visit your application status page to review the feedback and resubmit when you're ready.</p>
+      <a href="${statusUrl}" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#7B2FF7,#00D4FF);color:white;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:8px;">View Application Status</a>
+      <p style="color:#666;font-size:12px;margin-top:24px;">If you have questions, reply to this email and our team will be happy to help.</p>
+    </div>
+  `;
+}
+
 export function buildBookingConfirmationEmail(opts: {
   learnerName: string;
   creatorName: string;

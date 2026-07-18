@@ -15,7 +15,7 @@ import { eq, and } from "drizzle-orm";
 import { requireAuth, requireRole } from "../../middlewares/auth";
 import { generateUploadUrl } from "../../lib/storage";
 import { logAuditEvent } from "../../lib/auth";
-import { sendEmail, buildCreatorApplicationEmail } from "../../lib/email";
+import { sendEmail, buildCreatorApplicationEmail, buildChangesRequestedEmail } from "../../lib/email";
 import { logger } from "../../lib/logger";
 import Stripe from "stripe";
 
@@ -506,6 +506,31 @@ router.post(
       targetType: "creator_profile",
       summary: parsed.data.notes,
     });
+
+    // Notify applicant by email when changes are requested (fire-and-forget)
+    if (parsed.data.decision === "changes_requested") {
+      (async () => {
+        try {
+          const [userInfo] = await db
+            .select({ email: usersTable.email, displayName: profilesTable.displayName })
+            .from(usersTable)
+            .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
+            .where(eq(usersTable.id, cp.userId))
+            .limit(1);
+
+          await sendEmail({
+            to: userInfo.email,
+            subject: "Changes requested on your Aced creator application",
+            html: buildChangesRequestedEmail({
+              applicantName: userInfo?.displayName ?? "Applicant",
+              notes: parsed.data.notes ?? "Please review the feedback on your application status page.",
+            }),
+          });
+        } catch (err) {
+          logger.error({ err }, "Failed to send changes_requested email to applicant");
+        }
+      })();
+    }
 
     res.json({ data: updated });
   }
