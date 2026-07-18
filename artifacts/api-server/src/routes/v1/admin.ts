@@ -20,6 +20,7 @@ import {
   creatorExpertiseTable,
 } from "@workspace/db";
 import { eq, and, desc, ilike, gte, lt } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { requireRole } from "../../middlewares/auth";
 import { logAuditEvent } from "../../lib/auth";
 import Stripe from "stripe";
@@ -367,6 +368,8 @@ router.get(
       conditions.push(lt(ordersTable.createdAt, nextDayStart));
     }
 
+    const creatorProfile = alias(profilesTable, "creator_profile");
+
     const rows = await db
       .select({
         orderId: ordersTable.id,
@@ -374,6 +377,7 @@ router.get(
         buyerEmail: usersTable.email,
         listingTitle: orderItemsTable.listingTitleSnapshot,
         creatorId: orderItemsTable.creatorIdSnapshot,
+        creatorName: creatorProfile.displayName,
         grossMinorUnits: orderItemsTable.unitAmountMinorUnits,
         platformFeeMinorUnits: orderItemsTable.platformFeeMinorUnits,
         creatorProceedsMinorUnits: orderItemsTable.creatorProceedsMinorUnits,
@@ -382,6 +386,7 @@ router.get(
       .from(ordersTable)
       .innerJoin(usersTable, eq(usersTable.id, ordersTable.buyerId))
       .innerJoin(orderItemsTable, eq(orderItemsTable.orderId, ordersTable.id))
+      .leftJoin(creatorProfile, eq(creatorProfile.userId, orderItemsTable.creatorIdSnapshot))
       .where(and(...conditions))
       .orderBy(desc(ordersTable.createdAt));
 
@@ -390,6 +395,7 @@ router.get(
       "Date",
       "Buyer Email",
       "Creator ID",
+      "Creator Name",
       "Listing Title",
       "Gross Amount (£)",
       "Platform Fee (£)",
@@ -415,6 +421,7 @@ router.get(
           r.createdAt.toISOString(),
           r.buyerEmail,
           r.creatorId,
+          r.creatorName ?? "",
           r.listingTitle,
           toGBP(r.grossMinorUnits),
           toGBP(r.platformFeeMinorUnits),
