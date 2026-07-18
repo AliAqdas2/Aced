@@ -13,6 +13,7 @@ import searchRouter from "./v1/search";
 import adminRouter from "./v1/admin";
 import notificationsRouter from "./v1/notifications";
 import creatorDashboardRouter from "./v1/creator-dashboard";
+import profileRouter from "./v1/profile";
 
 const router: IRouter = Router();
 
@@ -35,6 +36,7 @@ v1.use(searchRouter);
 v1.use(adminRouter);
 v1.use(notificationsRouter);
 v1.use(creatorDashboardRouter);
+v1.use(profileRouter);
 
 router.use("/v1", v1);
 

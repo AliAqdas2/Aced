@@ -64,6 +64,7 @@ import AdminSettings from '@/pages/admin/admin-settings';
 import AdminUniversities from '@/pages/admin/admin-universities';
 
 import { HowItWorks, BecomeACreator } from '@/pages/public/static';
+import StudentProfilePage from '@/pages/public/student-profile';
 import NotFound from './pages/not-found';
 
 const queryClient = new QueryClient();
@@ -200,6 +201,10 @@ function Router() {
       </Route>
       <Route path="/storefronts/:slug">
         <PublicLayout><Storefront /></PublicLayout>
+      </Route>
+
+      <Route path="/students/:id">
+        <PublicLayout><StudentProfilePage /></PublicLayout>
       </Route>
 
       <Route path="/how-it-works">

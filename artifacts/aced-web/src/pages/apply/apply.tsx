@@ -597,7 +597,8 @@ export function ApplyStatus() {
     );
   }
 
-  const { status, createdAt } = application;
+  const status = application.status ?? 'submitted';
+  const createdAt = application.createdAt ?? new Date().toISOString();
 
   return (
     <div className="min-h-screen bg-muted/20 flex flex-col items-center py-20 px-4">

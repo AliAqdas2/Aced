@@ -26,6 +26,7 @@ import type {
   AdminUniversitiesResponse,
   AdminUsersResponse,
   ApplicationConfigResponse,
+  ApplicationStatusResponse,
   ApplicationsResponse,
   AuditLogsResponse,
   AuthResponse,
@@ -88,12 +89,15 @@ import type {
   StripeOnboardingResponse,
   StripeStatusResponse,
   StripeWebhook200,
+  StudentProfileResponse,
   SuccessResponse,
   UnauthorizedResponse,
   UniversitiesResponse,
   UniversityDetailResponse,
   UnreadCountResponse,
   UpdateAdminConfigRequest,
+  UpdateProfileRequest,
+  UpdateProfileResponse,
   UpdateStorefrontRequest,
   UploadUrlRequest,
   UploadUrlResponse
@@ -2378,6 +2382,83 @@ export const useSubmitCreatorApplication = <TError = ErrorType<unknown>,
       return useMutation(getSubmitCreatorApplicationMutationOptions(options));
     }
 
+export const getGetApplicationStatusUrl = () => {
+
+
+
+
+  return `/api/v1/creator/applications/status`
+}
+
+/**
+ * @summary Get the current user's creator application status
+ */
+export const getApplicationStatus = async ( options?: RequestInit): Promise<ApplicationStatusResponse> => {
+
+  return customFetch<ApplicationStatusResponse>(getGetApplicationStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetApplicationStatusQueryKey = () => {
+    return [
+    `/api/v1/creator/applications/status`
+    ] as const;
+    }
+
+
+export const getGetApplicationStatusQueryOptions = <TData = Awaited<ReturnType<typeof getApplicationStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApplicationStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetApplicationStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApplicationStatus>>> = ({ signal }) => getApplicationStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApplicationStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetApplicationStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getApplicationStatus>>>
+export type GetApplicationStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the current user's creator application status
+ */
+
+export function useGetApplicationStatus<TData = Awaited<ReturnType<typeof getApplicationStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApplicationStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetApplicationStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetApplicationConfigUrl = () => {
 
 
@@ -3426,6 +3507,154 @@ export function useGetAdminDashboard<TData = Awaited<ReturnType<typeof getAdminD
 
 
 
+export const getUpdateProfileUrl = () => {
+
+
+
+
+  return `/api/v1/profile`
+}
+
+/**
+ * @summary Update the logged-in user's profile
+ */
+export const updateProfile = async (updateProfileRequest: UpdateProfileRequest, options?: RequestInit): Promise<UpdateProfileResponse> => {
+
+  return customFetch<UpdateProfileResponse>(getUpdateProfileUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateProfileRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateProfileMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateProfile>>, TError,{data: BodyType<UpdateProfileRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateProfile>>, TError,{data: BodyType<UpdateProfileRequest>}, TContext> => {
+
+const mutationKey = ['updateProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateProfile>>, {data: BodyType<UpdateProfileRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateProfile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateProfileMutationResult = NonNullable<Awaited<ReturnType<typeof updateProfile>>>
+    export type UpdateProfileMutationBody = BodyType<UpdateProfileRequest>
+    export type UpdateProfileMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update the logged-in user's profile
+ */
+export const useUpdateProfile = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateProfile>>, TError,{data: BodyType<UpdateProfileRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateProfile>>,
+        TError,
+        {data: BodyType<UpdateProfileRequest>},
+        TContext
+      > => {
+      return useMutation(getUpdateProfileMutationOptions(options));
+    }
+
+export const getGetStudentProfileUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/students/${id}`
+}
+
+/**
+ * @summary Get a public student profile by user ID
+ */
+export const getStudentProfile = async (id: string, options?: RequestInit): Promise<StudentProfileResponse> => {
+
+  return customFetch<StudentProfileResponse>(getGetStudentProfileUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStudentProfileQueryKey = (id: string,) => {
+    return [
+    `/api/v1/students/${id}`
+    ] as const;
+    }
+
+
+export const getGetStudentProfileQueryOptions = <TData = Awaited<ReturnType<typeof getStudentProfile>>, TError = ErrorType<void>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudentProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStudentProfileQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStudentProfile>>> = ({ signal }) => getStudentProfile(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStudentProfile>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStudentProfileQueryResult = NonNullable<Awaited<ReturnType<typeof getStudentProfile>>>
+export type GetStudentProfileQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get a public student profile by user ID
+ */
+
+export function useGetStudentProfile<TData = Awaited<ReturnType<typeof getStudentProfile>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudentProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStudentProfileQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetAdminConfigUrl = () => {
 
 
@@ -4379,65 +4608,4 @@ export const useCreateCommissionRule = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getCreateCommissionRuleMutationOptions(options));
     }
-
-
-// ─── Creator Application Status ─────────────────────────────────────────────
-
-export interface ApplicationStatusData {
-  id: string;
-  status: 'draft' | 'submitted' | 'under_review' | 'changes_requested' | 'approved' | 'suspended' | 'closed';
-  headline: string | null;
-  stripeAccountStatus: string;
-  verifiedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-  expertise: { id: string; academicResult: string | null; graduationYear: number | null }[];
-  verifications: { id: string; claimType: string; status: string }[];
-}
-
-export interface ApplicationStatusResponse {
-  data: ApplicationStatusData | null;
-}
-
-export const getGetApplicationStatusUrl = () => {
-  return `/api/v1/creator/applications/status`;
-};
-
-/**
- * @summary Get the current user's creator application status
- */
-export const getApplicationStatus = async (options?: RequestInit): Promise<ApplicationStatusResponse> => {
-  return customFetch<ApplicationStatusResponse>(getGetApplicationStatusUrl(), {
-    ...options,
-    method: 'GET',
-  });
-};
-
-export const getGetApplicationStatusQueryKey = () => {
-  return [`/api/v1/creator/applications/status`] as const;
-};
-
-export const getGetApplicationStatusQueryOptions = <TData = Awaited<ReturnType<typeof getApplicationStatus>>, TError = ErrorType<unknown>>(
-  options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getApplicationStatus>>, TError, TData>; request?: SecondParameter<typeof customFetch> }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-  const queryKey = queryOptions?.queryKey ?? getGetApplicationStatusQueryKey();
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApplicationStatus>>> = ({ signal }) =>
-    getApplicationStatus({ signal, ...requestOptions });
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getApplicationStatus>>, TError, TData> & { queryKey: QueryKey };
-};
-
-export type GetApplicationStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getApplicationStatus>>>;
-export type GetApplicationStatusQueryError = ErrorType<unknown>;
-
-/**
- * @summary Get the current user's creator application status
- */
-export function useGetApplicationStatus<TData = Awaited<ReturnType<typeof getApplicationStatus>>, TError = ErrorType<unknown>>(
-  options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getApplicationStatus>>, TError, TData>; request?: SecondParameter<typeof customFetch> }
-): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetApplicationStatusQueryOptions(options);
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
-  return withQueryKey(query, queryOptions.queryKey);
-}
 

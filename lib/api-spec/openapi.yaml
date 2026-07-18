@@ -627,6 +627,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/CreatorProfileResponse"
 
+  /v1/creator/applications/status:
+    get:
+      operationId: getApplicationStatus
+      tags: [creator]
+      summary: Get the current user's creator application status
+      responses:
+        "200":
+          description: Application status (null if no application)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationStatusResponse"
+
   /v1/creator/applications/config:
     get:
       operationId: getApplicationConfig
@@ -826,6 +839,47 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminDashboardResponse"
+
+  /v1/profile:
+    patch:
+      operationId: updateProfile
+      tags: [profile]
+      summary: Update the logged-in user's profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateProfileResponse"
+
+  /v1/students/{id}:
+    get:
+      operationId: getStudentProfile
+      tags: [profile]
+      summary: Get a public student profile by user ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Student profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentProfileResponse"
+        "404":
+          description: Student not found
 
   /v1/admin/config:
     get:
@@ -1907,6 +1961,89 @@ components:
           items:
             type: object
 
+    UpdateProfileRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+        bio:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+        universityId:
+          type: string
+          format: uuid
+          nullable: true
+
+    UpdateProfileResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [id, userId, displayName]
+          properties:
+            id:
+              type: string
+              format: uuid
+            userId:
+              type: string
+              format: uuid
+            displayName:
+              type: string
+            bio:
+              type: string
+              nullable: true
+            avatarUrl:
+              type: string
+              nullable: true
+            universityId:
+              type: string
+              format: uuid
+              nullable: true
+
+    StudentProfileResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [id, displayName, memberSince, purchases]
+          properties:
+            id:
+              type: string
+              format: uuid
+            displayName:
+              type: string
+            avatarUrl:
+              type: string
+              nullable: true
+            bio:
+              type: string
+              nullable: true
+            universityName:
+              type: string
+              nullable: true
+            universityId:
+              type: string
+              format: uuid
+              nullable: true
+            memberSince:
+              type: string
+              format: date-time
+            purchases:
+              type: array
+              items:
+                type: object
+                required: [listingId, title]
+                properties:
+                  listingId:
+                    type: string
+                    format: uuid
+                  title:
+                    type: string
+
     AdminConfigResponse:
       type: object
       required: [data]
@@ -1980,6 +2117,29 @@ components:
                 type: integer
               createdAt:
                 type: string
+
+    ApplicationStatusResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          nullable: true
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            status:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+            reviewNotes:
+              type: string
+              nullable: true
 
     ApplicationConfigResponse:
       type: object

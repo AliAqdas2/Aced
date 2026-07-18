@@ -549,6 +549,46 @@ export interface CommissionRulesResponse {
   data: CommissionRulesResponseDataItem[];
 }
 
+export interface UpdateProfileRequest {
+  displayName?: string;
+  bio?: string;
+  avatarUrl?: string | null;
+  universityId?: string | null;
+}
+
+export type UpdateProfileResponseData = {
+  id: string;
+  userId: string;
+  displayName: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
+  universityId?: string | null;
+};
+
+export interface UpdateProfileResponse {
+  data: UpdateProfileResponseData;
+}
+
+export type StudentProfileResponseDataPurchasesItem = {
+  listingId: string;
+  title: string;
+};
+
+export type StudentProfileResponseData = {
+  id: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  universityName?: string | null;
+  universityId?: string | null;
+  memberSince: string;
+  purchases: StudentProfileResponseDataPurchasesItem[];
+};
+
+export interface StudentProfileResponse {
+  data: StudentProfileResponseData;
+}
+
 export type AdminConfigResponseData = {
   approvalEmail: string;
   dbsRequired: boolean;
@@ -591,6 +631,18 @@ export type AdminUniversitiesResponseDataItem = {
 
 export interface AdminUniversitiesResponse {
   data: AdminUniversitiesResponseDataItem[];
+}
+
+export type ApplicationStatusResponseData = {
+  id?: string;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  reviewNotes?: string | null;
+} | null;
+
+export interface ApplicationStatusResponse {
+  data: ApplicationStatusResponseData;
 }
 
 export type ApplicationConfigResponseData = {

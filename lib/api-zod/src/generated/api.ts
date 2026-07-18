@@ -597,6 +597,20 @@ export const SubmitCreatorApplicationResponse = zod.object({
 
 
 /**
+ * @summary Get the current user's creator application status
+ */
+export const GetApplicationStatusResponse = zod.object({
+  "data": zod.object({
+  "id": zod.uuid().optional(),
+  "status": zod.string().optional(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional(),
+  "reviewNotes": zod.string().nullish()
+}).nullable()
+})
+
+
+/**
  * @summary Get application configuration (DBS required flag, etc.)
  */
 export const GetApplicationConfigResponse = zod.object({
@@ -807,6 +821,52 @@ export const GetAdminDashboardResponse = zod.object({
   "pendingApplications": zod.number().optional(),
   "pendingListingModeration": zod.number().optional(),
   "openReports": zod.number().optional()
+})
+})
+
+
+/**
+ * @summary Update the logged-in user's profile
+ */
+export const UpdateProfileBody = zod.object({
+  "displayName": zod.string().optional(),
+  "bio": zod.string().optional(),
+  "avatarUrl": zod.string().nullish(),
+  "universityId": zod.uuid().nullish()
+})
+
+export const UpdateProfileResponse = zod.object({
+  "data": zod.object({
+  "id": zod.uuid(),
+  "userId": zod.uuid(),
+  "displayName": zod.string(),
+  "bio": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "universityId": zod.uuid().nullish()
+})
+})
+
+
+/**
+ * @summary Get a public student profile by user ID
+ */
+export const GetStudentProfileParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const GetStudentProfileResponse = zod.object({
+  "data": zod.object({
+  "id": zod.uuid(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "universityName": zod.string().nullish(),
+  "universityId": zod.uuid().nullish(),
+  "memberSince": zod.coerce.date(),
+  "purchases": zod.array(zod.object({
+  "listingId": zod.uuid(),
+  "title": zod.string()
+}))
 })
 })
 

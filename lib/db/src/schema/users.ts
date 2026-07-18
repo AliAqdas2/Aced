@@ -8,6 +8,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { universitiesTable } from "./taxonomy";
 
 export const userRoleEnum = pgEnum("user_role", [
   "learner",
@@ -56,6 +57,9 @@ export const profilesTable = pgTable("profiles", {
   displayName: text("display_name").notNull(),
   avatarUrl: text("avatar_url"),
   bio: text("bio"),
+  universityId: uuid("university_id").references(() => universitiesTable.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
