@@ -460,7 +460,7 @@ function ClipboardIcon() {
 
 // ─── Sub-views ────────────────────────────────────────────────────────────────
 
-function PendingStatus({ status, submittedAt }: { status: string; submittedAt: string }) {
+function PendingStatus({ status, submittedAt, reviewNotes }: { status: string; submittedAt: string; reviewNotes?: string | null }) {
   const submitted = new Date(submittedAt);
   const reviewBy = new Date(submitted.getTime() + 48 * 60 * 60 * 1000);
   const label =
@@ -476,9 +476,21 @@ function PendingStatus({ status, submittedAt }: { status: string; submittedAt: s
       <h1 className="text-3xl font-bold font-serif mb-3">{label}</h1>
       <p className="text-muted-foreground mb-6">
         {status === 'changes_requested'
-          ? "Our team has requested some changes to your application. We'll be in touch by email with the details."
+          ? "Our team has reviewed your application and requested some changes before it can be approved."
           : "Thanks for applying to join as an Ace! Our team is reviewing your academic credentials."}
       </p>
+      {status === 'changes_requested' && (
+        reviewNotes ? (
+          <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-left">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 mb-1">Reviewer feedback</p>
+            <p className="text-sm text-amber-900 whitespace-pre-wrap">{reviewNotes}</p>
+          </div>
+        ) : (
+          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-left">
+            <p className="text-sm text-amber-800">Our team will be in touch by email with the specific changes needed.</p>
+          </div>
+        )
+      )}
       <div className="p-4 bg-muted rounded-lg mb-6 text-sm text-left space-y-2">
         <div className="flex justify-between">
           <span className="text-muted-foreground">Submitted</span>
@@ -609,7 +621,7 @@ export function ApplyStatus() {
           ) : status === 'closed' ? (
             <RejectedStatus />
           ) : (
-            <PendingStatus status={status} submittedAt={createdAt} />
+            <PendingStatus status={status} submittedAt={createdAt} reviewNotes={application.reviewNotes} />
           )}
         </CardContent>
       </Card>

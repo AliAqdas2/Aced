@@ -63,6 +63,7 @@ export const creatorProfilesTable = pgTable("creator_profiles", {
   totalSales: integer("total_sales").notNull().default(0),
   averageRating: integer("average_rating"),
   reviewCount: integer("review_count").notNull().default(0),
+  reviewNotes: text("review_notes"),
   verifiedAt: timestamp("verified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

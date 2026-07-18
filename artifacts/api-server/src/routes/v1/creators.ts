@@ -459,6 +459,9 @@ router.post(
     if (parsed.data.decision === "approved") {
       updateData.verifiedAt = new Date();
     }
+    if (parsed.data.notes) {
+      updateData.reviewNotes = parsed.data.notes;
+    }
 
     const [updated] = await db
       .update(creatorProfilesTable)
