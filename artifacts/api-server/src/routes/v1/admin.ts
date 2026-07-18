@@ -19,7 +19,7 @@ import {
   universitiesTable,
   creatorExpertiseTable,
 } from "@workspace/db";
-import { eq, and, desc, ilike, gte, lte } from "drizzle-orm";
+import { eq, and, desc, ilike, gte, lt } from "drizzle-orm";
 import { requireRole } from "../../middlewares/auth";
 import { logAuditEvent } from "../../lib/auth";
 import Stripe from "stripe";
@@ -331,11 +331,42 @@ router.get(
   }
 );
 
-// GET /api/v1/admin/orders/export — download all paid orders as CSV
+// GET /api/v1/admin/orders/export — download paid orders as CSV (optional ?from=&to= ISO date filters)
 router.get(
   "/admin/orders/export",
   requireRole("finance"),
-  async (_req, res): Promise<void> => {
+  async (req, res): Promise<void> => {
+    const fromParam = req.query["from"] as string | undefined;
+    const toParam = req.query["to"] as string | undefined;
+
+    // Validate date params when provided
+    const fromDate = fromParam ? new Date(fromParam) : undefined;
+    const toDate = toParam ? new Date(toParam) : undefined;
+
+    if (fromDate && isNaN(fromDate.getTime())) {
+      res.status(400).json({ error: "Invalid 'from' date" });
+      return;
+    }
+    if (toDate && isNaN(toDate.getTime())) {
+      res.status(400).json({ error: "Invalid 'to' date" });
+      return;
+    }
+    if (fromDate && toDate && fromDate > toDate) {
+      res.status(400).json({ error: "'from' must not be later than 'to'" });
+      return;
+    }
+
+    // Build where conditions
+    const conditions = [eq(ordersTable.status, "paid")];
+    if (fromDate) conditions.push(gte(ordersTable.createdAt, fromDate));
+    // Treat 'to' as end-of-day inclusive: use strict-less-than the next day's
+    // midnight so that a record at exactly 00:00:00 on (toDate + 1) is excluded.
+    if (toDate) {
+      const nextDayStart = new Date(toDate);
+      nextDayStart.setDate(nextDayStart.getDate() + 1);
+      conditions.push(lt(ordersTable.createdAt, nextDayStart));
+    }
+
     const rows = await db
       .select({
         orderId: ordersTable.id,
@@ -351,7 +382,7 @@ router.get(
       .from(ordersTable)
       .innerJoin(usersTable, eq(usersTable.id, ordersTable.buyerId))
       .innerJoin(orderItemsTable, eq(orderItemsTable.orderId, ordersTable.id))
-      .where(eq(ordersTable.status, "paid"))
+      .where(and(...conditions))
       .orderBy(desc(ordersTable.createdAt));
 
     const headers = [
@@ -395,7 +426,14 @@ router.get(
       ),
     ].join("\r\n");
 
-    const filename = `aced-transactions-${new Date().toISOString().split("T")[0]}.csv`;
+    // Build a descriptive filename reflecting the chosen range
+    const fromStr = fromParam ?? "all";
+    const toStr = toParam ?? "time";
+    const filename =
+      fromParam || toParam
+        ? `aced-transactions-${fromStr}_${toStr}.csv`
+        : `aced-transactions-${new Date().toISOString().split("T")[0]}.csv`;
+
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.send(csvRows);
