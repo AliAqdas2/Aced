@@ -800,6 +800,113 @@ export interface CreateAvailabilityExceptionRequest {
   reason?: string;
 }
 
+export type SubscriptionPlanBillingInterval = typeof SubscriptionPlanBillingInterval[keyof typeof SubscriptionPlanBillingInterval];
+
+
+export const SubscriptionPlanBillingInterval = {
+  weekly: 'weekly',
+  monthly: 'monthly',
+} as const;
+
+export interface SubscriptionPlan {
+  id?: string;
+  serviceOfferId?: string;
+  stripeProductId?: string | null;
+  stripePriceId?: string | null;
+  billingInterval?: SubscriptionPlanBillingInterval;
+  sessionsPerPeriod?: number;
+  amountMinorUnits?: number;
+  currency?: string;
+  isActive?: boolean;
+  createdAt?: string;
+}
+
+export type LearnerSubscriptionStatus = typeof LearnerSubscriptionStatus[keyof typeof LearnerSubscriptionStatus];
+
+
+export const LearnerSubscriptionStatus = {
+  trialing: 'trialing',
+  active: 'active',
+  cancelled: 'cancelled',
+  past_due: 'past_due',
+  unpaid: 'unpaid',
+  expired: 'expired',
+} as const;
+
+export interface LearnerSubscription {
+  id?: string;
+  learnerId?: string;
+  creatorId?: string;
+  listingId?: string;
+  serviceOfferId?: string;
+  subscriptionPlanId?: string;
+  stripeSubscriptionId?: string | null;
+  status?: LearnerSubscriptionStatus;
+  currentPeriodEnd?: string | null;
+  sessionsRemaining?: number;
+  cancelAtPeriodEnd?: boolean;
+  createdAt?: string;
+}
+
+export type CreateSubscriptionPlanRequestBillingInterval = typeof CreateSubscriptionPlanRequestBillingInterval[keyof typeof CreateSubscriptionPlanRequestBillingInterval];
+
+
+export const CreateSubscriptionPlanRequestBillingInterval = {
+  weekly: 'weekly',
+  monthly: 'monthly',
+} as const;
+
+export interface CreateSubscriptionPlanRequest {
+  serviceOfferId: string;
+  billingInterval: CreateSubscriptionPlanRequestBillingInterval;
+  /** @minimum 1 */
+  sessionsPerPeriod: number;
+  /** @minimum 1 */
+  amountMinorUnits: number;
+  currency?: string;
+}
+
+export interface SubscriptionPlanResponse {
+  data: SubscriptionPlan;
+}
+
+export interface SubscribeRequest {
+  subscriptionPlanId: string;
+}
+
+export type SubscribeResponseData = {
+  checkoutUrl?: string;
+  sessionId?: string;
+};
+
+export interface SubscribeResponse {
+  data: SubscribeResponseData;
+}
+
+export type MySubscriptionsResponseDataItem = LearnerSubscription & ({
+  plan?: SubscriptionPlan | null;
+  listingTitle?: string | null;
+  creatorDisplayName?: string | null;
+});
+
+export interface MySubscriptionsResponse {
+  data: MySubscriptionsResponseDataItem[];
+}
+
+export interface LearnerSubscriptionResponse {
+  data: LearnerSubscription;
+}
+
+export type SubscribersResponseDataItem = LearnerSubscription & ({
+  plan?: SubscriptionPlan | null;
+  listingTitle?: string | null;
+  learnerDisplayName?: string | null;
+});
+
+export interface SubscribersResponse {
+  data: SubscribersResponseDataItem[];
+}
+
 export type CalendarConnectionsResponseDataItemProvider = typeof CalendarConnectionsResponseDataItemProvider[keyof typeof CalendarConnectionsResponseDataItemProvider];
 
 

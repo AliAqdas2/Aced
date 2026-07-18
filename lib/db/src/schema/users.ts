@@ -38,6 +38,7 @@ export const usersTable = pgTable("users", {
   locale: text("locale").notNull().default("en-GB"),
   mfaEnabled: boolean("mfa_enabled").notNull().default(false),
   mfaSecret: text("mfa_secret"),
+  stripeCustomerId: text("stripe_customer_id"),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

@@ -34,6 +34,11 @@ export const deliveryModeEnum = pgEnum("delivery_mode", [
   "hybrid",
 ]);
 
+export const pricingModeEnum = pgEnum("pricing_mode", [
+  "per_session",
+  "subscription",
+]);
+
 export const licenceTypeEnum = pgEnum("licence_type", [
   "personal",
   "personal_non_commercial",
@@ -87,6 +92,7 @@ export const serviceOffersTable = pgTable("service_offers", {
   cancellationHoursNotice: integer("cancellation_hours_notice")
     .notNull()
     .default(24),
+  pricingMode: pricingModeEnum("pricing_mode").notNull().default("per_session"),
   videoMeetingLink: text("video_meeting_link"),
   bufferMinutesBefore: integer("buffer_minutes_before").notNull().default(0),
   bufferMinutesAfter: integer("buffer_minutes_after").notNull().default(0),

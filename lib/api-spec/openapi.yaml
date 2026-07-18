@@ -38,6 +38,8 @@ tags:
     description: Creator dashboard and earnings
   - name: profile
     description: User profile and calendar connections
+  - name: subscriptions
+    description: Subscription plans and learner subscriptions
 paths:
   /healthz:
     get:
@@ -1271,6 +1273,96 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CommissionRuleResponse"
+
+  /v1/creator/subscription-plans:
+    post:
+      operationId: createSubscriptionPlan
+      tags: [subscriptions]
+      summary: Upsert a subscription plan for a service offer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSubscriptionPlanRequest"
+      responses:
+        "200":
+          description: Plan updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionPlanResponse"
+        "201":
+          description: Plan created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionPlanResponse"
+
+  /v1/creator/subscribers:
+    get:
+      operationId: getCreatorSubscribers
+      tags: [subscriptions]
+      summary: List active subscribers for all creator listings
+      responses:
+        "200":
+          description: Subscriber list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscribersResponse"
+
+  /v1/bookings/subscribe:
+    post:
+      operationId: subscribeToListing
+      tags: [subscriptions]
+      summary: Create a Stripe Checkout session in subscription mode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscribeRequest"
+      responses:
+        "201":
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscribeResponse"
+
+  /v1/me/subscriptions:
+    get:
+      operationId: getMySubscriptions
+      tags: [subscriptions]
+      summary: List the current learner's subscriptions
+      responses:
+        "200":
+          description: Learner subscriptions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MySubscriptionsResponse"
+
+  /v1/me/subscriptions/{id}/cancel:
+    post:
+      operationId: cancelMySubscription
+      tags: [subscriptions]
+      summary: Cancel a subscription at period end
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Subscription cancelled at period end
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearnerSubscriptionResponse"
 
 components:
   schemas:
@@ -2554,6 +2646,171 @@ components:
         reason:
           type: string
 
+
+    SubscriptionPlan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        serviceOfferId:
+          type: string
+          format: uuid
+        stripeProductId:
+          type: string
+          nullable: true
+        stripePriceId:
+          type: string
+          nullable: true
+        billingInterval:
+          type: string
+          enum: [weekly, monthly]
+        sessionsPerPeriod:
+          type: integer
+        amountMinorUnits:
+          type: integer
+        currency:
+          type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    LearnerSubscription:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        learnerId:
+          type: string
+          format: uuid
+        creatorId:
+          type: string
+          format: uuid
+        listingId:
+          type: string
+          format: uuid
+        serviceOfferId:
+          type: string
+          format: uuid
+        subscriptionPlanId:
+          type: string
+          format: uuid
+        stripeSubscriptionId:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [trialing, active, cancelled, past_due, unpaid, expired]
+        currentPeriodEnd:
+          type: string
+          format: date-time
+          nullable: true
+        sessionsRemaining:
+          type: integer
+        cancelAtPeriodEnd:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateSubscriptionPlanRequest:
+      type: object
+      required: [serviceOfferId, billingInterval, sessionsPerPeriod, amountMinorUnits]
+      properties:
+        serviceOfferId:
+          type: string
+          format: uuid
+        billingInterval:
+          type: string
+          enum: [weekly, monthly]
+        sessionsPerPeriod:
+          type: integer
+          minimum: 1
+        amountMinorUnits:
+          type: integer
+          minimum: 1
+        currency:
+          type: string
+          default: GBP
+
+    SubscriptionPlanResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/SubscriptionPlan"
+
+    SubscribeRequest:
+      type: object
+      required: [subscriptionPlanId]
+      properties:
+        subscriptionPlanId:
+          type: string
+          format: uuid
+
+    SubscribeResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            checkoutUrl:
+              type: string
+            sessionId:
+              type: string
+
+    MySubscriptionsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            allOf:
+              - $ref: "#/components/schemas/LearnerSubscription"
+              - type: object
+                properties:
+                  plan:
+                    $ref: "#/components/schemas/SubscriptionPlan"
+                    nullable: true
+                  listingTitle:
+                    type: string
+                    nullable: true
+                  creatorDisplayName:
+                    type: string
+                    nullable: true
+
+    LearnerSubscriptionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/LearnerSubscription"
+
+    SubscribersResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            allOf:
+              - $ref: "#/components/schemas/LearnerSubscription"
+              - type: object
+                properties:
+                  plan:
+                    $ref: "#/components/schemas/SubscriptionPlan"
+                    nullable: true
+                  listingTitle:
+                    type: string
+                    nullable: true
+                  learnerDisplayName:
+                    type: string
+                    nullable: true
 
     CalendarConnectionsResponse:
       type: object

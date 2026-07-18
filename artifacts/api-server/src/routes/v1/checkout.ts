@@ -11,11 +11,15 @@ import {
   bookingHoldsTable,
   bookingsTable,
   listingsTable,
+  serviceOffersTable,
   priceRecordsTable,
   creatorProfilesTable,
   commissionRulesTable,
   webhookEventsTable,
   platformConfigTable,
+  usersTable,
+  subscriptionPlansTable,
+  learnerSubscriptionsTable,
 } from "@workspace/db";
 import { eq, and, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -470,6 +474,105 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
           .where(eq(entitlementsTable.orderItemId, orderItem.id));
       }
 
+      break;
+    }
+
+    case "invoice.paid": {
+      const invoice = event.data.object as Stripe.Invoice & { subscription?: string };
+      const stripeSubscriptionId = invoice.subscription;
+      if (!stripeSubscriptionId) break;
+
+      const stripe = getStripe();
+      const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+      const { subscriptionPlanId, learnerId, serviceOfferId, listingId, creatorId } =
+        subscription.metadata ?? {};
+
+      if (!subscriptionPlanId || !learnerId) break;
+
+      const [plan] = await db
+        .select()
+        .from(subscriptionPlansTable)
+        .where(eq(subscriptionPlansTable.id, subscriptionPlanId))
+        .limit(1);
+      if (!plan) break;
+
+      const currentPeriodEnd = new Date((subscription as any).current_period_end * 1000);
+      const customerId = subscription.customer as string;
+
+      const [existing] = await db
+        .select()
+        .from(learnerSubscriptionsTable)
+        .where(eq(learnerSubscriptionsTable.stripeSubscriptionId, stripeSubscriptionId))
+        .limit(1);
+
+      if (existing) {
+        // Renewal: reset credits for the new period
+        await db
+          .update(learnerSubscriptionsTable)
+          .set({
+            status: "active",
+            currentPeriodEnd,
+            sessionsRemaining: plan.sessionsPerPeriod,
+            cancelAtPeriodEnd: subscription.cancel_at_period_end,
+            updatedAt: new Date(),
+          })
+          .where(eq(learnerSubscriptionsTable.id, existing.id));
+      } else {
+        // First invoice: create the subscription row
+        await db.insert(learnerSubscriptionsTable).values({
+          learnerId,
+          creatorId,
+          listingId,
+          serviceOfferId,
+          subscriptionPlanId,
+          stripeSubscriptionId,
+          stripeCustomerId: customerId,
+          status: "active",
+          currentPeriodEnd,
+          sessionsRemaining: plan.sessionsPerPeriod,
+          cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        });
+
+        // Save Stripe Customer ID to user record if not already set
+        await db
+          .update(usersTable)
+          .set({ stripeCustomerId: customerId })
+          .where(and(eq(usersTable.id, learnerId), isNull(usersTable.stripeCustomerId)));
+      }
+
+      break;
+    }
+
+    case "customer.subscription.updated": {
+      const subscription = event.data.object as Stripe.Subscription;
+      const statusMap: Record<string, string> = {
+        active: "active",
+        trialing: "trialing",
+        past_due: "past_due",
+        unpaid: "unpaid",
+        canceled: "expired",
+      };
+      const newStatus = (statusMap[subscription.status] ?? "active") as any;
+
+      await db
+        .update(learnerSubscriptionsTable)
+        .set({
+          status: newStatus,
+          cancelAtPeriodEnd: subscription.cancel_at_period_end,
+          currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
+          updatedAt: new Date(),
+        })
+        .where(eq(learnerSubscriptionsTable.stripeSubscriptionId, subscription.id));
+
+      break;
+    }
+
+    case "customer.subscription.deleted": {
+      const subscription = event.data.object as Stripe.Subscription;
+      await db
+        .update(learnerSubscriptionsTable)
+        .set({ status: "expired", updatedAt: new Date() })
+        .where(eq(learnerSubscriptionsTable.stripeSubscriptionId, subscription.id));
       break;
     }
 

@@ -1268,3 +1268,146 @@ export const CreateCommissionRuleResponse = zod.object({
 })
 
 
+/**
+ * @summary Upsert a subscription plan for a service offer
+ */
+
+
+export const createSubscriptionPlanBodyCurrencyDefault = `GBP`;
+
+export const CreateSubscriptionPlanBody = zod.object({
+  "serviceOfferId": zod.uuid(),
+  "billingInterval": zod.enum(['weekly', 'monthly']),
+  "sessionsPerPeriod": zod.number().min(1),
+  "amountMinorUnits": zod.number().min(1),
+  "currency": zod.string().default(createSubscriptionPlanBodyCurrencyDefault)
+})
+
+export const CreateSubscriptionPlanResponse = zod.object({
+  "data": zod.object({
+  "id": zod.uuid().optional(),
+  "serviceOfferId": zod.uuid().optional(),
+  "stripeProductId": zod.string().nullish(),
+  "stripePriceId": zod.string().nullish(),
+  "billingInterval": zod.enum(['weekly', 'monthly']).optional(),
+  "sessionsPerPeriod": zod.number().optional(),
+  "amountMinorUnits": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "isActive": zod.boolean().optional(),
+  "createdAt": zod.coerce.date().optional()
+})
+})
+
+
+/**
+ * @summary List active subscribers for all creator listings
+ */
+export const GetCreatorSubscribersResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.uuid().optional(),
+  "learnerId": zod.uuid().optional(),
+  "creatorId": zod.uuid().optional(),
+  "listingId": zod.uuid().optional(),
+  "serviceOfferId": zod.uuid().optional(),
+  "subscriptionPlanId": zod.uuid().optional(),
+  "stripeSubscriptionId": zod.string().nullish(),
+  "status": zod.enum(['trialing', 'active', 'cancelled', 'past_due', 'unpaid', 'expired']).optional(),
+  "currentPeriodEnd": zod.coerce.date().nullish(),
+  "sessionsRemaining": zod.number().optional(),
+  "cancelAtPeriodEnd": zod.boolean().optional(),
+  "createdAt": zod.coerce.date().optional()
+}).and(zod.object({
+  "plan": zod.object({
+  "id": zod.uuid().optional(),
+  "serviceOfferId": zod.uuid().optional(),
+  "stripeProductId": zod.string().nullish(),
+  "stripePriceId": zod.string().nullish(),
+  "billingInterval": zod.enum(['weekly', 'monthly']).optional(),
+  "sessionsPerPeriod": zod.number().optional(),
+  "amountMinorUnits": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "isActive": zod.boolean().optional(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
+  "listingTitle": zod.string().nullish(),
+  "learnerDisplayName": zod.string().nullish()
+})))
+})
+
+
+/**
+ * @summary Create a Stripe Checkout session in subscription mode
+ */
+export const SubscribeToListingBody = zod.object({
+  "subscriptionPlanId": zod.uuid()
+})
+
+export const SubscribeToListingResponse = zod.object({
+  "data": zod.object({
+  "checkoutUrl": zod.string().optional(),
+  "sessionId": zod.string().optional()
+})
+})
+
+
+/**
+ * @summary List the current learner's subscriptions
+ */
+export const GetMySubscriptionsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.uuid().optional(),
+  "learnerId": zod.uuid().optional(),
+  "creatorId": zod.uuid().optional(),
+  "listingId": zod.uuid().optional(),
+  "serviceOfferId": zod.uuid().optional(),
+  "subscriptionPlanId": zod.uuid().optional(),
+  "stripeSubscriptionId": zod.string().nullish(),
+  "status": zod.enum(['trialing', 'active', 'cancelled', 'past_due', 'unpaid', 'expired']).optional(),
+  "currentPeriodEnd": zod.coerce.date().nullish(),
+  "sessionsRemaining": zod.number().optional(),
+  "cancelAtPeriodEnd": zod.boolean().optional(),
+  "createdAt": zod.coerce.date().optional()
+}).and(zod.object({
+  "plan": zod.object({
+  "id": zod.uuid().optional(),
+  "serviceOfferId": zod.uuid().optional(),
+  "stripeProductId": zod.string().nullish(),
+  "stripePriceId": zod.string().nullish(),
+  "billingInterval": zod.enum(['weekly', 'monthly']).optional(),
+  "sessionsPerPeriod": zod.number().optional(),
+  "amountMinorUnits": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "isActive": zod.boolean().optional(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
+  "listingTitle": zod.string().nullish(),
+  "creatorDisplayName": zod.string().nullish()
+})))
+})
+
+
+/**
+ * @summary Cancel a subscription at period end
+ */
+export const CancelMySubscriptionParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const CancelMySubscriptionResponse = zod.object({
+  "data": zod.object({
+  "id": zod.uuid().optional(),
+  "learnerId": zod.uuid().optional(),
+  "creatorId": zod.uuid().optional(),
+  "listingId": zod.uuid().optional(),
+  "serviceOfferId": zod.uuid().optional(),
+  "subscriptionPlanId": zod.uuid().optional(),
+  "stripeSubscriptionId": zod.string().nullish(),
+  "status": zod.enum(['trialing', 'active', 'cancelled', 'past_due', 'unpaid', 'expired']).optional(),
+  "currentPeriodEnd": zod.coerce.date().nullish(),
+  "sessionsRemaining": zod.number().optional(),
+  "cancelAtPeriodEnd": zod.boolean().optional(),
+  "createdAt": zod.coerce.date().optional()
+})
+})
+
+

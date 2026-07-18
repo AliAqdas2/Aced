@@ -11,8 +11,9 @@ import {
   creatorProfilesTable,
   listingsTable,
   priceRecordsTable,
+  learnerSubscriptionsTable,
 } from "@workspace/db";
-import { eq, and, gte, lte, isNull, or } from "drizzle-orm";
+import { eq, and, gte, lte, isNull, or, gt } from "drizzle-orm";
 import { requireAuth, requireRole } from "../../middlewares/auth";
 
 const router: IRouter = Router();
@@ -289,18 +290,7 @@ router.post("/bookings/confirm", requireAuth, async (req, res): Promise<void> =>
   const { listingId, serviceOfferId, startAt, timezone } = parsed.data;
   const learnerId = req.session.userId!;
 
-  // Verify listing is free
-  const [priceRecord] = await db
-    .select()
-    .from(priceRecordsTable)
-    .where(and(eq(priceRecordsTable.listingId, listingId), eq(priceRecordsTable.isActive, true)))
-    .limit(1);
-
-  if (priceRecord && priceRecord.amountMinorUnits > 0) {
-    res.status(400).json({ error: "Listing is not free", code: "PAID_LISTING" });
-    return;
-  }
-
+  // Fetch listing and service offer first (needed to determine pricingMode)
   const [listing] = await db
     .select()
     .from(listingsTable)
@@ -321,6 +311,42 @@ router.post("/bookings/confirm", requireAuth, async (req, res): Promise<void> =>
   if (!offer) {
     res.status(404).json({ error: "Service offer not found" });
     return;
+  }
+
+  // Access check: free listing or active subscription with credits
+  let activeSubscription: { id: string; sessionsRemaining: number } | null = null;
+
+  if (offer.pricingMode === "subscription") {
+    const [activeSub] = await db
+      .select()
+      .from(learnerSubscriptionsTable)
+      .where(
+        and(
+          eq(learnerSubscriptionsTable.learnerId, learnerId),
+          eq(learnerSubscriptionsTable.serviceOfferId, serviceOfferId),
+          eq(learnerSubscriptionsTable.status, "active"),
+          gt(learnerSubscriptionsTable.sessionsRemaining, 0)
+        )
+      )
+      .limit(1);
+
+    if (!activeSub) {
+      res.status(402).json({ error: "No active subscription credits for this plan", code: "NO_CREDITS" });
+      return;
+    }
+    activeSubscription = { id: activeSub.id, sessionsRemaining: activeSub.sessionsRemaining };
+  } else {
+    // Per-session listing: must be free
+    const [priceRecord] = await db
+      .select()
+      .from(priceRecordsTable)
+      .where(and(eq(priceRecordsTable.listingId, listingId), eq(priceRecordsTable.isActive, true)))
+      .limit(1);
+
+    if (priceRecord && priceRecord.amountMinorUnits > 0) {
+      res.status(400).json({ error: "Listing is not free", code: "PAID_LISTING" });
+      return;
+    }
   }
 
   const startDate = new Date(startAt);
@@ -404,6 +430,14 @@ router.post("/bookings/confirm", requireAuth, async (req, res): Promise<void> =>
       learnerTimezone: timezone,
     })
     .returning();
+
+  // Decrement subscription credit now that booking is confirmed
+  if (activeSubscription) {
+    await db
+      .update(learnerSubscriptionsTable)
+      .set({ sessionsRemaining: activeSubscription.sessionsRemaining - 1 })
+      .where(eq(learnerSubscriptionsTable.id, activeSubscription.id));
+  }
 
   // Fire-and-forget calendar sync
   const [cp] = await db

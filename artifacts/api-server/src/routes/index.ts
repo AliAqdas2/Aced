@@ -15,6 +15,7 @@ import notificationsRouter from "./v1/notifications";
 import creatorDashboardRouter from "./v1/creator-dashboard";
 import profileRouter from "./v1/profile";
 import calendarRouter from "./v1/calendar";
+import subscriptionsRouter from "./v1/subscriptions";
 
 const router: IRouter = Router();
 
@@ -39,6 +40,7 @@ v1.use(notificationsRouter);
 v1.use(creatorDashboardRouter);
 v1.use(profileRouter);
 v1.use(calendarRouter);
+v1.use(subscriptionsRouter);
 
 router.use("/v1", v1);
 

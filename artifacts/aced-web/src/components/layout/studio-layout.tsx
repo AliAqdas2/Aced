@@ -9,6 +9,7 @@ import {
   MessageSquare, 
   Settings,
   Store, 
+  Users,
   Wallet
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -45,6 +46,11 @@ const studioNavItems = [
     title: 'Earnings',
     href: '/studio/earnings',
     icon: Wallet,
+  },
+  {
+    title: 'Subscribers',
+    href: '/studio/subscribers',
+    icon: Users,
   },
   {
     title: 'Settings',

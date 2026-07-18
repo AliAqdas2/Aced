@@ -1,1 +1,2 @@
 - [Aced backend architecture](aced-backend.md) — Express 5, Drizzle ORM, session auth, Stripe Connect; key env vars and codegen quirk documented.
+- [Subscription plans architecture](subscription-plans.md) — weekly/monthly session credit subscriptions; schema, webhook flow, and credit enforcement pattern documented.

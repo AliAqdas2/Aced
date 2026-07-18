@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, MoreHorizontal, Edit, Trash, FileText, Video, Users, User, Calendar, Clock } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Edit, Trash, FileText, Video, Users, User, Calendar, Clock, RefreshCw } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import {
@@ -47,8 +47,13 @@ const createListingSchema = z.object({
   type: z.enum(['service_offer', 'digital_product', 'recorded_course', 'group_session']),
   title: z.string().min(5, 'Title must be at least 5 characters'),
   description: z.string().min(20, 'Description is too short'),
+  pricingMode: z.enum(['per_session', 'subscription']).default('per_session'),
   isFree: z.boolean().default(false),
   priceAmount: z.coerce.number().min(0).default(0),
+  // Subscription-specific
+  subscriptionInterval: z.enum(['weekly', 'monthly']).default('monthly'),
+  sessionsPerPeriod: z.coerce.number().int().min(1).default(4),
+  subscriptionPrice: z.coerce.number().min(1).default(40),
   // Service-offer specific
   durationMinutes: z.coerce.number().int().optional(),
   deliveryMode: z.enum(['online', 'in_person', 'hybrid']).optional(),
@@ -110,8 +115,12 @@ export default function StudioListings() {
       type: 'service_offer',
       title: '',
       description: '',
+      pricingMode: 'per_session',
       isFree: false,
       priceAmount: 0,
+      subscriptionInterval: 'monthly',
+      sessionsPerPeriod: 4,
+      subscriptionPrice: 40,
       durationMinutes: 60,
       deliveryMode: 'online',
       minNoticeHours: 24,
@@ -121,18 +130,33 @@ export default function StudioListings() {
 
   const watchType = form.watch('type');
   const watchIsFree = form.watch('isFree');
+  const watchPricingMode = form.watch('pricingMode');
   const isSession = watchType === 'service_offer' || watchType === 'group_session';
+  const isSubscription = watchPricingMode === 'subscription' && watchType === 'service_offer';
 
   function onSubmit(values: FormValues) {
+    const isSubMode = values.pricingMode === 'subscription' && values.type === 'service_offer';
     createMutation.mutate({
       data: {
         type: values.type,
         title: values.title,
         description: values.description,
-        isFree: values.isFree,
-        price: values.isFree
-          ? undefined
-          : { amountMinorUnits: Math.round(values.priceAmount * 100), currency: 'GBP' },
+        pricingMode: isSubMode ? 'subscription' : 'per_session',
+        ...(isSubMode
+          ? {
+              subscription: {
+                billingInterval: values.subscriptionInterval,
+                sessionsPerPeriod: values.sessionsPerPeriod,
+                amountMinorUnits: Math.round(values.subscriptionPrice * 100),
+                currency: 'GBP',
+              },
+            }
+          : {
+              isFree: values.isFree,
+              price: values.isFree
+                ? undefined
+                : { amountMinorUnits: Math.round(values.priceAmount * 100), currency: 'GBP' },
+            }),
         ...(isSession && {
           serviceOffer: {
             durationMinutes: (values.durationMinutes ?? 60) as 30 | 45 | 60 | 90,
@@ -144,7 +168,7 @@ export default function StudioListings() {
             bufferMinutesAfter: 0,
           },
         }),
-      },
+      } as any,
     });
   }
 
@@ -370,53 +394,171 @@ export default function StudioListings() {
 
                 {/* Pricing */}
                 <div className="space-y-3">
-                  <FormField
-                    control={form.control}
-                    name="isFree"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center justify-between rounded-lg border border-border/60 p-3 bg-muted/20">
-                        <div>
-                          <FormLabel className="text-sm font-semibold">Free listing</FormLabel>
-                          <FormDescription className="text-xs">
-                            Students can access this at no cost
-                          </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  {!watchIsFree && (
+                  {/* Subscription toggle — only for service_offer type */}
+                  {watchType === 'service_offer' && (
                     <FormField
                       control={form.control}
-                      name="priceAmount"
+                      name="pricingMode"
                       render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Price (£)</FormLabel>
+                        <FormItem className="flex items-center justify-between rounded-lg border border-border/60 p-3 bg-muted/20">
+                          <div>
+                            <FormLabel className="text-sm font-semibold">Subscription plan</FormLabel>
+                            <FormDescription className="text-xs">
+                              Students pay a recurring fee for a session credit pack each period
+                            </FormDescription>
+                          </div>
                           <FormControl>
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                                £
-                              </span>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.50"
-                                placeholder="0.00"
-                                className="pl-7"
-                                {...field}
-                              />
-                            </div>
+                            <Switch
+                              checked={field.value === 'subscription'}
+                              onCheckedChange={(checked) =>
+                                field.onChange(checked ? 'subscription' : 'per_session')
+                              }
+                            />
                           </FormControl>
-                          <FormMessage />
                         </FormItem>
                       )}
                     />
+                  )}
+
+                  {/* Subscription fields */}
+                  {isSubscription && (
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-4">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                        <RefreshCw className="h-4 w-4" />
+                        Subscription settings
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <FormField
+                          control={form.control}
+                          name="subscriptionInterval"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Billing period</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="weekly">Weekly</SelectItem>
+                                  <SelectItem value="monthly">Monthly</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="sessionsPerPeriod"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Sessions per period</FormLabel>
+                              <Select
+                                onValueChange={(v) => field.onChange(Number(v))}
+                                value={String(field.value ?? 4)}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {[1, 2, 3, 4, 6, 8, 10, 12].map((n) => (
+                                    <SelectItem key={n} value={String(n)}>
+                                      {n} session{n !== 1 ? 's' : ''}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <FormField
+                        control={form.control}
+                        name="subscriptionPrice"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Price per period (£)</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">£</span>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  placeholder="40.00"
+                                  className="pl-7"
+                                  {...field}
+                                />
+                              </div>
+                            </FormControl>
+                            <FormDescription className="text-xs">
+                              Students pay this amount each {form.watch('subscriptionInterval') ?? 'month'} for {form.watch('sessionsPerPeriod') ?? 4} sessions
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  )}
+
+                  {/* Per-session pricing */}
+                  {!isSubscription && (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="isFree"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center justify-between rounded-lg border border-border/60 p-3 bg-muted/20">
+                            <div>
+                              <FormLabel className="text-sm font-semibold">Free listing</FormLabel>
+                              <FormDescription className="text-xs">
+                                Students can access this at no cost
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      {!watchIsFree && (
+                        <FormField
+                          control={form.control}
+                          name="priceAmount"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Price (£)</FormLabel>
+                              <FormControl>
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                                    £
+                                  </span>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.50"
+                                    placeholder="0.00"
+                                    className="pl-7"
+                                    {...field}
+                                  />
+                                </div>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                    </>
                   )}
                 </div>
 

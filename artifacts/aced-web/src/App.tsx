@@ -38,6 +38,7 @@ import { Trust, FAQs, Privacy, Terms, Cookies } from '@/pages/public/policies';
 import Dashboard from '@/pages/learner/dashboard';
 import Bookings from '@/pages/learner/bookings';
 import Library from '@/pages/learner/library';
+import Subscriptions from '@/pages/learner/subscriptions';
 import Messages from '@/pages/learner/messages';
 import Orders from '@/pages/learner/orders';
 import Profile from '@/pages/learner/profile';
@@ -51,6 +52,7 @@ import StudioBookings from '@/pages/creator/studio-bookings';
 import StudioEarnings from '@/pages/creator/studio-earnings';
 import StudioMessages from '@/pages/creator/studio-messages';
 import StudioSettings from '@/pages/creator/studio-settings';
+import StudioSubscribers from '@/pages/creator/studio-subscribers';
 
 // Admin Pages
 import AdminDashboard from '@/pages/admin/admin-dashboard';
@@ -169,6 +171,9 @@ function Router() {
       <Route path="/studio/settings">
         <StudioLayout><StudioSettings /></StudioLayout>
       </Route>
+      <Route path="/studio/subscribers">
+        <StudioLayout><StudioSubscribers /></StudioLayout>
+      </Route>
 
       {/* Learner Dashboard Routes */}
       <Route path="/dashboard">
@@ -188,6 +193,9 @@ function Router() {
       </Route>
       <Route path="/profile">
         <DashboardLayout><Profile /></DashboardLayout>
+      </Route>
+      <Route path="/subscriptions">
+        <DashboardLayout><Subscriptions /></DashboardLayout>
       </Route>
 
       {/* Public Routes */}

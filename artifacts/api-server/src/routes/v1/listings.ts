@@ -9,6 +9,7 @@ import {
   storefrontsTable,
   creatorProfilesTable,
   reviewsTable,
+  subscriptionPlansTable,
 } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { requireRole } from "../../middlewares/auth";
@@ -23,10 +24,20 @@ const CreateListingBody = z.object({
   tags: z.array(z.string()).default([]),
   primaryUniversityId: z.string().uuid().optional(),
   primaryCourseId: z.string().uuid().optional(),
+  /** Ignored for subscription listings — use subscription.amountMinorUnits instead */
   isFree: z.boolean().optional(),
   price: z
     .object({
       amountMinorUnits: z.number().int().nonnegative(),
+      currency: z.string().length(3).default("GBP"),
+    })
+    .optional(),
+  pricingMode: z.enum(["per_session", "subscription"]).default("per_session"),
+  subscription: z
+    .object({
+      billingInterval: z.enum(["weekly", "monthly"]),
+      sessionsPerPeriod: z.number().int().min(1).max(100),
+      amountMinorUnits: z.number().int().positive(),
       currency: z.string().length(3).default("GBP"),
     })
     .optional(),
@@ -155,21 +166,44 @@ router.post(
       })
       .returning();
 
-    // Create price record (free if isFree=true or price omitted)
-    const isFree = parsed.data.isFree === true || !parsed.data.price;
+    // Create price record
+    const isSubscription = parsed.data.pricingMode === "subscription" && parsed.data.subscription;
+    const isFree = !isSubscription && (parsed.data.isFree === true || !parsed.data.price);
     await db.insert(priceRecordsTable).values({
       listingId: listing.id,
-      amountMinorUnits: isFree ? 0 : parsed.data.price!.amountMinorUnits,
-      currency: isFree ? "GBP" : (parsed.data.price!.currency ?? "GBP"),
+      amountMinorUnits: isSubscription
+        ? parsed.data.subscription!.amountMinorUnits
+        : isFree
+        ? 0
+        : parsed.data.price!.amountMinorUnits,
+      currency: isSubscription
+        ? parsed.data.subscription!.currency
+        : isFree
+        ? "GBP"
+        : (parsed.data.price!.currency ?? "GBP"),
       isActive: true,
     });
 
     // Create service offer or product
+    let serviceOfferId: string | null = null;
     if (parsed.data.type === "service_offer" && parsed.data.serviceOffer) {
-      await db.insert(serviceOffersTable).values({
+      const [so] = await db.insert(serviceOffersTable).values({
         listingId: listing.id,
+        pricingMode: parsed.data.pricingMode,
         ...parsed.data.serviceOffer,
-      });
+      }).returning();
+      serviceOfferId = so.id;
+
+      // Create subscription plan if applicable
+      if (isSubscription && serviceOfferId) {
+        await db.insert(subscriptionPlansTable).values({
+          serviceOfferId,
+          billingInterval: parsed.data.subscription!.billingInterval,
+          sessionsPerPeriod: parsed.data.subscription!.sessionsPerPeriod,
+          amountMinorUnits: parsed.data.subscription!.amountMinorUnits,
+          currency: parsed.data.subscription!.currency,
+        });
+      }
     } else if (parsed.data.type === "digital_product" && parsed.data.product) {
       await db.insert(productsTable).values({
         listingId: listing.id,

@@ -10,3 +10,4 @@ export * from "./reviews";
 export * from "./communications";
 export * from "./moderation";
 export * from "./calendar";
+export * from "./subscriptions";

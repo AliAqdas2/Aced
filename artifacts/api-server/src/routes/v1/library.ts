@@ -11,6 +11,7 @@ import {
   serviceOffersTable,
   profilesTable,
   creatorProfilesTable,
+  learnerSubscriptionsTable,
 } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth } from "../../middlewares/auth";
@@ -341,6 +342,34 @@ router.post("/bookings/:id/cancel", requireAuth, async (req, res): Promise<void>
 
   // Fire-and-forget calendar event deletion — looks up all mapping rows internally
   syncBookingCancelled(booking.id).catch(() => {});
+
+  // Refund subscription credit if this was a subscription booking
+  const [so] = await db
+    .select({ pricingMode: serviceOffersTable.pricingMode })
+    .from(serviceOffersTable)
+    .where(eq(serviceOffersTable.id, booking.serviceOfferId))
+    .limit(1);
+
+  if (so?.pricingMode === "subscription") {
+    const [activeSub] = await db
+      .select()
+      .from(learnerSubscriptionsTable)
+      .where(
+        and(
+          eq(learnerSubscriptionsTable.learnerId, booking.learnerId),
+          eq(learnerSubscriptionsTable.serviceOfferId, booking.serviceOfferId),
+          eq(learnerSubscriptionsTable.status, "active")
+        )
+      )
+      .limit(1);
+
+    if (activeSub) {
+      await db
+        .update(learnerSubscriptionsTable)
+        .set({ sessionsRemaining: activeSub.sessionsRemaining + 1 })
+        .where(eq(learnerSubscriptionsTable.id, activeSub.id));
+    }
+  }
 
   res.json({ data: updated });
 });
