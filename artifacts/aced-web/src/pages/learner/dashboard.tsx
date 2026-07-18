@@ -12,7 +12,7 @@ export default function Dashboard() {
   const { data: libraryResponse, isLoading: libraryLoading } = useGetMyLibrary();
 
   const upcomingBookings = bookingsResponse?.data?.filter((b: any) => 
-    new Date(b.startAt) > new Date() && b.status !== 'cancelled'
+    new Date(b.scheduledStartAt) > new Date() && b.status !== 'cancelled'
   ).slice(0, 3) || [];
 
   const recentLibrary = libraryResponse?.data?.slice(0, 3) || [];
@@ -44,17 +44,17 @@ export default function Dashboard() {
                 {upcomingBookings.map((booking: any) => (
                   <div key={booking.id} className="p-6 hover:bg-muted/30 transition-colors">
                     <div className="flex justify-between items-start mb-3">
-                      <h4 className="font-bold text-lg">{booking.listing?.title || 'Tutoring Session'}</h4>
+                      <h4 className="font-bold text-lg">{booking.listingTitle || 'Tutoring Session'}</h4>
                       <div className="bg-primary/10 text-primary text-sm font-bold px-3 py-1 rounded-lg">
-                        {format(new Date(booking.startAt), 'HH:mm')}
+                        {format(new Date(booking.scheduledStartAt), 'HH:mm')}
                       </div>
                     </div>
                     <div className="flex items-center text-sm font-medium text-muted-foreground mb-5">
                       <Calendar className="h-4 w-4 mr-2" />
-                      {format(new Date(booking.startAt), 'MMM d, yyyy')}
+                      {format(new Date(booking.scheduledStartAt), 'MMM d, yyyy')}
                       <span className="mx-3 opacity-50">•</span>
                       <User className="h-4 w-4 mr-2" />
-                      {booking.creator?.displayName || 'Creator'}
+                      {booking.creatorDisplayName || 'Creator'}
                     </div>
                     <Button variant="outline" className="w-full sm:w-auto font-bold rounded-xl h-11 border-border shadow-none">
                       Join Call

@@ -1,28 +1,321 @@
+import { useState } from 'react';
 import { useParams, Link, useLocation as useWouterLocation } from 'wouter';
-import { useGetListing, useCreateCheckoutSession } from '@workspace/api-client-react';
+import {
+  useGetListing,
+  useGetServiceAvailability,
+  useCreateBookingHold,
+  useCreateCheckoutSession,
+  useConfirmFreeBooking,
+  getGetMyBookingsQueryKey,
+  getGetServiceAvailabilityQueryKey,
+} from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Calendar } from '@/components/ui/calendar';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Star, ShieldCheck, CheckCircle2, Clock, CalendarDays, Download, AlertCircle } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import {
+  Star,
+  ShieldCheck,
+  CheckCircle2,
+  Clock,
+  CalendarDays,
+  Download,
+  AlertCircle,
+  Loader2,
+  ChevronRight,
+  MapPin,
+} from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { format, isBefore, startOfDay, addDays, parseISO } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+
+function formatSlotTime(iso: string) {
+  return format(parseISO(iso), 'HH:mm');
+}
+
+function SlotPicker({
+  listingId,
+  serviceOffer,
+  price,
+  onBooked,
+}: {
+  listingId: string;
+  serviceOffer: { id: string; durationMinutes: number; bookingHorizonDays: number };
+  price: { amountMinorUnits: number } | null;
+  onBooked: () => void;
+}) {
+  const { isAuthenticated } = useAuth();
+  const [, setLocation] = useWouterLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const today = startOfDay(new Date());
+  const maxDate = addDays(today, serviceOffer.bookingHorizonDays ?? 60);
+
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedSlot, setSelectedSlot] = useState<{ startAt: string; endAt: string } | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const dateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
+
+  const availParams = { from: dateStr ?? undefined, to: dateStr ?? undefined, timezone: 'Europe/London' };
+  const { data: availData, isLoading: slotsLoading } = useGetServiceAvailability(
+    listingId,
+    availParams,
+    { query: { enabled: !!dateStr, queryKey: getGetServiceAvailabilityQueryKey(listingId, availParams) } }
+  );
+
+  const availableSlots = (availData?.data?.slots ?? []).filter(
+    (s: { startAt: string; endAt: string; available: boolean }) => s.available
+  );
+
+  const isFree = !price || price.amountMinorUnits === 0;
+
+  const holdMutation = useCreateBookingHold();
+  const checkoutMutation = useCreateCheckoutSession();
+  const confirmFreeMutation = useConfirmFreeBooking({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetMyBookingsQueryKey() });
+        setSuccess(true);
+        setConfirmOpen(false);
+        onBooked();
+      },
+      onError: () => {
+        toast({ title: 'Could not confirm booking', variant: 'destructive' });
+      },
+    },
+  });
+
+  function handleSlotClick(slot: { startAt: string; endAt: string }) {
+    if (!isAuthenticated) {
+      setLocation(`/auth/login?redirect=/listings/${listingId}`);
+      return;
+    }
+    setSelectedSlot(slot);
+    setConfirmOpen(true);
+  }
+
+  async function handleConfirm() {
+    if (!selectedSlot) return;
+    if (isFree) {
+      confirmFreeMutation.mutate({
+        data: {
+          listingId,
+          serviceOfferId: serviceOffer.id,
+          startAt: selectedSlot.startAt,
+          timezone: 'Europe/London',
+        },
+      });
+    } else {
+      // Create hold first, then checkout
+      holdMutation.mutate(
+        {
+          data: {
+            listingId,
+            serviceOfferId: serviceOffer.id,
+            startAt: selectedSlot.startAt,
+            timezone: 'Europe/London',
+          },
+        },
+        {
+          onSuccess: (holdRes) => {
+            const holdId = holdRes.data?.id;
+            checkoutMutation.mutate(
+              { data: { listingId, holdId } },
+              {
+                onSuccess: (res) => {
+                  if (res.data?.checkoutUrl) {
+                    window.location.href = res.data.checkoutUrl;
+                  }
+                },
+                onError: () => {
+                  toast({ title: 'Could not start checkout', variant: 'destructive' });
+                },
+              }
+            );
+          },
+          onError: () => {
+            toast({ title: 'Slot is no longer available', variant: 'destructive' });
+            setConfirmOpen(false);
+          },
+        }
+      );
+    }
+  }
+
+  const isPending =
+    holdMutation.isPending || checkoutMutation.isPending || confirmFreeMutation.isPending;
+
+  if (success) {
+    return (
+      <div className="rounded-2xl border border-green-200 bg-green-50 p-8 text-center space-y-4">
+        <CheckCircle2 className="h-14 w-14 text-green-600 mx-auto" />
+        <h3 className="text-xl font-bold font-serif text-green-900">Session booked!</h3>
+        <p className="text-green-700 font-medium">
+          Your session on{' '}
+          {selectedSlot ? format(parseISO(selectedSlot.startAt), 'EEE, MMM d') : ''} at{' '}
+          {selectedSlot ? formatSlotTime(selectedSlot.startAt) : ''} is confirmed.
+        </p>
+        <Button asChild className="mt-2">
+          <Link href="/bookings">View my bookings</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <h3 className="text-lg font-bold">Choose a date</h3>
+
+      <Calendar
+        mode="single"
+        selected={selectedDate}
+        onSelect={(d) => {
+          setSelectedDate(d);
+          setSelectedSlot(null);
+        }}
+        disabled={(date) => isBefore(startOfDay(date), today) || date > maxDate}
+        className="rounded-xl border border-border/50 bg-muted/20 p-3"
+      />
+
+      {dateStr && (
+        <div className="space-y-3">
+          <h3 className="text-base font-bold">
+            Available times — {selectedDate ? format(selectedDate, 'EEE, MMM d') : ''}
+          </h3>
+
+          {slotsLoading ? (
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              Loading slots…
+            </div>
+          ) : availableSlots.length > 0 ? (
+            <div className="grid grid-cols-3 gap-2">
+              {availableSlots.map(
+                (slot: { startAt: string; endAt: string; available: boolean }) => (
+                  <Button
+                    key={slot.startAt}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSlotClick(slot)}
+                    className="font-semibold rounded-lg hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors"
+                  >
+                    {formatSlotTime(slot.startAt)}
+                  </Button>
+                )
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground italic py-4">
+              No slots available on this day.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl">Confirm booking</DialogTitle>
+            <DialogDescription>Review the details before confirming.</DialogDescription>
+          </DialogHeader>
+          {selectedSlot && (
+            <div className="space-y-4">
+              <div className="rounded-xl bg-muted/40 border border-border/50 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <CalendarDays className="h-4 w-4 text-primary" />
+                  <span className="font-semibold">
+                    {format(parseISO(selectedSlot.startAt), 'EEE, MMMM d, yyyy')}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Clock className="h-4 w-4 text-primary" />
+                  <span className="font-semibold">
+                    {formatSlotTime(selectedSlot.startAt)} – {formatSlotTime(selectedSlot.endAt)}{' '}
+                    UTC
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="font-semibold">
+                    {serviceOffer.durationMinutes} min session
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center font-bold text-lg pt-2 border-t border-border/50">
+                <span>Total</span>
+                <span>
+                  {isFree
+                    ? 'Free'
+                    : `£${((price?.amountMinorUnits ?? 0) / 100).toFixed(2)}`}
+                </span>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setConfirmOpen(false)}
+                  disabled={isPending}
+                >
+                  Back
+                </Button>
+                <Button className="flex-1 gap-2" onClick={handleConfirm} disabled={isPending}>
+                  {isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {isFree ? 'Confirming…' : 'Redirecting…'}
+                    </>
+                  ) : isFree ? (
+                    'Confirm booking'
+                  ) : (
+                    <>
+                      Pay & book
+                      <ChevronRight className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
 export default function ListingDetail() {
   const params = useParams();
   const id = params.id as string;
   const [, setLocation] = useWouterLocation();
   const { isAuthenticated } = useAuth();
-  
+  const [booked, setBooked] = useState(false);
+
   const { data: response, isLoading, error } = useGetListing(id, {
-    query: { enabled: !!id, queryKey: ['listing', id] }
+    query: { enabled: !!id, queryKey: ['listing', id] },
   });
 
   const checkoutMutation = useCreateCheckoutSession();
 
   if (isLoading) {
-    return <div className="min-h-[70vh] flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-    </div>;
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center">
+        <Loader2 className="animate-spin h-8 w-8 text-primary" />
+      </div>
+    );
   }
 
   if (error || !response?.data?.listing) {
@@ -30,14 +323,21 @@ export default function ListingDetail() {
       <div className="container mx-auto px-4 py-32 text-center min-h-[70vh] flex flex-col items-center justify-center">
         <AlertCircle className="h-16 w-16 text-muted-foreground mb-6 opacity-20" />
         <h1 className="font-serif text-4xl tracking-tight mb-4">Listing not found</h1>
-        <p className="text-muted-foreground font-medium mb-8 text-lg">This listing may have been removed or is no longer available.</p>
-        <Button asChild size="lg" className="rounded-xl h-14 px-8 font-bold"><Link href="/search">Browse Marketplace</Link></Button>
+        <p className="text-muted-foreground font-medium mb-8 text-lg">
+          This listing may have been removed or is no longer available.
+        </p>
+        <Button asChild size="lg" className="rounded-xl h-14 px-8 font-bold">
+          <Link href="/search">Browse Marketplace</Link>
+        </Button>
       </div>
     );
   }
 
   const { listing, price, serviceOffer, product } = response.data;
-  const priceAmount = price ? `£${(price.amountMinorUnits / 100).toFixed(2)}` : 'Free';
+  const priceAmount =
+    !price || (price as any).amountMinorUnits === 0
+      ? 'Free'
+      : `£${((price as any).amountMinorUnits / 100).toFixed(2)}`;
   const isService = listing.type === 'service_offer' || listing.type === 'group_session';
 
   const handlePurchase = () => {
@@ -45,21 +345,14 @@ export default function ListingDetail() {
       setLocation(`/auth/login?redirect=/listings/${id}`);
       return;
     }
-    
-    // For digital products, go straight to checkout
-    if (!isService) {
-      checkoutMutation.mutate({ data: { listingId: id } }, {
+    checkoutMutation.mutate(
+      { data: { listingId: id } },
+      {
         onSuccess: (res) => {
-          if (res.data?.checkoutUrl) {
-            window.location.href = res.data.checkoutUrl;
-          }
-        }
-      });
-    } else {
-      // For services, we'd ideally show a booking calendar first
-      // But for MVP, if no hold is required by API, we create session
-      setLocation(`/checkout?listing=${id}`);
-    }
+          if (res.data?.checkoutUrl) window.location.href = res.data.checkoutUrl;
+        },
+      }
+    );
   };
 
   return (
@@ -77,20 +370,24 @@ export default function ListingDetail() {
 
       <div className="container mx-auto px-4 py-12 max-w-7xl">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          
+
           {/* Main Content Area */}
           <div className="lg:col-span-2 space-y-10">
             <div>
               <div className="inline-flex items-center justify-center bg-primary/10 text-primary px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-6">
-                {listing.type.replace('_', ' ')}
+                {listing.type.replace(/_/g, ' ')}
               </div>
-              <h1 className="font-serif text-5xl sm:text-6xl font-normal mb-6 leading-[1.1] tracking-tight text-foreground">{listing.title}</h1>
-              
+              <h1 className="font-serif text-5xl sm:text-6xl font-normal mb-6 leading-[1.1] tracking-tight text-foreground">
+                {listing.title}
+              </h1>
+
               <div className="flex items-center gap-6 text-sm mb-10 pb-10 border-b border-border/50">
                 <div className="flex items-center text-foreground font-semibold">
                   <Star className="h-5 w-5 fill-primary text-primary mr-1.5" />
                   <span className="text-lg">{listing.averageRating?.toFixed(1) || '5.0'}</span>
-                  <span className="text-muted-foreground ml-2 font-medium">({listing.reviewCount || 0} reviews)</span>
+                  <span className="text-muted-foreground ml-2 font-medium">
+                    ({listing.reviewCount || 0} reviews)
+                  </span>
                 </div>
                 <Separator orientation="vertical" className="h-6" />
                 <div className="text-muted-foreground font-medium">
@@ -105,8 +402,11 @@ export default function ListingDetail() {
 
               {listing.tags && listing.tags.length > 0 && (
                 <div className="mt-12 pt-10 border-t border-border/50 flex flex-wrap gap-2">
-                  {listing.tags.map(tag => (
-                    <span key={tag} className="bg-muted px-4 py-2 rounded-lg text-sm font-semibold text-foreground">
+                  {listing.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="bg-muted px-4 py-2 rounded-lg text-sm font-semibold text-foreground"
+                    >
                       {tag}
                     </span>
                   ))}
@@ -120,17 +420,22 @@ export default function ListingDetail() {
                 <h3 className="font-serif text-3xl mb-8">About the Creator</h3>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
                   <Avatar className="h-24 w-24 border bg-background">
-                    <AvatarFallback className="bg-primary/10 text-primary text-3xl font-serif">C</AvatarFallback>
+                    <AvatarFallback className="bg-primary/10 text-primary text-3xl font-serif">
+                      C
+                    </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
-                    <Link href={`/storefronts/creator`} className="font-bold text-2xl hover:text-primary transition-colors block mb-2">
+                    <Link
+                      href="/search"
+                      className="font-bold text-2xl hover:text-primary transition-colors block mb-2"
+                    >
                       Top University Scholar
                     </Link>
                     <div className="text-sm font-medium text-muted-foreground flex items-center mb-4">
-                      <ShieldCheck className="h-5 w-5 text-primary mr-2" /> Verified Oxford Student
+                      <ShieldCheck className="h-5 w-5 text-primary mr-2" /> Verified Student
                     </div>
                     <Button variant="outline" className="rounded-xl h-10 font-bold" asChild>
-                      <Link href={`/storefronts/creator`}>View Profile</Link>
+                      <Link href="/search">View Profile</Link>
                     </Button>
                   </div>
                 </div>
@@ -138,25 +443,41 @@ export default function ListingDetail() {
             </Card>
           </div>
 
-          {/* Sticky Sidebar - Checkout/Booking Card */}
+          {/* Sticky Sidebar */}
           <div className="space-y-6">
             <div className="sticky top-32">
-              <Card className="shadow-2xl border-transparent rounded-3xl overflow-hidden bg-foreground text-background">
-                <CardContent className="p-8">
-                  <div className="text-5xl font-serif tracking-tight mb-8 text-primary">{priceAmount}</div>
-                  
-                  {isService ? (
-                    <div className="space-y-5 mb-8">
-                      <div className="flex items-center gap-4 text-base font-medium text-background/80">
-                        <Clock className="h-6 w-6 text-primary" />
-                        <span>{(serviceOffer as any)?.durationMinutes || 60} minutes</span>
-                      </div>
-                      <div className="flex items-center gap-4 text-base font-medium text-background/80">
-                        <CalendarDays className="h-6 w-6 text-primary" />
-                        <span>1:1 Video Call</span>
-                      </div>
+              {isService && serviceOffer ? (
+                /* Session listing — show slot picker inline */
+                <Card className="shadow-xl border-border/50 rounded-3xl overflow-hidden">
+                  <CardContent className="p-6">
+                    <div className="text-4xl font-serif tracking-tight mb-2 text-primary">
+                      {priceAmount}
                     </div>
-                  ) : (
+                    <div className="flex gap-3 mb-6 flex-wrap">
+                      <Badge variant="secondary" className="text-xs font-semibold">
+                        <Clock className="h-3 w-3 mr-1" />
+                        {(serviceOffer as any).durationMinutes} min
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs font-semibold">
+                        {(serviceOffer as any).deliveryMode ?? 'Online'}
+                      </Badge>
+                    </div>
+                    <Separator className="mb-6" />
+                    <SlotPicker
+                      listingId={id}
+                      serviceOffer={serviceOffer as any}
+                      price={price as any}
+                      onBooked={() => setBooked(true)}
+                    />
+                  </CardContent>
+                </Card>
+              ) : (
+                /* Digital product — original checkout flow */
+                <Card className="shadow-2xl border-transparent rounded-3xl overflow-hidden bg-foreground text-background">
+                  <CardContent className="p-8">
+                    <div className="text-5xl font-serif tracking-tight mb-8 text-primary">
+                      {priceAmount}
+                    </div>
                     <div className="space-y-5 mb-8">
                       <div className="flex items-center gap-4 text-base font-medium text-background/80">
                         <Download className="h-6 w-6 text-primary" />
@@ -167,34 +488,39 @@ export default function ListingDetail() {
                         <span>Lifetime access</span>
                       </div>
                     </div>
-                  )}
-
-                  <Button 
-                    size="lg" 
-                    className="w-full h-16 text-lg font-bold rounded-xl shadow-none bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-                    onClick={handlePurchase}
-                    disabled={checkoutMutation.isPending}
-                  >
-                    {checkoutMutation.isPending ? 'Processing...' : (isService ? 'Book Session' : 'Buy Now')}
-                  </Button>
-                  
-                  <p className="text-sm font-medium text-center text-background/50 mt-6">
-                    Secure payment powered by Stripe
-                  </p>
-                </CardContent>
-              </Card>
+                    <Button
+                      size="lg"
+                      className="w-full h-16 text-lg font-bold rounded-xl shadow-none bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                      onClick={handlePurchase}
+                      disabled={checkoutMutation.isPending}
+                    >
+                      {checkoutMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing…
+                        </>
+                      ) : (
+                        'Buy Now'
+                      )}
+                    </Button>
+                    <p className="text-sm font-medium text-center text-background/50 mt-6">
+                      Secure payment powered by Stripe
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Trust Badge */}
-              <div className="mt-8 flex items-start gap-4 p-6 bg-primary/5 rounded-3xl border border-primary/10">
+              <div className="mt-6 flex items-start gap-4 p-6 bg-primary/5 rounded-3xl border border-primary/10">
                 <ShieldCheck className="h-8 w-8 text-primary shrink-0" />
                 <div>
                   <span className="font-bold block mb-1 text-foreground">Aced Guarantee</span>
-                  <p className="text-sm font-medium text-muted-foreground leading-relaxed">Verified creators, secure payments, and quality assurance.</p>
+                  <p className="text-sm font-medium text-muted-foreground leading-relaxed">
+                    Verified creators, secure payments, and quality assurance.
+                  </p>
                 </div>
               </div>
             </div>
           </div>
-          
         </div>
       </div>
     </div>

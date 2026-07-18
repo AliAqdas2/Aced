@@ -405,6 +405,49 @@ export const CreateBookingHoldResponse = zod.object({
 
 
 /**
+ * @summary Confirm a free booking immediately without payment
+ */
+export const ConfirmFreeBookingBody = zod.object({
+  "listingId": zod.uuid(),
+  "serviceOfferId": zod.uuid(),
+  "startAt": zod.coerce.date(),
+  "timezone": zod.string().optional()
+})
+
+export const ConfirmFreeBookingResponse = zod.object({
+  "data": zod.object({
+  "bookingId": zod.uuid().optional(),
+  "status": zod.string().optional()
+})
+})
+
+
+/**
+ * @summary Cancel a booking
+ */
+export const CancelBookingParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const cancelBookingBodyReasonMin = 5;
+export const cancelBookingBodyReasonMax = 500;
+
+
+
+export const CancelBookingBody = zod.object({
+  "reason": zod.string().min(cancelBookingBodyReasonMin).max(cancelBookingBodyReasonMax)
+})
+
+export const CancelBookingResponse = zod.object({
+  "data": zod.object({
+  "id": zod.uuid().optional(),
+  "status": zod.string().optional(),
+  "cancellationReason": zod.string().nullish()
+})
+})
+
+
+/**
  * @summary Create Stripe Checkout session for an order
  */
 export const CreateCheckoutSessionBody = zod.object({
@@ -459,8 +502,21 @@ export const GetMyLibraryResponse = zod.object({
  * @summary Get learner bookings
  */
 export const GetMyBookingsResponse = zod.object({
-  "data": zod.array(zod.looseObject({
-
+  "data": zod.array(zod.object({
+  "id": zod.uuid().optional(),
+  "listingId": zod.uuid().optional(),
+  "serviceOfferId": zod.uuid().optional(),
+  "learnerId": zod.uuid().optional(),
+  "creatorId": zod.uuid().optional(),
+  "scheduledStartAt": zod.coerce.date().optional(),
+  "scheduledEndAt": zod.coerce.date().optional(),
+  "status": zod.string().optional(),
+  "listingTitle": zod.string().nullish(),
+  "durationMinutes": zod.number().nullish(),
+  "creatorDisplayName": zod.string().nullish(),
+  "learnerDisplayName": zod.string().nullish(),
+  "meetingLink": zod.string().nullish(),
+  "cancellationReason": zod.string().nullish()
 }))
 })
 
@@ -762,8 +818,21 @@ export const GetCreatorEarningsResponse = zod.object({
  * @summary Get creator bookings
  */
 export const GetCreatorBookingsResponse = zod.object({
-  "data": zod.array(zod.looseObject({
-
+  "data": zod.array(zod.object({
+  "id": zod.uuid().optional(),
+  "listingId": zod.uuid().optional(),
+  "serviceOfferId": zod.uuid().optional(),
+  "learnerId": zod.uuid().optional(),
+  "creatorId": zod.uuid().optional(),
+  "scheduledStartAt": zod.coerce.date().optional(),
+  "scheduledEndAt": zod.coerce.date().optional(),
+  "status": zod.string().optional(),
+  "listingTitle": zod.string().nullish(),
+  "durationMinutes": zod.number().nullish(),
+  "creatorDisplayName": zod.string().nullish(),
+  "learnerDisplayName": zod.string().nullish(),
+  "meetingLink": zod.string().nullish(),
+  "cancellationReason": zod.string().nullish()
 }))
 })
 

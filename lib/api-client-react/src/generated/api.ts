@@ -35,11 +35,15 @@ import type {
   AvailabilityResponse,
   AvailabilityRuleResponse,
   AvailabilityRulesResponse,
+  BookingDetailResponse,
   BookingHoldResponse,
   BookingsResponse,
+  CancelBookingRequest,
   CheckoutSessionResponse,
   CommissionRuleResponse,
   CommissionRulesResponse,
+  ConfirmBookingRequest,
+  ConfirmBookingResponse,
   ConfirmPasswordResetBody,
   ConflictResponse,
   ConversationResponse,
@@ -1424,6 +1428,149 @@ export const useCreateBookingHold = <TError = ErrorType<ConflictResponse>,
         TContext
       > => {
       return useMutation(getCreateBookingHoldMutationOptions(options));
+    }
+
+export const getConfirmFreeBookingUrl = () => {
+
+
+
+
+  return `/api/v1/bookings/confirm`
+}
+
+/**
+ * @summary Confirm a free booking immediately without payment
+ */
+export const confirmFreeBooking = async (confirmBookingRequest: ConfirmBookingRequest, options?: RequestInit): Promise<ConfirmBookingResponse> => {
+
+  return customFetch<ConfirmBookingResponse>(getConfirmFreeBookingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(confirmBookingRequest)
+  }
+);}
+
+
+
+
+
+export const getConfirmFreeBookingMutationOptions = <TError = ErrorType<ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmFreeBooking>>, TError,{data: BodyType<ConfirmBookingRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmFreeBooking>>, TError,{data: BodyType<ConfirmBookingRequest>}, TContext> => {
+
+const mutationKey = ['confirmFreeBooking'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmFreeBooking>>, {data: BodyType<ConfirmBookingRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  confirmFreeBooking(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmFreeBookingMutationResult = NonNullable<Awaited<ReturnType<typeof confirmFreeBooking>>>
+    export type ConfirmFreeBookingMutationBody = BodyType<ConfirmBookingRequest>
+    export type ConfirmFreeBookingMutationError = ErrorType<ConflictResponse>
+
+    /**
+ * @summary Confirm a free booking immediately without payment
+ */
+export const useConfirmFreeBooking = <TError = ErrorType<ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmFreeBooking>>, TError,{data: BodyType<ConfirmBookingRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof confirmFreeBooking>>,
+        TError,
+        {data: BodyType<ConfirmBookingRequest>},
+        TContext
+      > => {
+      return useMutation(getConfirmFreeBookingMutationOptions(options));
+    }
+
+export const getCancelBookingUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/bookings/${id}/cancel`
+}
+
+/**
+ * @summary Cancel a booking
+ */
+export const cancelBooking = async (id: string,
+    cancelBookingRequest: CancelBookingRequest, options?: RequestInit): Promise<BookingDetailResponse> => {
+
+  return customFetch<BookingDetailResponse>(getCancelBookingUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(cancelBookingRequest)
+  }
+);}
+
+
+
+
+
+export const getCancelBookingMutationOptions = <TError = ErrorType<ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelBooking>>, TError,{id: string;data: BodyType<CancelBookingRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelBooking>>, TError,{id: string;data: BodyType<CancelBookingRequest>}, TContext> => {
+
+const mutationKey = ['cancelBooking'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelBooking>>, {id: string;data: BodyType<CancelBookingRequest>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  cancelBooking(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelBookingMutationResult = NonNullable<Awaited<ReturnType<typeof cancelBooking>>>
+    export type CancelBookingMutationBody = BodyType<CancelBookingRequest>
+    export type CancelBookingMutationError = ErrorType<ForbiddenResponse | NotFoundResponse>
+
+    /**
+ * @summary Cancel a booking
+ */
+export const useCancelBooking = <TError = ErrorType<ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelBooking>>, TError,{id: string;data: BodyType<CancelBookingRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelBooking>>,
+        TError,
+        {id: string;data: BodyType<CancelBookingRequest>},
+        TContext
+      > => {
+      return useMutation(getCancelBookingMutationOptions(options));
     }
 
 export const getCreateCheckoutSessionUrl = () => {

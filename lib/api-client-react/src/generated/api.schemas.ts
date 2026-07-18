@@ -292,10 +292,59 @@ export interface LibraryResponse {
   data: LibraryResponseDataItem[];
 }
 
-export type BookingsResponseDataItem = { [key: string]: unknown };
+export type BookingsResponseDataItem = {
+  id?: string;
+  listingId?: string;
+  serviceOfferId?: string;
+  learnerId?: string;
+  creatorId?: string;
+  scheduledStartAt?: string;
+  scheduledEndAt?: string;
+  status?: string;
+  listingTitle?: string | null;
+  durationMinutes?: number | null;
+  creatorDisplayName?: string | null;
+  learnerDisplayName?: string | null;
+  meetingLink?: string | null;
+  cancellationReason?: string | null;
+};
 
 export interface BookingsResponse {
   data: BookingsResponseDataItem[];
+}
+
+export interface ConfirmBookingRequest {
+  listingId: string;
+  serviceOfferId: string;
+  startAt: string;
+  timezone?: string;
+}
+
+export type ConfirmBookingResponseData = {
+  bookingId?: string;
+  status?: string;
+};
+
+export interface ConfirmBookingResponse {
+  data: ConfirmBookingResponseData;
+}
+
+export type BookingDetailResponseData = {
+  id?: string;
+  status?: string;
+  cancellationReason?: string | null;
+};
+
+export interface BookingDetailResponse {
+  data: BookingDetailResponseData;
+}
+
+export interface CancelBookingRequest {
+  /**
+     * @minLength 5
+     * @maxLength 500
+     */
+  reason: string;
 }
 
 export type DownloadUrlResponseData = {

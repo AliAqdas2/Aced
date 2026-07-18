@@ -9,8 +9,9 @@ import {
   serviceOffersTable,
   creatorProfilesTable,
   listingsTable,
+  priceRecordsTable,
 } from "@workspace/db";
-import { eq, and, gte, lte, or } from "drizzle-orm";
+import { eq, and, gte, lte, isNull, or } from "drizzle-orm";
 import { requireAuth, requireRole } from "../../middlewares/auth";
 
 const router: IRouter = Router();
@@ -268,6 +269,142 @@ router.post("/bookings/holds", requireAuth, async (req, res): Promise<void> => {
     .returning();
 
   res.status(201).json({ data: hold });
+});
+
+// POST /api/v1/bookings/confirm — confirm a free booking immediately (no Stripe)
+router.post("/bookings/confirm", requireAuth, async (req, res): Promise<void> => {
+  const Body = z.object({
+    listingId: z.string().uuid(),
+    serviceOfferId: z.string().uuid(),
+    startAt: z.string().datetime(),
+    timezone: z.string().default("Europe/London"),
+  });
+  const parsed = Body.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+    return;
+  }
+
+  const { listingId, serviceOfferId, startAt, timezone } = parsed.data;
+  const learnerId = req.session.userId!;
+
+  // Verify listing is free
+  const [priceRecord] = await db
+    .select()
+    .from(priceRecordsTable)
+    .where(and(eq(priceRecordsTable.listingId, listingId), eq(priceRecordsTable.isActive, true)))
+    .limit(1);
+
+  if (priceRecord && priceRecord.amountMinorUnits > 0) {
+    res.status(400).json({ error: "Listing is not free", code: "PAID_LISTING" });
+    return;
+  }
+
+  const [listing] = await db
+    .select()
+    .from(listingsTable)
+    .where(and(eq(listingsTable.id, listingId), eq(listingsTable.status, "published")))
+    .limit(1);
+
+  if (!listing) {
+    res.status(404).json({ error: "Listing not found" });
+    return;
+  }
+
+  const [offer] = await db
+    .select()
+    .from(serviceOffersTable)
+    .where(eq(serviceOffersTable.id, serviceOfferId))
+    .limit(1);
+
+  if (!offer) {
+    res.status(404).json({ error: "Service offer not found" });
+    return;
+  }
+
+  const startDate = new Date(startAt);
+  const endDate = new Date(startDate.getTime() + offer.durationMinutes * 60 * 1000);
+  const now = new Date();
+
+  // Minimum notice check
+  const minNoticeMs = offer.minNoticeHours * 60 * 60 * 1000;
+  if (startDate.getTime() - now.getTime() < minNoticeMs) {
+    res.status(409).json({ error: "Insufficient notice for this booking", code: "TOO_SOON" });
+    return;
+  }
+
+  // Overlap check: bookings
+  const overlappingBookings = await db
+    .select()
+    .from(bookingsTable)
+    .where(
+      and(
+        eq(bookingsTable.serviceOfferId, serviceOfferId),
+        lte(bookingsTable.scheduledStartAt, endDate),
+        gte(bookingsTable.scheduledEndAt, startDate)
+      )
+    );
+
+  const conflicting = overlappingBookings.filter((b) =>
+    ["confirmed", "held", "pending_payment", "in_progress"].includes(b.status)
+  );
+
+  if (conflicting.length > 0) {
+    res.status(409).json({ error: "Slot no longer available", code: "SLOT_TAKEN" });
+    return;
+  }
+
+  // Overlap check: active holds
+  const overlappingHolds = await db
+    .select()
+    .from(bookingHoldsTable)
+    .where(
+      and(
+        eq(bookingHoldsTable.serviceOfferId, serviceOfferId),
+        eq(bookingHoldsTable.status, "active"),
+        gte(bookingHoldsTable.expiresAt, now),
+        lte(bookingHoldsTable.holdStartsAt, endDate),
+        gte(bookingHoldsTable.holdEndsAt, startDate)
+      )
+    );
+
+  if (overlappingHolds.length > 0) {
+    res.status(409).json({ error: "Slot is held by another user", code: "SLOT_HELD" });
+    return;
+  }
+
+  // Create hold (immediately converted)
+  const expiresAt = new Date(now.getTime() + 5 * 60 * 1000);
+  const [hold] = await db
+    .insert(bookingHoldsTable)
+    .values({
+      listingId,
+      serviceOfferId,
+      learnerId,
+      holdStartsAt: startDate,
+      holdEndsAt: endDate,
+      expiresAt,
+      status: "converted",
+    })
+    .returning();
+
+  // Confirm booking immediately
+  const [booking] = await db
+    .insert(bookingsTable)
+    .values({
+      holdId: hold.id,
+      learnerId,
+      creatorId: listing.creatorId,
+      serviceOfferId,
+      listingId,
+      scheduledStartAt: startDate,
+      scheduledEndAt: endDate,
+      status: "confirmed",
+      learnerTimezone: timezone,
+    })
+    .returning();
+
+  res.status(201).json({ data: { bookingId: booking.id, status: "confirmed" } });
 });
 
 // --- Creator availability management ---

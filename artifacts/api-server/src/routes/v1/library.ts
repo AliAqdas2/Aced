@@ -7,6 +7,9 @@ import {
   productsTable,
   assetsTable,
   bookingsTable,
+  serviceOffersTable,
+  profilesTable,
+  creatorProfilesTable,
 } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth } from "../../middlewares/auth";
@@ -141,7 +144,7 @@ router.post("/assets/:id/download-url", requireAuth, async (req, res): Promise<v
   res.json({ data: { url, expiresInSeconds: 3600, fileName: asset.fileName } });
 });
 
-// GET /api/v1/me/bookings — learner bookings
+// GET /api/v1/me/bookings — learner bookings (enriched)
 router.get("/me/bookings", requireAuth, async (req, res): Promise<void> => {
   const bookings = await db
     .select()
@@ -149,10 +152,49 @@ router.get("/me/bookings", requireAuth, async (req, res): Promise<void> => {
     .where(eq(bookingsTable.learnerId, req.session.userId!))
     .orderBy(desc(bookingsTable.scheduledStartAt));
 
-  res.json({ data: bookings });
+  const enriched = await Promise.all(
+    bookings.map(async (b) => {
+      const [listing] = await db
+        .select({ title: listingsTable.title })
+        .from(listingsTable)
+        .where(eq(listingsTable.id, b.listingId))
+        .limit(1);
+
+      const [offer] = await db
+        .select({ durationMinutes: serviceOffersTable.durationMinutes })
+        .from(serviceOffersTable)
+        .where(eq(serviceOffersTable.id, b.serviceOfferId))
+        .limit(1);
+
+      const [cp] = await db
+        .select({ userId: creatorProfilesTable.userId })
+        .from(creatorProfilesTable)
+        .where(eq(creatorProfilesTable.id, b.creatorId))
+        .limit(1);
+
+      let creatorDisplayName: string | null = null;
+      if (cp?.userId) {
+        const [profile] = await db
+          .select({ displayName: profilesTable.displayName })
+          .from(profilesTable)
+          .where(eq(profilesTable.userId, cp.userId))
+          .limit(1);
+        creatorDisplayName = profile?.displayName ?? null;
+      }
+
+      return {
+        ...b,
+        listingTitle: listing?.title ?? null,
+        durationMinutes: offer?.durationMinutes ?? null,
+        creatorDisplayName,
+      };
+    })
+  );
+
+  res.json({ data: enriched });
 });
 
-// GET /api/v1/creator/bookings — creator's bookings
+// GET /api/v1/creator/bookings — creator's bookings (enriched)
 router.get(
   "/creator/bookings",
   async (req, res): Promise<void> => {
@@ -161,7 +203,6 @@ router.get(
       return;
     }
 
-    const { creatorProfilesTable } = await import("@workspace/db");
     const [cp] = await db
       .select()
       .from(creatorProfilesTable)
@@ -179,7 +220,36 @@ router.get(
       .where(eq(bookingsTable.creatorId, cp.id))
       .orderBy(desc(bookingsTable.scheduledStartAt));
 
-    res.json({ data: bookings });
+    const enriched = await Promise.all(
+      bookings.map(async (b) => {
+        const [listing] = await db
+          .select({ title: listingsTable.title })
+          .from(listingsTable)
+          .where(eq(listingsTable.id, b.listingId))
+          .limit(1);
+
+        const [offer] = await db
+          .select({ durationMinutes: serviceOffersTable.durationMinutes })
+          .from(serviceOffersTable)
+          .where(eq(serviceOffersTable.id, b.serviceOfferId))
+          .limit(1);
+
+        const [learnerProfile] = await db
+          .select({ displayName: profilesTable.displayName })
+          .from(profilesTable)
+          .where(eq(profilesTable.userId, b.learnerId))
+          .limit(1);
+
+        return {
+          ...b,
+          listingTitle: listing?.title ?? null,
+          durationMinutes: offer?.durationMinutes ?? null,
+          learnerDisplayName: learnerProfile?.displayName ?? null,
+        };
+      })
+    );
+
+    res.json({ data: enriched });
   }
 );
 

@@ -6,4 +6,19 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export type BookingsResponseDataItem = { [key: string]: unknown };
+export type BookingsResponseDataItem = {
+  id?: string;
+  listingId?: string;
+  serviceOfferId?: string;
+  learnerId?: string;
+  creatorId?: string;
+  scheduledStartAt?: Date;
+  scheduledEndAt?: Date;
+  status?: string;
+  listingTitle?: string | null;
+  durationMinutes?: number | null;
+  creatorDisplayName?: string | null;
+  learnerDisplayName?: string | null;
+  meetingLink?: string | null;
+  cancellationReason?: string | null;
+};

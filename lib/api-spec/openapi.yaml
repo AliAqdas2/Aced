@@ -418,6 +418,57 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /v1/bookings/confirm:
+    post:
+      operationId: confirmFreeBooking
+      tags: [availability]
+      summary: Confirm a free booking immediately without payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmBookingRequest"
+      responses:
+        "201":
+          description: Booking confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfirmBookingResponse"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /v1/bookings/{id}/cancel:
+    post:
+      operationId: cancelBooking
+      tags: [library]
+      summary: Cancel a booking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelBookingRequest"
+      responses:
+        "200":
+          description: Booking cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingDetailResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /v1/checkout/sessions:
     post:
       operationId: createCheckoutSession
@@ -1673,6 +1724,102 @@ components:
           type: array
           items:
             type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              listingId:
+                type: string
+                format: uuid
+              serviceOfferId:
+                type: string
+                format: uuid
+              learnerId:
+                type: string
+                format: uuid
+              creatorId:
+                type: string
+                format: uuid
+              scheduledStartAt:
+                type: string
+                format: date-time
+              scheduledEndAt:
+                type: string
+                format: date-time
+              status:
+                type: string
+              listingTitle:
+                type: string
+                nullable: true
+              durationMinutes:
+                type: integer
+                nullable: true
+              creatorDisplayName:
+                type: string
+                nullable: true
+              learnerDisplayName:
+                type: string
+                nullable: true
+              meetingLink:
+                type: string
+                nullable: true
+              cancellationReason:
+                type: string
+                nullable: true
+
+    ConfirmBookingRequest:
+      type: object
+      required: [listingId, serviceOfferId, startAt]
+      properties:
+        listingId:
+          type: string
+          format: uuid
+        serviceOfferId:
+          type: string
+          format: uuid
+        startAt:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+
+    ConfirmBookingResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            bookingId:
+              type: string
+              format: uuid
+            status:
+              type: string
+
+    BookingDetailResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            status:
+              type: string
+            cancellationReason:
+              type: string
+              nullable: true
+
+    CancelBookingRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 500
 
     DownloadUrlResponse:
       type: object
