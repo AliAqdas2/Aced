@@ -1,11 +1,18 @@
 import { logger } from "./logger";
 import { db, failedEmailsTable } from "@workspace/db";
 
+export interface EmailAttachment {
+  filename: string;
+  content: string;
+  contentType: string;
+}
+
 export interface EmailPayload {
   to: string;
   subject: string;
   html: string;
   text?: string;
+  attachments?: EmailAttachment[];
 }
 
 /**
@@ -114,6 +121,11 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
       subject: payload.subject,
       html: payload.html,
       text: payload.text,
+      attachments: payload.attachments?.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+        contentType: a.contentType,
+      })),
     });
 
     logger.info({ to: payload.to, subject: payload.subject }, "Email sent");
