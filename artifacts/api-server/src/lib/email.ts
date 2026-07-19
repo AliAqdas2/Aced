@@ -176,6 +176,8 @@ export function buildCreatorApplicationEmail(opts: {
 /** #14 — Confirmation email sent to applicant on submission */
 export function buildApplicationReceivedEmail(opts: {
   applicantName: string;
+  headline: string;
+  grade: string;
   appUrl?: string;
 }): EmailPayload["html"] {
   const statusUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://aced.co.uk"}/apply/status`;
@@ -183,7 +185,11 @@ export function buildApplicationReceivedEmail(opts: {
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #7B2FF7;">We've received your Aced application</h2>
       <p>Hi ${opts.applicantName},</p>
-      <p>Thanks for applying to become a creator on Aced! We've received your application and our team will review it within <strong>3–5 working days</strong>.</p>
+      <p>Thanks for applying to become a creator on Aced! We've received your application and our team will review it within <strong>48 hours</strong>.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;background:#f9fafb;width:140px;">Your headline</td><td style="padding:8px;border:1px solid #e5e7eb;">${opts.headline}</td></tr>
+        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;background:#f9fafb;">Academic grade</td><td style="padding:8px;border:1px solid #e5e7eb;">${opts.grade}</td></tr>
+      </table>
       <p>You don't need to do anything else right now — we'll send you another email as soon as a decision has been made. <strong>Please don't resubmit your application</strong> as this may delay the review process.</p>
       <p>You can check your application status at any time using the button below.</p>
       <a href="${statusUrl}" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#7B2FF7,#00D4FF);color:white;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:8px;">View Application Status</a>

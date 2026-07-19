@@ -192,6 +192,8 @@ router.post(
               subject: "We've received your Aced application",
               html: buildApplicationReceivedEmail({
                 applicantName: userInfo.displayName ?? "there",
+                headline: parsed.data.headline,
+                grade: parsed.data.academicResult,
               }),
             },
             "creator_application_received_applicant"
