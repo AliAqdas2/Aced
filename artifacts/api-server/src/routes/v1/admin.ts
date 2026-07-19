@@ -372,6 +372,7 @@ router.get(
 const EXPORT_ROW_LIMIT = 10_000;
 
 // GET /api/v1/admin/orders/export — download paid orders as CSV (optional ?from=&to= ISO date filters, ?creatorId=, ?buyerEmail=)
+// Pass ?countOnly=true to get a lightweight { data: { count: N } } estimate instead of the full CSV.
 router.get(
   "/admin/orders/export",
   requireRole("finance"),
@@ -380,6 +381,7 @@ router.get(
     const toParam = req.query["to"] as string | undefined;
     const creatorIdParam = req.query["creatorId"] as string | undefined;
     const buyerEmailParam = req.query["buyerEmail"] as string | undefined;
+    const countOnly = req.query["countOnly"] === "true";
 
     // Validate date params when provided
     const fromDate = fromParam ? new Date(fromParam) : undefined;
@@ -419,6 +421,10 @@ router.get(
         .where(ilike(usersTable.email, buyerEmailParam));
       const buyerIds = matchingBuyers.map((u) => u.id);
       if (buyerIds.length === 0) {
+        if (countOnly) {
+          res.json({ data: { count: 0 } });
+          return;
+        }
         // No matching buyer — return empty CSV
         res.setHeader("Content-Type", "text/csv");
         const filename = `aced-transactions-no-results.csv`;
@@ -431,6 +437,17 @@ router.get(
         return;
       }
       conditions.push(inArray(ordersTable.buyerId, buyerIds));
+    }
+
+    // countOnly: run a lightweight COUNT query and return the estimate
+    if (countOnly) {
+      const [countRow] = await db
+        .select({ count: db.$count(ordersTable.id) })
+        .from(ordersTable)
+        .innerJoin(orderItemsTable, eq(orderItemsTable.orderId, ordersTable.id))
+        .where(and(...conditions));
+      res.json({ data: { count: Number(countRow?.count ?? 0) } });
+      return;
     }
 
     // COALESCE prefers the snapshot (set at checkout for new orders) and falls

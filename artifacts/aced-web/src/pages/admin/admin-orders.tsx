@@ -165,6 +165,47 @@ export default function AdminOrders() {
   const [exporting, setExporting] = useState(false);
   const [truncationWarning, setTruncationWarning] = useState<{ rowCount: number } | null>(null);
 
+  // Proactive row-count estimate for the export picker
+  const LARGE_EXPORT_THRESHOLD = 5_000;
+  const [estimatedCount, setEstimatedCount] = useState<number | null>(null);
+  const [countLoading, setCountLoading] = useState(false);
+  const countDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!showPicker) return;
+    if (countDebounceRef.current) clearTimeout(countDebounceRef.current);
+    setEstimatedCount(null);
+
+    // Only fetch when there is at least a from or to date set
+    if (!from && !to) return;
+
+    countDebounceRef.current = setTimeout(async () => {
+      setCountLoading(true);
+      try {
+        const params = new URLSearchParams({ countOnly: 'true' });
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+        if (exportCreatorId.trim()) params.set('creatorId', exportCreatorId.trim());
+        if (exportBuyerEmail.trim()) params.set('buyerEmail', exportBuyerEmail.trim());
+        const res = await fetch(`/api/v1/admin/orders/export?${params.toString()}`, {
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const json = await res.json();
+          setEstimatedCount(json?.data?.count ?? null);
+        }
+      } catch {
+        // silently ignore — the warning is best-effort
+      } finally {
+        setCountLoading(false);
+      }
+    }, 400);
+
+    return () => {
+      if (countDebounceRef.current) clearTimeout(countDebounceRef.current);
+    };
+  }, [showPicker, from, to, exportCreatorId, exportBuyerEmail]);
+
   // When opening the export picker, pre-fill with active live filters
   const openExportPicker = () => {
     if (!showPicker) {
@@ -379,6 +420,24 @@ export default function AdminOrders() {
                   />
                 </div>
               </div>
+              {/* Proactive large-range warning */}
+              {countLoading && (from || to) && (
+                <p className="text-xs text-muted-foreground animate-pulse">Estimating row count…</p>
+              )}
+              {!countLoading && estimatedCount !== null && estimatedCount > LARGE_EXPORT_THRESHOLD && (
+                <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
+                  <span>
+                    This range contains{' '}
+                    <span className="font-semibold">~{estimatedCount.toLocaleString()} orders</span>
+                    {estimatedCount > 10_000 && (
+                      <> — the export is capped at 10,000 rows</>
+                    )}
+                    . Consider narrowing the date range or adding a creator / buyer filter.
+                  </span>
+                </div>
+              )}
+
               <div className="flex items-center gap-2">
                 <Button size="sm" onClick={handleExport} disabled={exporting} className="flex items-center gap-2">
                   <Download className="h-4 w-4" />
