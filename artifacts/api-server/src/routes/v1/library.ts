@@ -12,10 +12,51 @@ import {
   profilesTable,
   creatorProfilesTable,
   learnerSubscriptionsTable,
+  ordersTable,
+  platformConfigTable,
 } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth } from "../../middlewares/auth";
 import { generateDownloadUrl } from "../../lib/storage";
+import Stripe from "stripe";
+
+function getStripe(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error("STRIPE_SECRET_KEY not set");
+  return new Stripe(key, { apiVersion: "2026-06-24.dahlia" });
+}
+
+/**
+ * Reads refund policy from platform_config.
+ * REFUND_FULL_HOURS  — hours before session start that qualify for a full refund (default: 24)
+ * REFUND_PARTIAL_RATE — fraction [0,1] returned when within that window (default: 0.5)
+ *
+ * Values are clamped to safe ranges; invalid/NaN config falls back to safe defaults.
+ */
+async function getRefundPolicy(): Promise<{ fullRefundHours: number; partialRate: number }> {
+  const [hoursRow, rateRow] = await Promise.all([
+    db
+      .select({ value: platformConfigTable.value })
+      .from(platformConfigTable)
+      .where(eq(platformConfigTable.key, "REFUND_FULL_HOURS"))
+      .limit(1),
+    db
+      .select({ value: platformConfigTable.value })
+      .from(platformConfigTable)
+      .where(eq(platformConfigTable.key, "REFUND_PARTIAL_RATE"))
+      .limit(1),
+  ]);
+
+  const rawHours = parseFloat(hoursRow[0]?.value ?? "");
+  const rawRate = parseFloat(rateRow[0]?.value ?? "");
+
+  // Clamp to safe ranges; fall back to defaults on NaN or out-of-range values
+  const fullRefundHours = Number.isFinite(rawHours) && rawHours >= 0 ? rawHours : 24;
+  const partialRate =
+    Number.isFinite(rawRate) && rawRate >= 0 && rawRate <= 1 ? rawRate : 0.5;
+
+  return { fullRefundHours, partialRate };
+}
 
 const router: IRouter = Router();
 
@@ -334,9 +375,58 @@ router.post("/bookings/:id/cancel", requireAuth, async (req, res): Promise<void>
     return;
   }
 
+  // Determine whether a Stripe refund should be issued.
+  // Only paid bookings that are confirmed or in_progress have an associated order to refund.
+  const isPaidStatus = booking.status === "confirmed" || booking.status === "in_progress";
+  let stripeRefundId: string | null = null;
+  let refundAmountMinorUnits: number | null = null;
+  let finalStatus: "cancelled" | "refunded" = "cancelled";
+
+  if (isPaidStatus && booking.orderId) {
+    const [order] = await db
+      .select()
+      .from(ordersTable)
+      .where(eq(ordersTable.id, booking.orderId))
+      .limit(1);
+
+    if (order?.stripePaymentIntentId && order.status === "paid") {
+      // Calculate refund amount based on cancellation policy
+      const { fullRefundHours, partialRate } = await getRefundPolicy();
+      const now = new Date();
+      const hoursUntilSession =
+        (booking.scheduledStartAt.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+      const grossAmount = order.totalMinorUnits;
+      const refundAmount =
+        hoursUntilSession >= fullRefundHours
+          ? grossAmount
+          : Math.round(grossAmount * partialRate);
+
+      if (refundAmount > 0) {
+        // Call Stripe with an idempotency key derived from this booking's cancellation so
+        // concurrent or retried calls never issue a double-refund.
+        // Any Stripe failure propagates as a 500 — the booking stays in confirmed/in_progress
+        // so the caller can retry and no money is silently lost.
+        const stripe = getStripe();
+        const stripeRefund = await stripe.refunds.create(
+          {
+            payment_intent: order.stripePaymentIntentId,
+            amount: refundAmount,
+            reason: "requested_by_customer",
+            metadata: { bookingId: booking.id, orderId: order.id },
+          },
+          { idempotencyKey: `booking-cancel-${booking.id}` }
+        );
+        stripeRefundId = stripeRefund.id;
+        refundAmountMinorUnits = refundAmount;
+        finalStatus = "refunded";
+      }
+    }
+  }
+
   const [updated] = await db
     .update(bookingsTable)
-    .set({ status: "cancelled", cancellationReason: parsed.data.reason })
+    .set({ status: finalStatus, cancellationReason: parsed.data.reason })
     .where(eq(bookingsTable.id, id))
     .returning();
 
@@ -371,7 +461,14 @@ router.post("/bookings/:id/cancel", requireAuth, async (req, res): Promise<void>
     }
   }
 
-  res.json({ data: updated });
+  res.json({
+    data: {
+      ...updated,
+      refund: stripeRefundId
+        ? { refundId: stripeRefundId, amountMinorUnits: refundAmountMinorUnits }
+        : null,
+    },
+  });
 });
 
 export default router;
