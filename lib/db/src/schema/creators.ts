@@ -8,6 +8,7 @@ import {
   integer,
   jsonb,
   date,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 import { universitiesTable, coursesTable, modulesTable } from "./taxonomy";
@@ -105,21 +106,30 @@ export const creatorVerificationsTable = pgTable("creator_verifications", {
     .$onUpdate(() => new Date()),
 });
 
-export const creatorExpertiseTable = pgTable("creator_expertise", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  creatorId: uuid("creator_id")
-    .notNull()
-    .references(() => creatorProfilesTable.id, { onDelete: "cascade" }),
-  universityId: uuid("university_id").references(() => universitiesTable.id),
-  courseId: uuid("course_id").references(() => coursesTable.id),
-  moduleId: uuid("module_id").references(() => modulesTable.id),
-  graduationYear: integer("graduation_year"),
-  academicResult: text("academic_result"),
-  isPrimary: boolean("is_primary").notNull().default(false),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const creatorExpertiseTable = pgTable(
+  "creator_expertise",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    creatorId: uuid("creator_id")
+      .notNull()
+      .references(() => creatorProfilesTable.id, { onDelete: "cascade" }),
+    universityId: uuid("university_id").references(() => universitiesTable.id),
+    courseId: uuid("course_id").references(() => coursesTable.id),
+    moduleId: uuid("module_id").references(() => modulesTable.id),
+    graduationYear: integer("graduation_year"),
+    academicResult: text("academic_result"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Each creator has exactly one primary expertise row.
+    // This unique constraint makes duplicate rows physically impossible
+    // regardless of concurrent requests.
+    uniqueIndex("creator_expertise_creator_id_unique").on(table.creatorId),
+  ]
+);
 
 export const storefrontsTable = pgTable("storefronts", {
   id: uuid("id").defaultRandom().primaryKey(),

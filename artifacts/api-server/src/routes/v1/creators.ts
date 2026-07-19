@@ -136,20 +136,30 @@ router.post(
       creatorProfile = cp;
     }
 
-    // #40 — Always delete ALL existing expertise before re-inserting.
-    // This makes the operation idempotent regardless of how many times the form is submitted.
+    // #40 — Single atomic upsert on the unique creator_id index.
+    // Because creator_expertise has a unique constraint on creator_id,
+    // concurrent double-submits both hit the same conflict target and the
+    // last writer wins cleanly — duplicates are physically impossible.
     await db
-      .delete(creatorExpertiseTable)
-      .where(eq(creatorExpertiseTable.creatorId, creatorProfile.id));
-
-    await db.insert(creatorExpertiseTable).values({
-      creatorId: creatorProfile.id,
-      universityId: parsed.data.universityId,
-      courseId: parsed.data.courseId,
-      graduationYear: parsed.data.graduationYear,
-      academicResult: parsed.data.academicResult,
-      isPrimary: true,
-    });
+      .insert(creatorExpertiseTable)
+      .values({
+        creatorId: creatorProfile!.id,
+        universityId: parsed.data.universityId,
+        courseId: parsed.data.courseId,
+        graduationYear: parsed.data.graduationYear,
+        academicResult: parsed.data.academicResult,
+        isPrimary: true,
+      })
+      .onConflictDoUpdate({
+        target: creatorExpertiseTable.creatorId,
+        set: {
+          universityId: parsed.data.universityId,
+          courseId: parsed.data.courseId,
+          graduationYear: parsed.data.graduationYear,
+          academicResult: parsed.data.academicResult,
+          isPrimary: true,
+        },
+      });
 
     // Update user role to creator_applicant
     await db
