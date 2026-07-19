@@ -12,6 +12,8 @@ export default function AdminOrders() {
   const [showPicker, setShowPicker] = useState(false);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [creatorId, setCreatorId] = useState('');
+  const [buyerEmail, setBuyerEmail] = useState('');
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">Loading orders...</div>;
 
@@ -21,6 +23,8 @@ export default function AdminOrders() {
     const params = new URLSearchParams();
     if (from) params.set('from', from);
     if (to) params.set('to', to);
+    if (creatorId.trim()) params.set('creatorId', creatorId.trim());
+    if (buyerEmail.trim()) params.set('buyerEmail', buyerEmail.trim());
     const qs = params.toString();
     const url = `/api/v1/admin/orders/export${qs ? `?${qs}` : ''}`;
 
@@ -32,6 +36,8 @@ export default function AdminOrders() {
     document.body.removeChild(a);
     setShowPicker(false);
   };
+
+  const hasFilters = from || to || creatorId.trim() || buyerEmail.trim();
 
   return (
     <div className="space-y-6">
@@ -86,16 +92,40 @@ export default function AdminOrders() {
                   />
                 </div>
               </div>
+              <div className="flex flex-wrap gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="export-creator">Creator ID</Label>
+                  <Input
+                    id="export-creator"
+                    type="text"
+                    value={creatorId}
+                    onChange={(e) => setCreatorId(e.target.value)}
+                    placeholder="Exact creator user ID"
+                    className="w-64"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="export-buyer">Buyer Email</Label>
+                  <Input
+                    id="export-buyer"
+                    type="email"
+                    value={buyerEmail}
+                    onChange={(e) => setBuyerEmail(e.target.value)}
+                    placeholder="buyer@example.com"
+                    className="w-64"
+                  />
+                </div>
+              </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" onClick={handleExport} className="flex items-center gap-2">
                   <Download className="h-4 w-4" />
-                  {from || to ? 'Export filtered range' : 'Export all time'}
+                  {hasFilters ? 'Export filtered' : 'Export all time'}
                 </Button>
-                {(from || to) && (
+                {hasFilters && (
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => { setFrom(''); setTo(''); }}
+                    onClick={() => { setFrom(''); setTo(''); setCreatorId(''); setBuyerEmail(''); }}
                   >
                     Clear
                   </Button>

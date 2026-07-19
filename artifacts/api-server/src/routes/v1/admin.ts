@@ -19,7 +19,7 @@ import {
   universitiesTable,
   creatorExpertiseTable,
 } from "@workspace/db";
-import { eq, and, desc, ilike, gte, lt } from "drizzle-orm";
+import { eq, and, desc, ilike, gte, lt, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { requireRole } from "../../middlewares/auth";
 import { logAuditEvent } from "../../lib/auth";
@@ -332,13 +332,15 @@ router.get(
   }
 );
 
-// GET /api/v1/admin/orders/export — download paid orders as CSV (optional ?from=&to= ISO date filters)
+// GET /api/v1/admin/orders/export — download paid orders as CSV (optional ?from=&to= ISO date filters, ?creatorId=, ?buyerEmail=)
 router.get(
   "/admin/orders/export",
   requireRole("finance"),
   async (req, res): Promise<void> => {
     const fromParam = req.query["from"] as string | undefined;
     const toParam = req.query["to"] as string | undefined;
+    const creatorIdParam = req.query["creatorId"] as string | undefined;
+    const buyerEmailParam = req.query["buyerEmail"] as string | undefined;
 
     // Validate date params when provided
     const fromDate = fromParam ? new Date(fromParam) : undefined;
@@ -366,6 +368,30 @@ router.get(
       const nextDayStart = new Date(toDate);
       nextDayStart.setDate(nextDayStart.getDate() + 1);
       conditions.push(lt(ordersTable.createdAt, nextDayStart));
+    }
+    if (creatorIdParam) {
+      conditions.push(eq(orderItemsTable.creatorIdSnapshot, creatorIdParam));
+    }
+    if (buyerEmailParam) {
+      // Resolve the buyer's userId from their email first, then filter orders
+      const matchingBuyers = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(ilike(usersTable.email, buyerEmailParam));
+      const buyerIds = matchingBuyers.map((u) => u.id);
+      if (buyerIds.length === 0) {
+        // No matching buyer — return empty CSV
+        res.setHeader("Content-Type", "text/csv");
+        const filename = `aced-transactions-no-results.csv`;
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        res.send(
+          [
+            "Order ID,Date,Buyer Email,Creator ID,Creator Name,Listing Title,Gross Amount (£),Platform Fee (£),Creator Proceeds (£),Commission Rate",
+          ].join("\r\n")
+        );
+        return;
+      }
+      conditions.push(inArray(ordersTable.buyerId, buyerIds));
     }
 
     const creatorProfile = alias(profilesTable, "creator_profile");
@@ -433,12 +459,19 @@ router.get(
       ),
     ].join("\r\n");
 
-    // Build a descriptive filename reflecting the chosen range
-    const fromStr = fromParam ?? "all";
-    const toStr = toParam ?? "time";
+    // Build a descriptive filename reflecting the chosen filters
+    const parts: string[] = [];
+    if (fromParam || toParam) {
+      const fromStr = fromParam ?? "all";
+      const toStr = toParam ?? "time";
+      parts.push(`${fromStr}_${toStr}`);
+    }
+    if (creatorIdParam) parts.push(`creator-${creatorIdParam.slice(0, 8)}`);
+    if (buyerEmailParam) parts.push(`buyer-${buyerEmailParam.replace(/[^a-z0-9]/gi, "_")}`);
+
     const filename =
-      fromParam || toParam
-        ? `aced-transactions-${fromStr}_${toStr}.csv`
+      parts.length > 0
+        ? `aced-transactions-${parts.join("-")}.csv`
         : `aced-transactions-${new Date().toISOString().split("T")[0]}.csv`;
 
     res.setHeader("Content-Type", "text/csv");
