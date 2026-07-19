@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { z } from 'zod';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useLocation, useSearch } from 'wouter';
 import {
@@ -12,6 +12,7 @@ import {
   getGetApplicationConfigQueryKey,
   useGetApplicationStatus,
   getGetApplicationStatusQueryKey,
+  useListCoursesByUniversity,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -19,11 +20,11 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Upload, FileText, CheckCircle, X, Loader2 } from 'lucide-react';
+import { Upload, FileText, X, Loader2 } from 'lucide-react';
 
 const applySchema = z.object({
   universityId: z.string().min(1, "Please select your university"),
-  courseId: z.string().min(1, "Course ID is required"),
+  courseId: z.string().uuid("Please select your course"),
   graduationYear: z.coerce.number().min(2000).max(2030),
   academicResult: z.string().min(2, "Please specify your result"),
   headline: z.string().min(10, "Headline must be descriptive"),
@@ -172,13 +173,29 @@ export function CreatorApplicationForm({ initialValues }: { initialValues?: Appl
     resolver: zodResolver(applySchema),
     defaultValues: {
       universityId: initialValues?.universityId ?? '',
-      courseId: initialValues?.courseId ?? 'placeholder-course-id',
+      courseId: initialValues?.courseId ?? '',
       graduationYear: initialValues?.graduationYear ?? new Date().getFullYear(),
       academicResult: initialValues?.academicResult ?? '',
       headline: initialValues?.headline ?? '',
       agreedToTerms: false,
     },
   });
+
+  // #15 — watch universityId to populate the cascading course dropdown
+  const selectedUniversityId = useWatch({ control: form.control, name: 'universityId' });
+  const { data: coursesData, isLoading: coursesLoading } = useListCoursesByUniversity(
+    selectedUniversityId,
+    { query: { enabled: Boolean(selectedUniversityId) } },
+  );
+
+  // When university changes, clear the course selection (unless pre-populated on initial load)
+  const prevUniversityRef = useRef<string>('');
+  useEffect(() => {
+    if (prevUniversityRef.current && prevUniversityRef.current !== selectedUniversityId) {
+      form.setValue('courseId', '');
+    }
+    prevUniversityRef.current = selectedUniversityId;
+  }, [selectedUniversityId, form]);
 
   const applyMutation = useSubmitCreatorApplication();
 
@@ -196,10 +213,11 @@ export function CreatorApplicationForm({ initialValues }: { initialValues?: Appl
   }
 
   async function onSubmit(values: z.infer<typeof applySchema>) {
-    // Validate file requirements
+    // Validate file requirements.
+    // On resubmit, files are optional — existing docs already stored remain valid.
     const errors: typeof fileErrors = {};
-    if (!degreeFile) errors.degree = 'Please upload your degree certificate or transcript';
-    if (dbsRequired && !dbsFile) errors.dbs = 'A DBS check document is required';
+    if (!isResubmit && !degreeFile) errors.degree = 'Please upload your degree certificate or transcript';
+    if (dbsRequired && !isResubmit && !dbsFile) errors.dbs = 'A DBS check document is required';
     if (Object.keys(errors).length) {
       setFileErrors(errors);
       return;
@@ -243,13 +261,14 @@ export function CreatorApplicationForm({ initialValues }: { initialValues?: Appl
             <div className="space-y-4">
               <h3 className="text-lg font-bold border-b pb-2">Academic Background</h3>
 
+              {/* #15 — University dropdown (searchable via existing API filtering) */}
               <FormField
                 control={form.control}
                 name="universityId"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>University</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select your university" />
@@ -266,6 +285,49 @@ export function CreatorApplicationForm({ initialValues }: { initialValues?: Appl
                 )}
               />
 
+              {/* #15 — Course dropdown, filtered by selected university */}
+              <FormField
+                control={form.control}
+                name="courseId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Course / Subject</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={!selectedUniversityId || coursesLoading}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={
+                              !selectedUniversityId
+                                ? 'Select a university first'
+                                : coursesLoading
+                                ? 'Loading courses…'
+                                : 'Select your course'
+                            }
+                          />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {coursesData?.data?.map(course => (
+                          <SelectItem key={course.id} value={course.id}>
+                            {course.name}
+                          </SelectItem>
+                        ))}
+                        {selectedUniversityId && !coursesLoading && coursesData?.data?.length === 0 && (
+                          <div className="py-2 px-3 text-sm text-muted-foreground">
+                            No courses found for this university.
+                          </div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -273,7 +335,7 @@ export function CreatorApplicationForm({ initialValues }: { initialValues?: Appl
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Expected / Achieved Grade</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="e.g. First Class" />
@@ -328,26 +390,31 @@ export function CreatorApplicationForm({ initialValues }: { initialValues?: Appl
               />
             </div>
 
-            {/* Document Verification */}
+            {/* #39 — Document Verification always rendered, including on resubmit */}
             <div className="space-y-4">
               <h3 className="text-lg font-bold border-b pb-2">Verification Documents</h3>
+              {isResubmit && (
+                <div className="rounded-md border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-primary">
+                  You can add or replace your verification documents below. Any new files you upload will be added to your application alongside existing ones.
+                </div>
+              )}
               <p className="text-sm text-muted-foreground">
                 Upload proof of your academic achievement. Accepted formats: PDF, JPG, PNG, WebP — max 20 MB each.
               </p>
 
               <FileInput
-                label="Degree Certificate or Transcript"
+                label={isResubmit ? 'Degree Certificate or Transcript (optional — only if replacing)' : 'Degree Certificate or Transcript'}
                 hint="PDF or image of your official degree certificate or final transcript"
-                required
+                required={!isResubmit}
                 file={degreeFile}
                 onSelect={setDegreeFile}
                 error={fileErrors.degree}
               />
 
               <FileInput
-                label={`DBS Check${dbsRequired ? '' : ' (optional)'}`}
+                label={`DBS Check${dbsRequired && !isResubmit ? '' : ' (optional)'}`}
                 hint="Enhanced DBS certificate or Basic Disclosure — leave blank to upload later"
-                required={dbsRequired}
+                required={dbsRequired && !isResubmit}
                 file={dbsFile}
                 onSelect={setDbsFile}
                 error={fileErrors.dbs}
@@ -434,7 +501,7 @@ export default function Apply() {
   const initialValues: ApplicationInitialValues | undefined = isResubmit && statusData?.data
     ? {
         universityId: (statusData.data as { expertise?: Array<{ universityId?: string }> }).expertise?.[0]?.universityId ?? '',
-        courseId: (statusData.data as { expertise?: Array<{ courseId?: string }> }).expertise?.[0]?.courseId ?? 'placeholder-course-id',
+        courseId: (statusData.data as { expertise?: Array<{ courseId?: string }> }).expertise?.[0]?.courseId ?? '',
         graduationYear: (statusData.data as { expertise?: Array<{ graduationYear?: number }> }).expertise?.[0]?.graduationYear ?? new Date().getFullYear(),
         academicResult: (statusData.data as { expertise?: Array<{ academicResult?: string }> }).expertise?.[0]?.academicResult ?? '',
         headline: (statusData.data as { headline?: string }).headline ?? '',
@@ -639,7 +706,9 @@ const TERMINAL_STATUSES = ['approved', 'closed'];
 const POLL_INTERVAL_MS = 30_000;
 
 export function ApplyStatus() {
+  const queryClient = useQueryClient();
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const [liveConnected, setLiveConnected] = useState(false);
 
   const { data, isLoading } = useGetApplicationStatus({
     query: {
@@ -657,6 +726,68 @@ export function ApplyStatus() {
   useEffect(() => {
     if (!isLoading) setLastChecked(new Date());
   }, [data, isLoading]);
+
+  // SSE — push live status updates from the server
+  useEffect(() => {
+    // Don't open SSE while initial load is in flight or if already terminal
+    if (isLoading) return;
+    const currentStatus = (data as { data?: { status?: string } } | undefined)?.data?.status;
+    if (currentStatus && TERMINAL_STATUSES.includes(currentStatus)) return;
+
+    const es = new EventSource('/api/v1/creator/application/status');
+
+    es.onopen = () => setLiveConnected(true);
+
+    es.onmessage = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data as string) as {
+          status?: string;
+          reviewNotes?: string | null;
+          closed?: boolean;
+          error?: string;
+        };
+        if (payload.closed || payload.error) {
+          setLiveConnected(false);
+          es.close();
+          return;
+        }
+        if (payload.status) {
+          // Patch the query cache so the UI re-renders immediately
+          queryClient.setQueryData(getGetApplicationStatusQueryKey(), (old: unknown) => {
+            const typed = old as { data?: Record<string, unknown> } | undefined;
+            if (!typed?.data) return old;
+            return {
+              ...typed,
+              data: {
+                ...typed.data,
+                status: payload.status,
+                reviewNotes: payload.reviewNotes ?? typed.data['reviewNotes'],
+              },
+            };
+          });
+          setLastChecked(new Date());
+          // Close SSE once terminal
+          if (TERMINAL_STATUSES.includes(payload.status!)) {
+            setLiveConnected(false);
+            es.close();
+          }
+        }
+      } catch {
+        // ignore JSON parse errors
+      }
+    };
+
+    es.onerror = () => {
+      setLiveConnected(false);
+      es.close();
+    };
+
+    return () => {
+      es.close();
+      setLiveConnected(false);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
 
   const application = data?.data;
 
@@ -708,10 +839,20 @@ export function ApplyStatus() {
           )}
         </CardContent>
       </Card>
-      {!isTerminal && lastChecked && (
-        <p className="mt-4 text-xs text-muted-foreground">
-          Last checked {lastChecked.toLocaleTimeString(undefined, { timeStyle: 'short' })} · updates automatically
-        </p>
+      {!isTerminal && (
+        <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+          {liveConnected ? (
+            <>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+              </span>
+              <span>Live</span>
+            </>
+          ) : lastChecked ? (
+            <span>Last checked {lastChecked.toLocaleTimeString(undefined, { timeStyle: 'short' })} · updates automatically</span>
+          ) : null}
+        </div>
       )}
     </div>
   );

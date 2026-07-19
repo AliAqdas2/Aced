@@ -10,12 +10,21 @@ import {
   storefrontsTable,
   commissionRulesTable,
   platformConfigTable,
+  coursesTable,
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, requireRole } from "../../middlewares/auth";
 import { generateUploadUrl } from "../../lib/storage";
 import { logAuditEvent } from "../../lib/auth";
-import { sendEmail, buildCreatorApplicationEmail, buildChangesRequestedEmail } from "../../lib/email";
+import {
+  sendEmail,
+  sendEmailResilient,
+  buildCreatorApplicationEmail,
+  buildApprovalEmail,
+  buildRejectionEmail,
+  buildChangesRequestedEmail,
+  buildApplicationReceivedEmail,
+} from "../../lib/email";
 import { logger } from "../../lib/logger";
 import Stripe from "stripe";
 
@@ -26,6 +35,25 @@ function getStripe(): Stripe {
   if (!key) throw new Error("STRIPE_SECRET_KEY not set");
   return new Stripe(key, { apiVersion: "2026-06-24.dahlia" });
 }
+
+// GET /api/v1/taxonomy/courses?universityId=... — list courses for a university
+// Used by the application form to populate the cascading course selector (#15)
+router.get(
+  "/taxonomy/courses",
+  async (req, res): Promise<void> => {
+    const universityId = req.query["universityId"] as string | undefined;
+    if (!universityId) {
+      res.status(400).json({ error: "universityId query parameter is required" });
+      return;
+    }
+    const courses = await db
+      .select()
+      .from(coursesTable)
+      .where(eq(coursesTable.universityId, universityId))
+      .orderBy(coursesTable.name);
+    res.json({ data: courses });
+  }
+);
 
 // GET /api/v1/creator/applications/config — DBS required flag and approval email
 router.get(
@@ -109,17 +137,12 @@ router.post(
       creatorProfile = cp;
     }
 
-    // Add/replace expertise — on resubmission delete the old primary row first
-    if (isResubmission) {
-      await db
-        .delete(creatorExpertiseTable)
-        .where(
-          and(
-            eq(creatorExpertiseTable.creatorId, creatorProfile.id),
-            eq(creatorExpertiseTable.isPrimary, true)
-          )
-        );
-    }
+    // #40 — Always delete ALL existing expertise before re-inserting.
+    // This makes the operation idempotent regardless of how many times the form is submitted.
+    await db
+      .delete(creatorExpertiseTable)
+      .where(eq(creatorExpertiseTable.creatorId, creatorProfile.id));
+
     await db.insert(creatorExpertiseTable).values({
       creatorId: creatorProfile.id,
       universityId: parsed.data.universityId,
@@ -143,7 +166,31 @@ router.post(
       targetType: "creator_profile",
     });
 
-    // Send approval notification email (fire and forget — don't block response)
+    // #14 — Send confirmation email to applicant (fire-and-forget — must not fail the response)
+    (async () => {
+      try {
+        const [userInfo] = await db
+          .select({ email: usersTable.email, displayName: profilesTable.displayName })
+          .from(usersTable)
+          .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
+          .where(eq(usersTable.id, userId))
+          .limit(1);
+
+        if (userInfo?.email) {
+          await sendEmail({
+            to: userInfo.email,
+            subject: "We've received your Aced application",
+            html: buildApplicationReceivedEmail({
+              applicantName: userInfo.displayName ?? "there",
+            }),
+          });
+        }
+      } catch (err) {
+        logger.error({ err }, "Failed to send application received email to applicant");
+      }
+    })();
+
+    // Send approval notification email to internal team (fire and forget — don't block response)
     (async () => {
       try {
         const [approvalCfg] = await db
@@ -572,32 +619,120 @@ router.post(
       summary: parsed.data.notes,
     });
 
-    // Notify applicant by email when changes are requested (fire-and-forget)
-    if (parsed.data.decision === "changes_requested") {
-      (async () => {
-        try {
-          const [userInfo] = await db
-            .select({ email: usersTable.email, displayName: profilesTable.displayName })
-            .from(usersTable)
-            .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
-            .where(eq(usersTable.id, cp.userId))
-            .limit(1);
+    // Notify applicant by email for all decision types — resilient send with retry + structured failure log
+    (async () => {
+      try {
+        const [userInfo] = await db
+          .select({ email: usersTable.email, displayName: profilesTable.displayName })
+          .from(usersTable)
+          .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
+          .where(eq(usersTable.id, cp.userId))
+          .limit(1);
 
-          await sendEmail({
+        if (!userInfo) return;
+
+        if (parsed.data.decision === "approved") {
+          await sendEmailResilient({
+            to: userInfo.email,
+            subject: "You're approved — welcome to Aced! 🎉",
+            html: buildApprovalEmail({
+              applicantName: userInfo.displayName ?? "Applicant",
+            }),
+          });
+        } else if (parsed.data.decision === "rejected") {
+          await sendEmailResilient({
+            to: userInfo.email,
+            subject: "Update on your Aced creator application",
+            html: buildRejectionEmail({
+              applicantName: userInfo.displayName ?? "Applicant",
+              notes: parsed.data.notes,
+            }),
+          });
+        } else if (parsed.data.decision === "changes_requested") {
+          await sendEmailResilient({
             to: userInfo.email,
             subject: "Changes requested on your Aced creator application",
             html: buildChangesRequestedEmail({
-              applicantName: userInfo?.displayName ?? "Applicant",
+              applicantName: userInfo.displayName ?? "Applicant",
               notes: parsed.data.notes ?? "Please review the feedback on your application status page.",
             }),
           });
-        } catch (err) {
-          logger.error({ err }, "Failed to send changes_requested email to applicant");
         }
-      })();
-    }
+      } catch (err) {
+        logger.error({ err }, "Failed to send decision email to applicant");
+      }
+    })();
 
     res.json({ data: updated });
+  }
+);
+
+// GET /api/v1/creator/application/status — SSE endpoint for live applicant status updates
+// Polls DB every 15 s and pushes status changes. Closes automatically after 5 minutes.
+router.get(
+  "/creator/application/status",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    const userId = req.session.userId!;
+
+    async function fetchStatus() {
+      const [cp] = await db
+        .select({
+          status: creatorProfilesTable.status,
+          reviewNotes: creatorProfilesTable.reviewNotes,
+        })
+        .from(creatorProfilesTable)
+        .where(eq(creatorProfilesTable.userId, userId))
+        .limit(1);
+      return cp ?? null;
+    }
+
+    // Send current status immediately
+    let lastStatus: string | null = null;
+    try {
+      const current = await fetchStatus();
+      lastStatus = current?.status ?? null;
+      res.write(
+        `data: ${JSON.stringify({ status: current?.status ?? null, reviewNotes: current?.reviewNotes ?? null })}\n\n`
+      );
+    } catch (err) {
+      logger.error({ err }, "SSE: failed to fetch initial application status");
+      res.write(`data: ${JSON.stringify({ error: "Failed to fetch status" })}\n\n`);
+    }
+
+    // Poll every 15 seconds; only push when status changes
+    const interval = setInterval(async () => {
+      try {
+        const current = await fetchStatus();
+        const newStatus = current?.status ?? null;
+        if (newStatus !== lastStatus) {
+          lastStatus = newStatus;
+          res.write(
+            `data: ${JSON.stringify({ status: current?.status ?? null, reviewNotes: current?.reviewNotes ?? null })}\n\n`
+          );
+        }
+      } catch (err) {
+        logger.error({ err }, "SSE: poll failed");
+      }
+    }, 15_000);
+
+    // Close after 5 minutes to prevent connection leaks
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+      res.write(`data: ${JSON.stringify({ closed: true })}\n\n`);
+      res.end();
+    }, 5 * 60 * 1000);
+
+    req.on("close", () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    });
   }
 );
 

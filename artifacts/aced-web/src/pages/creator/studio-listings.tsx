@@ -4,6 +4,9 @@ import {
   useCreateListing,
   useGetListing,
   useCreateSubscriptionPlan,
+  usePauseSubscriptionPlan,
+  useResumeSubscriptionPlan,
+  useGetSubscriptionPlanImpact,
   getGetCreatorListingsQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -290,6 +293,26 @@ export default function StudioListings() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  // Task #48 — pause / resume subscription plans
+  const pauseMutation = usePauseSubscriptionPlan({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetCreatorListingsQueryKey() });
+        toast({ title: 'Plan paused. New subscribers cannot sign up until you resume.' });
+      },
+      onError: () => { toast({ title: 'Failed to pause plan', variant: 'destructive' }); },
+    },
+  });
+  const resumeMutation = useResumeSubscriptionPlan({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetCreatorListingsQueryKey() });
+        toast({ title: 'Plan resumed.' });
+      },
+      onError: () => { toast({ title: 'Failed to resume plan', variant: 'destructive' }); },
+    },
+  });
+
   const createMutation = useCreateListing({
     mutation: {
       onSuccess: () => {
@@ -370,6 +393,7 @@ export default function StudioListings() {
   const listings = (response?.data ?? []) as Array<{
     id: string; title: string; type: string; status: string; pricingMode: string;
     createdAt: string; purchaseCount: number; activePrice?: { amountMinorUnits: number } | null;
+    subscriptionPlan?: { id: string; isActive: boolean; pausedAt?: string | null } | null;
   }>;
 
   const filtered = listings.filter(
@@ -844,11 +868,29 @@ export default function StudioListings() {
                           {listing.status === 'published' &&
                             listing.pricingMode === 'subscription' &&
                             listing.type === 'service_offer' && (
-                              <DropdownMenuItem
-                                onSelect={() => setEditPlanListingId(listing.id)}
-                              >
-                                <RefreshCw className="mr-2 h-4 w-4" /> Edit plan
-                              </DropdownMenuItem>
+                              <>
+                                <DropdownMenuItem
+                                  onSelect={() => setEditPlanListingId(listing.id)}
+                                >
+                                  <RefreshCw className="mr-2 h-4 w-4" /> Edit plan
+                                </DropdownMenuItem>
+                                {/* Task #48 — pause / resume subscription plan */}
+                                {listing.subscriptionPlan?.id && (
+                                  listing.subscriptionPlan.isActive ? (
+                                    <DropdownMenuItem
+                                      onSelect={() => pauseMutation.mutate({ planId: listing.subscriptionPlan!.id })}
+                                    >
+                                      <Clock className="mr-2 h-4 w-4" /> Pause plan
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem
+                                      onSelect={() => resumeMutation.mutate({ planId: listing.subscriptionPlan!.id })}
+                                    >
+                                      <RefreshCw className="mr-2 h-4 w-4" /> Resume plan
+                                    </DropdownMenuItem>
+                                  )
+                                )}
+                              </>
                             )}
                           <DropdownMenuItem>
                             <Edit className="mr-2 h-4 w-4" /> Edit

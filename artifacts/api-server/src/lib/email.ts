@@ -11,6 +11,47 @@ export interface EmailPayload {
  * Sends a transactional email. In development, logs to console.
  * In production, uses the configured email provider (nodemailer/Resend/etc).
  */
+/**
+ * Retry helper with exponential backoff.
+ */
+export async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delayMs = 2000
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs * Math.pow(2, attempt)));
+      }
+    }
+  }
+  throw lastErr;
+}
+
+/**
+ * Resilient send — retries up to 3 times with exponential backoff.
+ * On total failure, logs a structured error to stderr for log aggregators.
+ */
+export async function sendEmailResilient(payload: EmailPayload): Promise<void> {
+  try {
+    await retryWithBackoff(() => sendEmail(payload), 3, 2000);
+  } catch (err) {
+    process.stderr.write(
+      JSON.stringify({
+        event: "email_failed",
+        to: payload.to,
+        subject: payload.subject,
+        error: err instanceof Error ? err.message : String(err),
+      }) + "\n"
+    );
+  }
+}
+
 export async function sendEmail(payload: EmailPayload): Promise<void> {
   const isProduction = process.env.NODE_ENV === "production";
 
@@ -95,6 +136,69 @@ export function buildCreatorApplicationEmail(opts: {
       <p style="color:#666;">Verification documents (degree certificate, DBS check) are uploaded separately by the applicant and will appear in the admin panel.</p>
       <a href="${adminUrl}" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#7B2FF7,#00D4FF);color:white;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:8px;">Review Application</a>
       <p style="color:#666;font-size:12px;margin-top:24px;">Creator Profile ID: ${opts.creatorProfileId}</p>
+    </div>
+  `;
+}
+
+/** #14 — Confirmation email sent to applicant on submission */
+export function buildApplicationReceivedEmail(opts: {
+  applicantName: string;
+  appUrl?: string;
+}): EmailPayload["html"] {
+  const statusUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://aced.co.uk"}/apply/status`;
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #7B2FF7;">We've received your Aced application</h2>
+      <p>Hi ${opts.applicantName},</p>
+      <p>Thanks for applying to become a creator on Aced! We've received your application and our team will review it within <strong>3–5 working days</strong>.</p>
+      <p>You don't need to do anything else right now — we'll send you another email as soon as a decision has been made. <strong>Please don't resubmit your application</strong> as this may delay the review process.</p>
+      <p>You can check your application status at any time using the button below.</p>
+      <a href="${statusUrl}" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#7B2FF7,#00D4FF);color:white;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:8px;">View Application Status</a>
+      <p style="color:#666;font-size:12px;margin-top:24px;">If you have any questions, reply to this email and our team will be happy to help.</p>
+    </div>
+  `;
+}
+
+export function buildApprovalEmail(opts: {
+  applicantName: string;
+  appUrl?: string;
+}): EmailPayload["html"] {
+  const studioUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://aced.co.uk"}/studio`;
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #7B2FF7;">You're Approved — Welcome to Aced! 🎉</h2>
+      <p>Hi ${opts.applicantName},</p>
+      <p>Congratulations! Your creator application has been approved. You're now ready to start sharing your expertise and earning on Aced.</p>
+      <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:12px 16px;margin:16px 0;border-radius:4px;">
+        <p style="margin:0;font-weight:bold;color:#15803d;">Get started:</p>
+        <ol style="margin:8px 0 0;padding-left:20px;color:#166534;">
+          <li>Set up your Stripe account to receive payouts</li>
+          <li>Customise your creator studio and storefront</li>
+          <li>Create your first listing and go live</li>
+        </ol>
+      </div>
+      <a href="${studioUrl}" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#7B2FF7,#00D4FF);color:white;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:8px;">Go to My Studio</a>
+      <p style="color:#666;font-size:12px;margin-top:24px;">Welcome to the Aced community. If you have questions, reply to this email and our team will be happy to help.</p>
+    </div>
+  `;
+}
+
+export function buildRejectionEmail(opts: {
+  applicantName: string;
+  notes?: string;
+}): EmailPayload["html"] {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #7B2FF7;">Your Aced Application Update</h2>
+      <p>Hi ${opts.applicantName},</p>
+      <p>Thank you for taking the time to apply to become a creator on Aced. After reviewing your application, we are unable to approve it at this time.</p>
+      ${opts.notes ? `
+      <div style="background:#f9fafb;border-left:4px solid #6b7280;padding:12px 16px;margin:16px 0;border-radius:4px;">
+        <p style="margin:0;font-weight:bold;">Reviewer note:</p>
+        <p style="margin:8px 0 0;">${opts.notes}</p>
+      </div>` : ""}
+      <p>This is usually due to academic credential requirements not being met. You may re-apply once you have additional supporting credentials.</p>
+      <p style="color:#666;font-size:12px;margin-top:24px;">If you have questions, reply to this email and our team will be happy to help.</p>
     </div>
   `;
 }

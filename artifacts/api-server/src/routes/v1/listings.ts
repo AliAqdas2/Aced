@@ -383,7 +383,26 @@ router.get(
             and(eq(priceRecordsTable.listingId, l.id), eq(priceRecordsTable.isActive, true))
           )
           .limit(1);
-        return { ...l, activePrice: price ?? null };
+
+        // Include subscription plan info for pause/resume UI
+        let subscriptionPlan = null;
+        if (l.type === "service_offer") {
+          const [offer] = await db
+            .select()
+            .from(serviceOffersTable)
+            .where(eq(serviceOffersTable.listingId, l.id))
+            .limit(1);
+          if (offer) {
+            const [sp] = await db
+              .select()
+              .from(subscriptionPlansTable)
+              .where(eq(subscriptionPlansTable.serviceOfferId, offer.id))
+              .limit(1);
+            subscriptionPlan = sp ?? null;
+          }
+        }
+
+        return { ...l, activePrice: price ?? null, subscriptionPlan };
       })
     );
 

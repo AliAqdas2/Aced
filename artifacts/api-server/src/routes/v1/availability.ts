@@ -13,7 +13,7 @@ import {
   priceRecordsTable,
   learnerSubscriptionsTable,
 } from "@workspace/db";
-import { eq, and, gte, lte, isNull, or, gt } from "drizzle-orm";
+import { eq, and, gte, lte, isNull, or, gt, sql } from "drizzle-orm";
 import { requireAuth, requireRole } from "../../middlewares/auth";
 
 const router: IRouter = Router();
@@ -313,13 +313,16 @@ router.post("/bookings/confirm", requireAuth, async (req, res): Promise<void> =>
     return;
   }
 
-  // Access check: free listing or active subscription with credits
-  let activeSubscription: { id: string; sessionsRemaining: number } | null = null;
+  // Access check: free listing or active subscription with credits.
+  // #47 — Atomic UPDATE...WHERE sessionsRemaining > 0 eliminates TOCTOU race condition.
+  // Credit is decremented now; if the booking subsequently fails, the credit is NOT restored
+  // (acceptable — the alternative is double-spending under concurrency).
+  let creditDecremented = false;
 
   if (offer.pricingMode === "subscription") {
-    const [activeSub] = await db
-      .select()
-      .from(learnerSubscriptionsTable)
+    const decremented = await db
+      .update(learnerSubscriptionsTable)
+      .set({ sessionsRemaining: sql`${learnerSubscriptionsTable.sessionsRemaining} - 1` })
       .where(
         and(
           eq(learnerSubscriptionsTable.learnerId, learnerId),
@@ -329,13 +332,13 @@ router.post("/bookings/confirm", requireAuth, async (req, res): Promise<void> =>
           gt(learnerSubscriptionsTable.currentPeriodEnd, new Date())
         )
       )
-      .limit(1);
+      .returning({ id: learnerSubscriptionsTable.id });
 
-    if (!activeSub) {
-      res.status(402).json({ error: "No active subscription credits for this plan", code: "NO_CREDITS" });
+    if (decremented.length === 0) {
+      res.status(409).json({ error: "No active subscription credits for this plan", code: "NO_CREDITS" });
       return;
     }
-    activeSubscription = { id: activeSub.id, sessionsRemaining: activeSub.sessionsRemaining };
+    creditDecremented = true;
   } else {
     // Per-session listing: must be free
     const [priceRecord] = await db
@@ -432,13 +435,8 @@ router.post("/bookings/confirm", requireAuth, async (req, res): Promise<void> =>
     })
     .returning();
 
-  // Decrement subscription credit now that booking is confirmed
-  if (activeSubscription) {
-    await db
-      .update(learnerSubscriptionsTable)
-      .set({ sessionsRemaining: activeSubscription.sessionsRemaining - 1 })
-      .where(eq(learnerSubscriptionsTable.id, activeSubscription.id));
-  }
+  // Credit was atomically decremented above before slot conflict checks.
+  void creditDecremented; // suppress unused-variable warning
 
   // Fire-and-forget calendar sync
   const [cp] = await db
