@@ -193,6 +193,140 @@ export async function syncBookingCreated({
   }
 }
 
+/**
+ * Re-send an updated .ics invite to both learner and creator when the meeting
+ * link changes after a booking was confirmed. Sending METHOD:REQUEST again
+ * causes most calendar clients (Google, Outlook, Apple) to update the existing
+ * event in place rather than creating a new one.
+ *
+ * Safe to call fire-and-forget — errors are caught and logged.
+ */
+export async function syncBookingMeetingLinkUpdated(
+  bookingId: string,
+  meetingLink: string | null
+): Promise<void> {
+  try {
+    const [booking] = await db
+      .select({
+        learnerId: bookingsTable.learnerId,
+        listingId: bookingsTable.listingId,
+        creatorId: bookingsTable.creatorId,
+        scheduledStartAt: bookingsTable.scheduledStartAt,
+        scheduledEndAt: bookingsTable.scheduledEndAt,
+      })
+      .from(bookingsTable)
+      .where(eq(bookingsTable.id, bookingId))
+      .limit(1);
+
+    if (!booking) return;
+
+    const [[listing], [learner], [cp]] = await Promise.all([
+      db
+        .select({ title: listingsTable.title })
+        .from(listingsTable)
+        .where(eq(listingsTable.id, booking.listingId))
+        .limit(1),
+      db
+        .select({ email: usersTable.email })
+        .from(usersTable)
+        .where(eq(usersTable.id, booking.learnerId))
+        .limit(1),
+      db
+        .select({ userId: creatorProfilesTable.userId })
+        .from(creatorProfilesTable)
+        .where(eq(creatorProfilesTable.id, booking.creatorId))
+        .limit(1),
+    ]);
+
+    if (!listing || !learner || !cp) return;
+
+    const [creator] = await db
+      .select({ email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.id, cp.userId))
+      .limit(1);
+
+    if (!creator) return;
+
+    const dateLabel = format(booking.scheduledStartAt, "EEE, d MMM yyyy 'at' HH:mm 'UTC'");
+    const location = meetingLink ?? "Online — your tutor will share a link";
+    const description = [
+      `Session: ${listing.title}`,
+      `When: ${dateLabel}`,
+      meetingLink
+        ? `Join here: ${meetingLink}`
+        : "Your tutor will share a meeting link before the session.",
+    ].join("\n");
+
+    // Re-send with METHOD:REQUEST and the same UID so calendar clients update
+    // the existing event rather than creating a duplicate.
+    const ics = buildIcs({
+      uid: `booking-${bookingId}@aced.co.uk`,
+      summary: `Aced session: ${listing.title}`,
+      description,
+      location,
+      startAt: booking.scheduledStartAt,
+      endAt: booking.scheduledEndAt,
+      organizerEmail: creator.email,
+      method: "REQUEST",
+    });
+
+    const attachment = {
+      filename: "session.ics",
+      content: ics,
+      contentType: "text/calendar; method=REQUEST",
+    };
+
+    const subject = `Updated session details — ${listing.title} on ${format(booking.scheduledStartAt, "EEE, d MMM")}`;
+
+    const learnerHtml = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+        <h2 style="color:#7B2FF7;">Your session details have been updated</h2>
+        <p><strong>${listing.title}</strong> on <strong>${dateLabel}</strong>.</p>
+        ${meetingLink ? `<p><a href="${meetingLink}" style="color:#7B2FF7;">Join the session</a></p>` : "<p>Your tutor will share a meeting link before the session.</p>"}
+        <p style="color:#666;font-size:14px;">
+          An updated calendar invite is attached — open it to update the event in
+          Google Calendar, Outlook, or Apple Calendar.
+        </p>
+      </div>`;
+
+    const creatorHtml = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+        <h2 style="color:#7B2FF7;">Session details updated</h2>
+        <p><strong>${listing.title}</strong> on <strong>${dateLabel}</strong>.</p>
+        ${meetingLink ? `<p>Meeting link: <a href="${meetingLink}" style="color:#7B2FF7;">${meetingLink}</a></p>` : ""}
+        <p style="color:#666;font-size:14px;">
+          An updated calendar invite is attached.
+        </p>
+      </div>`;
+
+    await Promise.allSettled([
+      sendEmailResilient(
+        {
+          to: learner.email,
+          subject,
+          html: learnerHtml,
+          text: description,
+          attachments: [attachment],
+        },
+        "booking_meeting_link_updated_learner"
+      ),
+      sendEmailResilient(
+        {
+          to: creator.email,
+          subject,
+          html: creatorHtml,
+          text: description,
+          attachments: [attachment],
+        },
+        "booking_meeting_link_updated_creator"
+      ),
+    ]);
+  } catch (err) {
+    console.error("calendar-sync syncBookingMeetingLinkUpdated error:", err);
+  }
+}
+
 export async function syncBookingCancelled(bookingId: string): Promise<void> {
   try {
     const [booking] = await db
