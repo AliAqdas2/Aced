@@ -1,0 +1,15 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "paths": {
+      "@workspace/db": ["../lib/db/src/index.ts"]
+    },
+    "outDir": "../dist/e2e",
+    "rootDir": "."
+  },
+  "include": ["./**/*.ts"],
+  "exclude": ["../node_modules"]
+}

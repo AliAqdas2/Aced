@@ -75,6 +75,8 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many authentication attempts", code: "RATE_LIMITED" },
+  // Skip rate limiting for local development / e2e tests running on localhost
+  skip: (req) => process.env.NODE_ENV !== "production" && (req.ip === "127.0.0.1" || req.ip === "::1" || req.ip === "::ffff:127.0.0.1"),
 });
 
 app.use(globalLimiter);

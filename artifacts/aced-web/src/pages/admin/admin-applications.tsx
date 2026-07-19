@@ -12,6 +12,7 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { CheckCircle, XCircle, Mail, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 // ── Email template previews (mirrors server-side templates) ──────────────────
 
@@ -60,6 +61,7 @@ interface PendingDecision {
 
 export default function AdminApplications() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { data: response, isLoading } = useGetAdminApplications({ status: 'submitted' });
 
   const [pending, setPending] = useState<PendingDecision | null>(null);
@@ -103,9 +105,16 @@ export default function AdminApplications() {
       await queryClient.invalidateQueries({
         queryKey: getGetAdminApplicationsQueryKey({ status: 'submitted' }),
       });
+      const action = pending.decision === 'approved' ? 'approved' : 'rejected';
+      toast({
+        title: `Application ${action}`,
+        description: `${pending.applicantName}'s application has been ${action}.`,
+      });
       setPending(null);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Something went wrong');
+      const message = err instanceof Error ? err.message : 'Something went wrong';
+      setSubmitError(message);
+      toast({ title: 'Action failed', description: message, variant: 'destructive' });
     } finally {
       setSubmitting(false);
     }
