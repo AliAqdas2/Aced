@@ -186,18 +186,65 @@ export default function AdminOrders() {
       <Card>
         <CardContent className="p-0">
           {orders.length > 0 ? (
-            <div className="divide-y">
-              {orders.map((order: any) => (
-                <div key={order.id} className="p-4 flex justify-between items-center">
-                  <div>
-                    <h4 className="font-semibold">Order #{order.id.slice(0, 8)}</h4>
-                    <p className="text-sm text-muted-foreground">Status: {order.status}</p>
-                  </div>
-                  <div className="font-bold">
-                    £{(order.totalMinorUnits / 100).toFixed(2)}
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/40 text-muted-foreground">
+                    <th className="px-4 py-3 text-left font-medium">Order</th>
+                    <th className="px-4 py-3 text-left font-medium">Date</th>
+                    <th className="px-4 py-3 text-left font-medium">Creator</th>
+                    <th className="px-4 py-3 text-left font-medium">Listing</th>
+                    <th className="px-4 py-3 text-left font-medium">Status</th>
+                    <th className="px-4 py-3 text-right font-medium">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {orders.map((order: any) => (
+                    <tr key={`${order.orderId}-${order.creatorId}`} className="hover:bg-muted/20">
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                        #{order.orderId.slice(0, 8)}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                        {order.createdAt
+                          ? new Date(order.createdAt).toLocaleDateString('en-GB', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })
+                          : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {order.creatorName ? (
+                          <span className="font-medium">{order.creatorName}</span>
+                        ) : (
+                          <span className="text-muted-foreground font-mono text-xs">
+                            {order.creatorId?.slice(0, 8) ?? '—'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 max-w-[200px] truncate" title={order.listingTitle}>
+                        {order.listingTitle ?? '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                            order.status === 'paid'
+                              ? 'bg-green-100 text-green-800'
+                              : order.status === 'refunded'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {order.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">
+                        £{((order.totalMinorUnits ?? order.unitAmountMinorUnits ?? 0) / 100).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
             <div className="p-12 text-center text-muted-foreground">No orders found.</div>

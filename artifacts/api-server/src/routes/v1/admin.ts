@@ -312,23 +312,37 @@ router.get(
   async (req, res): Promise<void> => {
     const status = req.query["status"] as string | undefined;
 
-    let orders;
-    if (status) {
-      orders = await db
-        .select()
-        .from(ordersTable)
-        .where(eq(ordersTable.status, status as any))
-        .orderBy(desc(ordersTable.createdAt))
-        .limit(50);
-    } else {
-      orders = await db
-        .select()
-        .from(ordersTable)
-        .orderBy(desc(ordersTable.createdAt))
-        .limit(50);
-    }
+    const creatorUserProfile = alias(profilesTable, "creator_user_profile");
 
-    res.json({ data: orders });
+    const conditions = status ? [eq(ordersTable.status, status as any)] : [];
+
+    // creatorIdSnapshot stores the creatorProfilesTable.id (not userId).
+    // Join path: orderItems.creatorIdSnapshot → creatorProfilesTable.id
+    //            → creatorProfilesTable.userId → profilesTable.userId → displayName
+    const rows = await db
+      .select({
+        orderId: ordersTable.id,
+        status: ordersTable.status,
+        currency: ordersTable.currency,
+        totalMinorUnits: ordersTable.totalMinorUnits,
+        platformFeeMinorUnits: ordersTable.platformFeeMinorUnits,
+        createdAt: ordersTable.createdAt,
+        listingTitle: orderItemsTable.listingTitleSnapshot,
+        creatorId: orderItemsTable.creatorIdSnapshot,
+        creatorName: creatorUserProfile.displayName,
+        unitAmountMinorUnits: orderItemsTable.unitAmountMinorUnits,
+        creatorProceedsMinorUnits: orderItemsTable.creatorProceedsMinorUnits,
+        commissionRateBasisPoints: orderItemsTable.commissionRateBasisPoints,
+      })
+      .from(ordersTable)
+      .innerJoin(orderItemsTable, eq(orderItemsTable.orderId, ordersTable.id))
+      .leftJoin(creatorProfilesTable, eq(creatorProfilesTable.id, orderItemsTable.creatorIdSnapshot))
+      .leftJoin(creatorUserProfile, eq(creatorUserProfile.userId, creatorProfilesTable.userId))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(ordersTable.createdAt))
+      .limit(50);
+
+    res.json({ data: rows });
   }
 );
 
