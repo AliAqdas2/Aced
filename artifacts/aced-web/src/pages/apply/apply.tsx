@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link, useLocation } from 'wouter';
+import { Link, useLocation, useSearch } from 'wouter';
 import {
   useSubmitCreatorApplication,
   useListUniversities,
@@ -139,8 +139,16 @@ async function uploadVerificationDoc(file: File, claimType: string): Promise<voi
   }
 }
 
+interface ApplicationInitialValues {
+  universityId?: string;
+  courseId?: string;
+  graduationYear?: number;
+  academicResult?: string;
+  headline?: string;
+}
+
 /** Reusable application form — used on both /apply and /become-a-creator */
-export function CreatorApplicationForm() {
+export function CreatorApplicationForm({ initialValues }: { initialValues?: ApplicationInitialValues }) {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { data: universities } = useListUniversities();
@@ -158,14 +166,16 @@ export function CreatorApplicationForm() {
   const [appSaved, setAppSaved] = useState(false);
   const [uploadErrorMsg, setUploadErrorMsg] = useState<string | null>(null);
 
+  const isResubmit = Boolean(initialValues);
+
   const form = useForm<z.infer<typeof applySchema>>({
     resolver: zodResolver(applySchema),
     defaultValues: {
-      universityId: '',
-      courseId: 'placeholder-course-id',
-      graduationYear: new Date().getFullYear(),
-      academicResult: '',
-      headline: '',
+      universityId: initialValues?.universityId ?? '',
+      courseId: initialValues?.courseId ?? 'placeholder-course-id',
+      graduationYear: initialValues?.graduationYear ?? new Date().getFullYear(),
+      academicResult: initialValues?.academicResult ?? '',
+      headline: initialValues?.headline ?? '',
       agreedToTerms: false,
     },
   });
@@ -399,7 +409,7 @@ export function CreatorApplicationForm() {
                   <Loader2 className="h-5 w-5 animate-spin" />
                   {submitPhase === 'uploading' ? 'Uploading documents…' : 'Submitting application…'}
                 </span>
-              ) : 'Submit Application'}
+              ) : isResubmit ? 'Resubmit Application' : 'Submit Application'}
             </Button>
           </form>
         </Form>
@@ -410,14 +420,52 @@ export function CreatorApplicationForm() {
 
 /** Standalone /apply page — wraps the shared form with a header */
 export default function Apply() {
+  const search = useSearch();
+  const isResubmit = new URLSearchParams(search).get('resubmit') === '1';
+
+  const { data: statusData, isLoading: statusLoading } = useGetApplicationStatus({
+    query: {
+      queryKey: getGetApplicationStatusQueryKey(),
+      enabled: isResubmit,
+    },
+  });
+
+  // Derive pre-population values from existing application data
+  const initialValues: ApplicationInitialValues | undefined = isResubmit && statusData?.data
+    ? {
+        universityId: (statusData.data as { expertise?: Array<{ universityId?: string }> }).expertise?.[0]?.universityId ?? '',
+        courseId: (statusData.data as { expertise?: Array<{ courseId?: string }> }).expertise?.[0]?.courseId ?? 'placeholder-course-id',
+        graduationYear: (statusData.data as { expertise?: Array<{ graduationYear?: number }> }).expertise?.[0]?.graduationYear ?? new Date().getFullYear(),
+        academicResult: (statusData.data as { expertise?: Array<{ academicResult?: string }> }).expertise?.[0]?.academicResult ?? '',
+        headline: (statusData.data as { headline?: string }).headline ?? '',
+      }
+    : undefined;
+
+  if (isResubmit && statusLoading) {
+    return (
+      <div className="min-h-screen bg-muted/20 flex items-center justify-center">
+        <div className="text-muted-foreground text-sm animate-pulse">Loading your application…</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-muted/20 py-12">
       <div className="container mx-auto px-4 max-w-2xl">
         <div className="text-center mb-10">
-          <h1 className="font-serif text-4xl font-bold mb-4">Join as an Ace</h1>
-          <p className="text-xl text-muted-foreground">Share your expertise and start earning on Aced.</p>
+          {isResubmit ? (
+            <>
+              <h1 className="font-serif text-4xl font-bold mb-4">Update Your Application</h1>
+              <p className="text-xl text-muted-foreground">Make the requested changes and resubmit for review.</p>
+            </>
+          ) : (
+            <>
+              <h1 className="font-serif text-4xl font-bold mb-4">Join as an Ace</h1>
+              <p className="text-xl text-muted-foreground">Share your expertise and start earning on Aced.</p>
+            </>
+          )}
         </div>
-        <CreatorApplicationForm />
+        <CreatorApplicationForm initialValues={initialValues} />
       </div>
     </div>
   );
@@ -507,9 +555,20 @@ function PendingStatus({ status, submittedAt, reviewNotes }: { status: string; s
         </div>
       </div>
       <p className="text-xs text-muted-foreground mb-6">We'll send you an email when a decision has been made.</p>
-      <Button size="lg" className="w-full" asChild>
-        <Link href="/dashboard">Return to Dashboard</Link>
-      </Button>
+      {status === 'changes_requested' ? (
+        <div className="space-y-3">
+          <Button size="lg" className="w-full" asChild>
+            <Link href="/apply?resubmit=1">Update and resubmit</Link>
+          </Button>
+          <Button size="lg" variant="outline" className="w-full" asChild>
+            <Link href="/dashboard">Return to Dashboard</Link>
+          </Button>
+        </div>
+      ) : (
+        <Button size="lg" className="w-full" asChild>
+          <Link href="/dashboard">Return to Dashboard</Link>
+        </Button>
+      )}
     </>
   );
 }

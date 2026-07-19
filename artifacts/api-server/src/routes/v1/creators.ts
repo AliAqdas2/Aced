@@ -81,7 +81,9 @@ router.post(
       .where(eq(creatorProfilesTable.userId, userId))
       .limit(1);
 
-    if (existing && existing.status !== "draft") {
+    const isResubmission = existing?.status === "changes_requested";
+
+    if (existing && existing.status !== "draft" && !isResubmission) {
       res.status(409).json({ error: "Application already submitted", code: "ALREADY_APPLIED" });
       return;
     }
@@ -94,15 +96,30 @@ router.post(
         .returning();
       creatorProfile = cp;
     } else {
+      const updateFields: Record<string, unknown> = { status: "submitted", headline: parsed.data.headline };
+      if (isResubmission) {
+        // Clear reviewer feedback so admin sees a fresh submission
+        updateFields.reviewNotes = null;
+      }
       const [cp] = await db
         .update(creatorProfilesTable)
-        .set({ status: "submitted", headline: parsed.data.headline })
+        .set(updateFields)
         .where(eq(creatorProfilesTable.id, existing.id))
         .returning();
       creatorProfile = cp;
     }
 
-    // Add expertise
+    // Add/replace expertise — on resubmission delete the old primary row first
+    if (isResubmission) {
+      await db
+        .delete(creatorExpertiseTable)
+        .where(
+          and(
+            eq(creatorExpertiseTable.creatorId, creatorProfile.id),
+            eq(creatorExpertiseTable.isPrimary, true)
+          )
+        );
+    }
     await db.insert(creatorExpertiseTable).values({
       creatorId: creatorProfile.id,
       universityId: parsed.data.universityId,
