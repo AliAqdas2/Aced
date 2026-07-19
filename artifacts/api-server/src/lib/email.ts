@@ -1,5 +1,6 @@
 import { logger } from "./logger";
 import { db, failedEmailsTable } from "@workspace/db";
+import { ReplitConnectors } from "@replit/connectors-sdk";
 
 export interface EmailAttachment {
   filename: string;
@@ -95,7 +96,7 @@ export async function sendEmailResilient(
 export async function sendEmail(payload: EmailPayload): Promise<void> {
   const isProduction = process.env.NODE_ENV === "production";
 
-  if (!isProduction || !process.env.SMTP_HOST) {
+  if (!isProduction) {
     logger.info(
       { to: payload.to, subject: payload.subject },
       "DEV: email would be sent"
@@ -104,33 +105,37 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
   }
 
   try {
-    const nodemailer = await import("nodemailer");
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT ?? 587),
-      secure: process.env.SMTP_SECURE === "true",
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+    const connectors = new ReplitConnectors();
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM ?? "noreply@aced.co.uk",
-      to: payload.to,
+    const body: Record<string, unknown> = {
+      from: process.env.EMAIL_FROM ?? "Aced <noreply@aced.co.uk>",
+      to: [payload.to],
       subject: payload.subject,
       html: payload.html,
-      text: payload.text,
-      attachments: payload.attachments?.map((a) => ({
+      ...(payload.text ? { text: payload.text } : {}),
+    };
+
+    // Resend expects attachments as base64-encoded content
+    if (payload.attachments && payload.attachments.length > 0) {
+      body["attachments"] = payload.attachments.map((a) => ({
         filename: a.filename,
-        content: a.content,
-        contentType: a.contentType,
-      })),
+        content: Buffer.from(a.content).toString("base64"),
+      }));
+    }
+
+    const res = await connectors.proxy("resend", "/emails", {
+      method: "POST",
+      body: JSON.stringify(body),
     });
 
-    logger.info({ to: payload.to, subject: payload.subject }, "Email sent");
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Resend API error ${res.status}: ${text}`);
+    }
+
+    logger.info({ to: payload.to, subject: payload.subject }, "Email sent via Resend");
   } catch (err) {
-    logger.error({ err, to: payload.to }, "Failed to send email");
+    logger.error({ err, to: payload.to }, "Failed to send email via Resend");
     throw err;
   }
 }
