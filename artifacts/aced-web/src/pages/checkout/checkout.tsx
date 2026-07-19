@@ -1,19 +1,24 @@
 import { useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { useGetListing, getGetListingQueryKey } from '@workspace/api-client-react';
+import { useGetListing, getGetListingQueryKey, useCreateCheckoutSession } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { Link } from 'wouter';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Checkout() {
   const searchParams = new URLSearchParams(window.location.search);
   const listingId = searchParams.get('listing');
+  const holdId = searchParams.get('holdId') ?? undefined;
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
   const { data: response, isLoading } = useGetListing(listingId || '', {
     query: { enabled: !!listingId, queryKey: getGetListingQueryKey(listingId || '') }
   });
+
+  const checkoutMutation = useCreateCheckoutSession();
 
   useEffect(() => {
     if (!listingId) {
@@ -27,6 +32,32 @@ export default function Checkout() {
 
   const { listing, price } = response.data;
   const isService = listing.type === 'service_offer' || listing.type === 'group_session';
+
+  const handlePay = () => {
+    if (!listingId) return;
+    checkoutMutation.mutate(
+      { data: { listingId, holdId } },
+      {
+        onSuccess: (res) => {
+          if (res.data?.checkoutUrl) {
+            window.location.href = res.data.checkoutUrl;
+          }
+        },
+        onError: (err: any) => {
+          const code = err?.response?.data?.code;
+          if (code === 'CREATOR_NOT_READY') {
+            toast({
+              title: 'Creator payment setup incomplete',
+              description: 'This creator has not connected their bank account yet.',
+              variant: 'destructive',
+            });
+          } else {
+            toast({ title: 'Could not start checkout', variant: 'destructive' });
+          }
+        },
+      }
+    );
+  };
 
   return (
     <div className="min-h-screen bg-muted/20 py-12">
@@ -69,11 +100,11 @@ export default function Checkout() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground mb-4">
-                  All transactions are secure and encrypted.
+                  All transactions are secure and encrypted. You will be redirected to Stripe's secure checkout.
                 </p>
-                {/* This would be a Stripe Elements form in reality */}
-                <div className="p-4 border rounded-lg bg-background text-center text-muted-foreground">
-                  Stripe Payment Element Placeholder
+                <div className="p-4 border rounded-lg bg-background flex items-center gap-3 text-muted-foreground">
+                  <AlertCircle className="h-5 w-5 shrink-0" />
+                  <span className="text-sm">Click "Pay now" to enter your card details securely on Stripe.</span>
                 </div>
               </CardContent>
             </Card>
@@ -94,9 +125,19 @@ export default function Checkout() {
                   <span>{price ? `£${(price.amountMinorUnits / 100).toFixed(2)}` : 'Free'}</span>
                 </div>
                 
-                <Button size="lg" className="w-full mt-6" asChild>
-                  {/* Simulate successful payment redirect */}
-                  <Link href="/checkout/success">Complete Payment</Link>
+                <Button
+                  size="lg"
+                  className="w-full mt-6"
+                  onClick={handlePay}
+                  disabled={checkoutMutation.isPending}
+                >
+                  {checkoutMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Redirecting to Stripe…
+                    </>
+                  ) : (
+                    'Pay now'
+                  )}
                 </Button>
                 
                 <div className="flex items-start gap-2 mt-4 text-xs text-muted-foreground">
