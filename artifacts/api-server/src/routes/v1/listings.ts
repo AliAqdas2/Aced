@@ -86,6 +86,8 @@ router.get("/listings/:id", async (req, res): Promise<void> => {
   let offer = null;
   let product = null;
 
+  let subscriptionPlan = null;
+
   if (listing.type === "service_offer") {
     const [so] = await db
       .select()
@@ -93,6 +95,15 @@ router.get("/listings/:id", async (req, res): Promise<void> => {
       .where(eq(serviceOffersTable.listingId, id))
       .limit(1);
     offer = so ?? null;
+
+    if (offer) {
+      const [sp] = await db
+        .select()
+        .from(subscriptionPlansTable)
+        .where(eq(subscriptionPlansTable.serviceOfferId, offer.id))
+        .limit(1);
+      subscriptionPlan = sp ?? null;
+    }
   } else if (listing.type === "digital_product") {
     const [p] = await db
       .select()
@@ -115,7 +126,7 @@ router.get("/listings/:id", async (req, res): Promise<void> => {
     .where(eq(listingsTable.id, id))
     .catch(() => {});
 
-  res.json({ data: { listing, price, serviceOffer: offer, product, reviews } });
+  res.json({ data: { listing, price, serviceOffer: offer, product, reviews, subscriptionPlan } });
 });
 
 // POST /api/v1/creator/listings

@@ -1,11 +1,12 @@
 import { useGetMySubscriptions, useCancelMySubscription, getGetMySubscriptionsQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
-import { CalendarDays, RefreshCw, AlertCircle } from 'lucide-react';
+import { RefreshCw, AlertCircle, CheckCircle2, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useLocation } from 'wouter';
+import { useState, useEffect } from 'react';
 
 function statusVariant(status: string): string {
   switch (status) {
@@ -21,6 +22,13 @@ export default function Subscriptions() {
   const { data, isLoading } = useGetMySubscriptions();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [location] = useLocation();
+  const showSuccess = new URLSearchParams(location.split('?')[1] ?? '').get('success') === 'true';
+  const [successDismissed, setSuccessDismissed] = useState(false);
+
+  useEffect(() => {
+    setSuccessDismissed(false);
+  }, [location]);
 
   const cancelMutation = useCancelMySubscription({
     mutation: {
@@ -58,6 +66,26 @@ export default function Subscriptions() {
     );
   }
 
+  const successBanner =
+    showSuccess && !successDismissed ? (
+      <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 p-4 text-green-800">
+        <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5 text-green-600" />
+        <div className="flex-1">
+          <p className="font-semibold">You're subscribed!</p>
+          <p className="text-sm text-green-700 mt-0.5">
+            Your subscription is now active. Session credits will appear here once payment is confirmed.
+          </p>
+        </div>
+        <button
+          onClick={() => setSuccessDismissed(true)}
+          className="text-green-600 hover:text-green-800 transition-colors"
+          aria-label="Dismiss"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    ) : null;
+
   if (subs.length === 0) {
     return (
       <div className="space-y-6">
@@ -65,6 +93,7 @@ export default function Subscriptions() {
           <h1 className="text-3xl font-bold font-serif">My Subscriptions</h1>
           <p className="text-muted-foreground">Your active tutoring subscription plans.</p>
         </div>
+        {successBanner}
         <Card className="text-center py-16">
           <CardContent>
             <RefreshCw className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
@@ -84,6 +113,7 @@ export default function Subscriptions() {
         <h1 className="text-3xl font-bold font-serif">My Subscriptions</h1>
         <p className="text-muted-foreground">Your active tutoring subscription plans.</p>
       </div>
+      {successBanner}
 
       <div className="grid gap-4">
         {subs.map((sub) => {
