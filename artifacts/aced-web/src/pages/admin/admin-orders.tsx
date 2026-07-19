@@ -1,10 +1,140 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useGetAdminOrders } from '@workspace/api-client-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertTriangle, Download, X } from 'lucide-react';
+import { AlertTriangle, Download, X, Check } from 'lucide-react';
+
+interface CreatorSuggestion {
+  id: string;
+  displayName: string | null;
+  email: string;
+}
+
+function CreatorTypeahead({
+  creatorId,
+  onChange,
+}: {
+  creatorId: string;
+  onChange: (id: string, label: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [label, setLabel] = useState('');
+  const [suggestions, setSuggestions] = useState<CreatorSuggestion[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleInput = (value: string) => {
+    setQuery(value);
+    setLabel(value);
+    // Clear the committed creatorId if user edits the text
+    if (creatorId) onChange('', '');
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (value.trim().length < 2) {
+      setSuggestions([]);
+      setOpen(false);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(
+          `/api/v1/admin/creators/search?q=${encodeURIComponent(value.trim())}`,
+          { credentials: 'include' }
+        );
+        if (res.ok) {
+          const json = await res.json();
+          setSuggestions(json.data ?? []);
+          setOpen(true);
+        }
+      } finally {
+        setLoading(false);
+      }
+    }, 250);
+  };
+
+  const select = (s: CreatorSuggestion) => {
+    const name = s.displayName ?? s.email;
+    setQuery(name);
+    setLabel(name);
+    setSuggestions([]);
+    setOpen(false);
+    onChange(s.id, name);
+  };
+
+  const clear = () => {
+    setQuery('');
+    setLabel('');
+    setSuggestions([]);
+    setOpen(false);
+    onChange('', '');
+  };
+
+  return (
+    <div ref={containerRef} className="relative w-64">
+      <div className="relative">
+        <Input
+          id="export-creator"
+          type="text"
+          value={label}
+          onChange={(e) => handleInput(e.target.value)}
+          placeholder="Search creator name…"
+          autoComplete="off"
+          className="w-full pr-8"
+        />
+        {(label || creatorId) && (
+          <button
+            type="button"
+            onClick={clear}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            aria-label="Clear creator filter"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+      {open && suggestions.length > 0 && (
+        <ul className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md text-sm max-h-56 overflow-y-auto">
+          {suggestions.map((s) => (
+            <li key={s.id}>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent"
+                onMouseDown={() => select(s)}
+              >
+                {creatorId === s.id && <Check className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+                <span className="truncate font-medium">{s.displayName ?? s.email}</span>
+                {s.displayName && (
+                  <span className="ml-auto truncate text-xs text-muted-foreground">{s.email}</span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {open && !loading && suggestions.length === 0 && query.trim().length >= 2 && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md px-3 py-2 text-sm text-muted-foreground">
+          No creators found
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AdminOrders() {
   const { data: response, isLoading } = useGetAdminOrders();
@@ -141,14 +271,10 @@ export default function AdminOrders() {
               </div>
               <div className="flex flex-wrap gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="export-creator">Creator ID</Label>
-                  <Input
-                    id="export-creator"
-                    type="text"
-                    value={creatorId}
-                    onChange={(e) => setCreatorId(e.target.value)}
-                    placeholder="Exact creator user ID"
-                    className="w-64"
+                  <Label htmlFor="export-creator">Creator</Label>
+                  <CreatorTypeahead
+                    creatorId={creatorId}
+                    onChange={(id) => setCreatorId(id)}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">

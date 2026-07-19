@@ -513,6 +513,36 @@ router.get(
   }
 );
 
+// GET /api/v1/admin/creators/search?q= — typeahead for creator name in export filter
+router.get(
+  "/admin/creators/search",
+  requireRole("finance"),
+  async (req, res): Promise<void> => {
+    const q = (req.query["q"] as string | undefined)?.trim() ?? "";
+    if (q.length < 2) {
+      res.json({ data: [] });
+      return;
+    }
+
+    const results = await db
+      .select({
+        id: creatorProfilesTable.id,
+        displayName: profilesTable.displayName,
+        email: usersTable.email,
+      })
+      .from(creatorProfilesTable)
+      .innerJoin(usersTable, eq(usersTable.id, creatorProfilesTable.userId))
+      .leftJoin(profilesTable, eq(profilesTable.userId, creatorProfilesTable.userId))
+      .where(
+        ilike(profilesTable.displayName, `%${q}%`)
+      )
+      .orderBy(profilesTable.displayName)
+      .limit(10);
+
+    res.json({ data: results });
+  }
+);
+
 // POST /api/v1/admin/orders/:id/refund
 router.post(
   "/admin/orders/:id/refund",
