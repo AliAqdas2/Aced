@@ -81,6 +81,7 @@ export const orderItemsTable = pgTable("order_items", {
     .references(() => priceRecordsTable.id),
   listingTitleSnapshot: text("listing_title_snapshot").notNull(),
   creatorIdSnapshot: uuid("creator_id_snapshot").notNull(),
+  creatorNameSnapshot: text("creator_name_snapshot"),
   quantity: integer("quantity").notNull().default(1),
   unitAmountMinorUnits: integer("unit_amount_minor_units").notNull(),
   platformFeeMinorUnits: integer("platform_fee_minor_units").notNull(),

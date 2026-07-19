@@ -14,6 +14,7 @@ import {
   serviceOffersTable,
   priceRecordsTable,
   creatorProfilesTable,
+  profilesTable,
   commissionRulesTable,
   webhookEventsTable,
   platformConfigTable,
@@ -111,6 +112,15 @@ router.post("/checkout/sessions", requireAuth, async (req, res): Promise<void> =
     return;
   }
 
+  // Snapshot the creator's display name so the order remains auditable even if
+  // the creator's profile is later deleted.
+  const [creatorProfile] = await db
+    .select({ displayName: profilesTable.displayName })
+    .from(profilesTable)
+    .where(eq(profilesTable.userId, creator.userId))
+    .limit(1);
+  const creatorNameSnapshot = creatorProfile?.displayName ?? null;
+
   const commissionRateBps = await getCommissionRateBps();
   const platformFee = Math.round(priceRecord.amountMinorUnits * (commissionRateBps / 10000));
   const creatorProceeds = priceRecord.amountMinorUnits - platformFee;
@@ -137,6 +147,7 @@ router.post("/checkout/sessions", requireAuth, async (req, res): Promise<void> =
       priceRecordId: priceRecord.id,
       listingTitleSnapshot: listing.title,
       creatorIdSnapshot: creator.id,
+      creatorNameSnapshot,
       quantity: 1,
       unitAmountMinorUnits: priceRecord.amountMinorUnits,
       platformFeeMinorUnits: platformFee,

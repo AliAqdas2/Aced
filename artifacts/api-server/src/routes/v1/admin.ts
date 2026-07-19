@@ -19,7 +19,7 @@ import {
   universitiesTable,
   creatorExpertiseTable,
 } from "@workspace/db";
-import { eq, and, desc, ilike, gte, lt, inArray } from "drizzle-orm";
+import { eq, and, desc, ilike, gte, lt, inArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { requireRole } from "../../middlewares/auth";
 import { logAuditEvent } from "../../lib/auth";
@@ -312,13 +312,15 @@ router.get(
   async (req, res): Promise<void> => {
     const status = req.query["status"] as string | undefined;
 
-    const creatorUserProfile = alias(profilesTable, "creator_user_profile");
-
     const conditions = status ? [eq(ordersTable.status, status as any)] : [];
 
-    // creatorIdSnapshot stores the creatorProfilesTable.id (not userId).
-    // Join path: orderItems.creatorIdSnapshot → creatorProfilesTable.id
-    //            → creatorProfilesTable.userId → profilesTable.userId → displayName
+    // Join path for the live fallback:
+    //   order_items.creator_id_snapshot → creator_profiles.id
+    //   → creator_profiles.user_id → profiles.user_id → display_name
+    // COALESCE prefers the snapshot (populated at checkout for new orders) and
+    // falls back to the live profile for orders created before the snapshot was added.
+    const creatorUserProfile = alias(profilesTable, "creator_user_profile");
+
     const rows = await db
       .select({
         orderId: ordersTable.id,
@@ -329,7 +331,7 @@ router.get(
         createdAt: ordersTable.createdAt,
         listingTitle: orderItemsTable.listingTitleSnapshot,
         creatorId: orderItemsTable.creatorIdSnapshot,
-        creatorName: creatorUserProfile.displayName,
+        creatorName: sql<string | null>`COALESCE(${orderItemsTable.creatorNameSnapshot}, ${creatorUserProfile.displayName})`,
         unitAmountMinorUnits: orderItemsTable.unitAmountMinorUnits,
         creatorProceedsMinorUnits: orderItemsTable.creatorProceedsMinorUnits,
         commissionRateBasisPoints: orderItemsTable.commissionRateBasisPoints,
@@ -412,7 +414,9 @@ router.get(
       conditions.push(inArray(ordersTable.buyerId, buyerIds));
     }
 
-    const creatorProfile = alias(profilesTable, "creator_profile");
+    // COALESCE prefers the snapshot (set at checkout for new orders) and falls
+    // back to the live profile join for orders created before the snapshot column existed.
+    const creatorExportProfile = alias(profilesTable, "creator_export_profile");
 
     // Fetch one extra row so we can detect truncation without a separate COUNT query
     const rows = await db
@@ -422,7 +426,7 @@ router.get(
         buyerEmail: usersTable.email,
         listingTitle: orderItemsTable.listingTitleSnapshot,
         creatorId: orderItemsTable.creatorIdSnapshot,
-        creatorName: creatorProfile.displayName,
+        creatorName: sql<string | null>`COALESCE(${orderItemsTable.creatorNameSnapshot}, ${creatorExportProfile.displayName})`,
         grossMinorUnits: orderItemsTable.unitAmountMinorUnits,
         platformFeeMinorUnits: orderItemsTable.platformFeeMinorUnits,
         creatorProceedsMinorUnits: orderItemsTable.creatorProceedsMinorUnits,
@@ -431,7 +435,8 @@ router.get(
       .from(ordersTable)
       .innerJoin(usersTable, eq(usersTable.id, ordersTable.buyerId))
       .innerJoin(orderItemsTable, eq(orderItemsTable.orderId, ordersTable.id))
-      .leftJoin(creatorProfile, eq(creatorProfile.userId, orderItemsTable.creatorIdSnapshot))
+      .leftJoin(creatorProfilesTable, eq(creatorProfilesTable.id, orderItemsTable.creatorIdSnapshot))
+      .leftJoin(creatorExportProfile, eq(creatorExportProfile.userId, creatorProfilesTable.userId))
       .where(and(...conditions))
       .orderBy(desc(ordersTable.createdAt))
       .limit(EXPORT_ROW_LIMIT + 1);
