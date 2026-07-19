@@ -10,6 +10,7 @@ import {
   creatorProfilesTable,
   reviewsTable,
   subscriptionPlansTable,
+  learnerSubscriptionsTable,
 } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { requireRole } from "../../middlewares/auth";
@@ -120,13 +121,52 @@ router.get("/listings/:id", async (req, res): Promise<void> => {
     .orderBy(desc(reviewsTable.createdAt))
     .limit(10);
 
+  // For authenticated learners on subscription listings, resolve their credit balance.
+  let isSubscribed = false;
+  let sessionsRemaining: number | null = null;
+  let currentPeriodEnd: Date | null = null;
+  if (subscriptionPlan && req.session?.userId) {
+    const [activeSub] = await db
+      .select({
+        status: learnerSubscriptionsTable.status,
+        sessionsRemaining: learnerSubscriptionsTable.sessionsRemaining,
+        currentPeriodEnd: learnerSubscriptionsTable.currentPeriodEnd,
+      })
+      .from(learnerSubscriptionsTable)
+      .where(
+        and(
+          eq(learnerSubscriptionsTable.learnerId, req.session.userId),
+          eq(learnerSubscriptionsTable.listingId, id),
+          eq(learnerSubscriptionsTable.status, "active")
+        )
+      )
+      .limit(1);
+    if (activeSub) {
+      isSubscribed = true;
+      sessionsRemaining = activeSub.sessionsRemaining;
+      currentPeriodEnd = activeSub.currentPeriodEnd ?? null;
+    }
+  }
+
   // Increment view count (fire and forget)
   db.update(listingsTable)
     .set({ viewCount: listing.viewCount + 1 })
     .where(eq(listingsTable.id, id))
     .catch(() => {});
 
-  res.json({ data: { listing, price, serviceOffer: offer, product, reviews, subscriptionPlan } });
+  res.json({
+    data: {
+      listing,
+      price,
+      serviceOffer: offer,
+      product,
+      reviews,
+      subscriptionPlan,
+      isSubscribed,
+      sessionsRemaining,
+      currentPeriodEnd,
+    },
+  });
 });
 
 // POST /api/v1/creator/listings

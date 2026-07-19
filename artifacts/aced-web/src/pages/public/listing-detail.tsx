@@ -336,7 +336,16 @@ export default function ListingDetail() {
     );
   }
 
-  const { listing, price, serviceOffer, product, subscriptionPlan } = response.data as any;
+  const {
+    listing,
+    price,
+    serviceOffer,
+    product,
+    subscriptionPlan,
+    isSubscribed,
+    sessionsRemaining,
+    currentPeriodEnd,
+  } = response.data as any;
   const isSubscription = !!subscriptionPlan;
   const priceAmount =
     isSubscription
@@ -472,66 +481,112 @@ export default function ListingDetail() {
           <div className="space-y-6">
             <div className="sticky top-32">
               {isService && serviceOffer && isSubscription ? (
-                /* Subscription listing — show plan card with Subscribe button */
+                /* Subscription listing */
                 <Card className="shadow-xl border-border/50 rounded-3xl overflow-hidden">
                   <CardContent className="p-6">
-                    <div className="flex items-center gap-2 mb-1">
-                      <RefreshCw className="h-4 w-4 text-primary" />
-                      <span className="text-xs font-bold uppercase tracking-widest text-primary">
-                        Subscription Plan
-                      </span>
-                    </div>
-                    <div className="text-4xl font-serif tracking-tight mb-2 text-primary">
-                      £{(subscriptionPlan.amountMinorUnits / 100).toFixed(2)}
-                      <span className="text-lg font-medium text-muted-foreground ml-1">
-                        / {subscriptionPlan.billingInterval}
-                      </span>
-                    </div>
-                    <div className="flex gap-3 mb-6 flex-wrap">
-                      <Badge variant="secondary" className="text-xs font-semibold">
-                        <Clock className="h-3 w-3 mr-1" />
-                        {(serviceOffer as any).durationMinutes} min sessions
-                      </Badge>
-                      <Badge variant="secondary" className="text-xs font-semibold">
-                        {(serviceOffer as any).deliveryMode ?? 'Online'}
-                      </Badge>
-                    </div>
-                    <Separator className="mb-6" />
-                    <div className="space-y-3 mb-6">
-                      <div className="flex items-start gap-3 text-sm">
-                        <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                        <span className="font-medium">
-                          <strong>{subscriptionPlan.sessionsPerPeriod}</strong> session
-                          {subscriptionPlan.sessionsPerPeriod !== 1 ? 's' : ''} per{' '}
-                          {subscriptionPlan.billingInterval === 'weekly' ? 'week' : 'month'}
-                        </span>
-                      </div>
-                      <div className="flex items-start gap-3 text-sm">
-                        <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                        <span className="font-medium">Credits reset each billing period</span>
-                      </div>
-                      <div className="flex items-start gap-3 text-sm">
-                        <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                        <span className="font-medium">Cancel anytime</span>
-                      </div>
-                    </div>
-                    <Button
-                      size="lg"
-                      className="w-full h-14 text-base font-bold rounded-xl"
-                      onClick={handleSubscribe}
-                      disabled={subscribeMutation.isPending}
-                    >
-                      {subscribeMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Redirecting…
-                        </>
-                      ) : (
-                        <>
-                          Subscribe — £{(subscriptionPlan.amountMinorUnits / 100).toFixed(2)}/{subscriptionPlan.billingInterval}
-                          <ChevronRight className="ml-1 h-4 w-4" />
-                        </>
-                      )}
-                    </Button>
+                    {isSubscribed ? (
+                      /* Already subscribed — show slot picker or no-credits message */
+                      <>
+                        <div className="flex items-center gap-2 mb-3">
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          <span className="text-xs font-bold uppercase tracking-widest text-green-700">
+                            You're subscribed
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-sm font-medium text-muted-foreground">Credits remaining</span>
+                          <span className={`text-lg font-bold font-serif ${sessionsRemaining > 0 ? 'text-primary' : 'text-destructive'}`}>
+                            {sessionsRemaining ?? 0} / {subscriptionPlan.sessionsPerPeriod}
+                          </span>
+                        </div>
+                        <Separator className="mb-4" />
+                        {sessionsRemaining > 0 ? (
+                          <SlotPicker
+                            listingId={id}
+                            serviceOffer={serviceOffer as any}
+                            price={null}
+                            onBooked={() => setBooked(true)}
+                          />
+                        ) : (
+                          <div className="rounded-xl bg-muted/40 border border-border/50 p-4 text-center space-y-2">
+                            <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto opacity-50" />
+                            <p className="text-sm font-semibold text-foreground">No credits remaining</p>
+                            {currentPeriodEnd && (
+                              <p className="text-xs text-muted-foreground">
+                                Renews on{' '}
+                                <span className="font-medium">
+                                  {format(new Date(currentPeriodEnd), 'EEE, MMM d')}
+                                </span>
+                              </p>
+                            )}
+                            <Button variant="outline" size="sm" className="mt-2 w-full" asChild>
+                              <Link href="/subscriptions">Manage subscription</Link>
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      /* Not yet subscribed — show Subscribe CTA */
+                      <>
+                        <div className="flex items-center gap-2 mb-1">
+                          <RefreshCw className="h-4 w-4 text-primary" />
+                          <span className="text-xs font-bold uppercase tracking-widest text-primary">
+                            Subscription Plan
+                          </span>
+                        </div>
+                        <div className="text-4xl font-serif tracking-tight mb-2 text-primary">
+                          £{(subscriptionPlan.amountMinorUnits / 100).toFixed(2)}
+                          <span className="text-lg font-medium text-muted-foreground ml-1">
+                            / {subscriptionPlan.billingInterval}
+                          </span>
+                        </div>
+                        <div className="flex gap-3 mb-6 flex-wrap">
+                          <Badge variant="secondary" className="text-xs font-semibold">
+                            <Clock className="h-3 w-3 mr-1" />
+                            {(serviceOffer as any).durationMinutes} min sessions
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs font-semibold">
+                            {(serviceOffer as any).deliveryMode ?? 'Online'}
+                          </Badge>
+                        </div>
+                        <Separator className="mb-6" />
+                        <div className="space-y-3 mb-6">
+                          <div className="flex items-start gap-3 text-sm">
+                            <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                            <span className="font-medium">
+                              <strong>{subscriptionPlan.sessionsPerPeriod}</strong> session
+                              {subscriptionPlan.sessionsPerPeriod !== 1 ? 's' : ''} per{' '}
+                              {subscriptionPlan.billingInterval === 'weekly' ? 'week' : 'month'}
+                            </span>
+                          </div>
+                          <div className="flex items-start gap-3 text-sm">
+                            <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                            <span className="font-medium">Credits reset each billing period</span>
+                          </div>
+                          <div className="flex items-start gap-3 text-sm">
+                            <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                            <span className="font-medium">Cancel anytime</span>
+                          </div>
+                        </div>
+                        <Button
+                          size="lg"
+                          className="w-full h-14 text-base font-bold rounded-xl"
+                          onClick={handleSubscribe}
+                          disabled={subscribeMutation.isPending}
+                        >
+                          {subscribeMutation.isPending ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Redirecting…
+                            </>
+                          ) : (
+                            <>
+                              Subscribe — £{(subscriptionPlan.amountMinorUnits / 100).toFixed(2)}/{subscriptionPlan.billingInterval}
+                              <ChevronRight className="ml-1 h-4 w-4" />
+                            </>
+                          )}
+                        </Button>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               ) : isService && serviceOffer ? (
