@@ -113,6 +113,8 @@ import type {
   UniversityDetailResponse,
   UnreadCountResponse,
   UpdateAdminConfigRequest,
+  UpdateCreatorProfileRequest,
+  UpdateCreatorProfileResponse,
   UpdateProfileRequest,
   UpdateProfileResponse,
   UpdateStorefrontRequest,
@@ -3956,6 +3958,154 @@ export function useGetAdminDashboard<TData = Awaited<ReturnType<typeof getAdminD
 
 
 
+
+export const getGetCreatorProfileUrl = () => {
+
+
+
+
+  return `/api/v1/creator/profile`
+}
+
+/**
+ * @summary Get the logged-in creator's profile (including video call settings)
+ */
+export const getCreatorProfile = async ( options?: RequestInit): Promise<UpdateCreatorProfileResponse> => {
+
+  return customFetch<UpdateCreatorProfileResponse>(getGetCreatorProfileUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCreatorProfileQueryKey = () => {
+    return [
+    `/api/v1/creator/profile`
+    ] as const;
+    }
+
+
+export const getGetCreatorProfileQueryOptions = <TData = Awaited<ReturnType<typeof getCreatorProfile>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCreatorProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCreatorProfileQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCreatorProfile>>> = ({ signal }) => getCreatorProfile({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCreatorProfile>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCreatorProfileQueryResult = NonNullable<Awaited<ReturnType<typeof getCreatorProfile>>>
+export type GetCreatorProfileQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the logged-in creator's profile (including video call settings)
+ */
+
+export function useGetCreatorProfile<TData = Awaited<ReturnType<typeof getCreatorProfile>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCreatorProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCreatorProfileQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateCreatorProfileUrl = () => {
+
+
+
+
+  return `/api/v1/creator/profile`
+}
+
+/**
+ * @summary Update the logged-in creator's video call settings
+ */
+export const updateCreatorProfile = async (updateCreatorProfileRequest: UpdateCreatorProfileRequest, options?: RequestInit): Promise<UpdateCreatorProfileResponse> => {
+
+  return customFetch<UpdateCreatorProfileResponse>(getUpdateCreatorProfileUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateCreatorProfileRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateCreatorProfileMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCreatorProfile>>, TError,{data: BodyType<UpdateCreatorProfileRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCreatorProfile>>, TError,{data: BodyType<UpdateCreatorProfileRequest>}, TContext> => {
+
+const mutationKey = ['updateCreatorProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCreatorProfile>>, {data: BodyType<UpdateCreatorProfileRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateCreatorProfile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCreatorProfileMutationResult = NonNullable<Awaited<ReturnType<typeof updateCreatorProfile>>>
+    export type UpdateCreatorProfileMutationBody = BodyType<UpdateCreatorProfileRequest>
+    export type UpdateCreatorProfileMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update the logged-in creator's video call settings
+ */
+export const useUpdateCreatorProfile = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCreatorProfile>>, TError,{data: BodyType<UpdateCreatorProfileRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCreatorProfile>>,
+        TError,
+        {data: BodyType<UpdateCreatorProfileRequest>},
+        TContext
+      > => {
+      return useMutation(getUpdateCreatorProfileMutationOptions(options));
+    }
 
 export const getUpdateProfileUrl = () => {
 

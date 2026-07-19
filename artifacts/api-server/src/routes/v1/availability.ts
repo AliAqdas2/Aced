@@ -441,10 +441,19 @@ router.post("/bookings/confirm", requireAuth, async (req, res): Promise<void> =>
 
   // Fire-and-forget calendar sync
   const [cp] = await db
-    .select({ userId: creatorProfilesTable.userId })
+    .select({ userId: creatorProfilesTable.userId, videoCallLink: creatorProfilesTable.videoCallLink })
     .from(creatorProfilesTable)
     .where(eq(creatorProfilesTable.id, listing.creatorId))
     .limit(1);
+
+  // Populate meeting link from creator's video call settings
+  const meetingLink = cp?.videoCallLink ?? null;
+  if (meetingLink) {
+    await db
+      .update(bookingsTable)
+      .set({ meetingLink })
+      .where(eq(bookingsTable.id, booking.id));
+  }
 
   if (cp) {
     syncBookingCreated({
@@ -452,7 +461,7 @@ router.post("/bookings/confirm", requireAuth, async (req, res): Promise<void> =>
       listingTitle: listing.title,
       scheduledStartAt: startDate,
       scheduledEndAt: endDate,
-      meetingLink: null,
+      meetingLink,
       learnerId,
       creatorUserId: cp.userId,
     }).catch(() => {});

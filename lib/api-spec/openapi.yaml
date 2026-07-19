@@ -965,6 +965,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdminDashboardResponse"
 
+  /v1/creator/profile:
+    get:
+      operationId: getCreatorProfile
+      tags: [creators]
+      summary: Get the logged-in creator's profile (including video call settings)
+      responses:
+        "200":
+          description: Creator profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateCreatorProfileResponse"
+    patch:
+      operationId: updateCreatorProfile
+      tags: [creators]
+      summary: Update the logged-in creator's video call settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCreatorProfileRequest"
+      responses:
+        "200":
+          description: Updated creator profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateCreatorProfileResponse"
+
   /v1/profile:
     patch:
       operationId: updateProfile
@@ -2376,6 +2406,32 @@ components:
           type: array
           items:
             type: object
+
+    UpdateCreatorProfileRequest:
+      type: object
+      properties:
+        videoCallProvider:
+          type: string
+          enum: [zoom, teams, meet, custom]
+          nullable: true
+        videoCallLink:
+          type: string
+          nullable: true
+
+    UpdateCreatorProfileResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          properties:
+            videoCallProvider:
+              type: string
+              enum: [zoom, teams, meet, custom]
+              nullable: true
+            videoCallLink:
+              type: string
+              nullable: true
 
     UpdateProfileRequest:
       type: object

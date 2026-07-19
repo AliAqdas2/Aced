@@ -641,6 +641,40 @@ export interface CommissionRulesResponse {
   data: CommissionRulesResponseDataItem[];
 }
 
+export type UpdateCreatorProfileRequestVideoCallProvider = typeof UpdateCreatorProfileRequestVideoCallProvider[keyof typeof UpdateCreatorProfileRequestVideoCallProvider] | null;
+
+
+export const UpdateCreatorProfileRequestVideoCallProvider = {
+  zoom: 'zoom',
+  teams: 'teams',
+  meet: 'meet',
+  custom: 'custom',
+} as const;
+
+export interface UpdateCreatorProfileRequest {
+  videoCallProvider?: UpdateCreatorProfileRequestVideoCallProvider;
+  videoCallLink?: string | null;
+}
+
+export type UpdateCreatorProfileResponseDataVideoCallProvider = typeof UpdateCreatorProfileResponseDataVideoCallProvider[keyof typeof UpdateCreatorProfileResponseDataVideoCallProvider] | null;
+
+
+export const UpdateCreatorProfileResponseDataVideoCallProvider = {
+  zoom: 'zoom',
+  teams: 'teams',
+  meet: 'meet',
+  custom: 'custom',
+} as const;
+
+export type UpdateCreatorProfileResponseData = {
+  videoCallProvider?: UpdateCreatorProfileResponseDataVideoCallProvider;
+  videoCallLink?: string | null;
+};
+
+export interface UpdateCreatorProfileResponse {
+  data: UpdateCreatorProfileResponseData;
+}
+
 export interface UpdateProfileRequest {
   displayName?: string;
   bio?: string;

@@ -977,6 +977,33 @@ export const GetAdminDashboardResponse = zod.object({
 
 
 /**
+ * @summary Get the logged-in creator's profile (including video call settings)
+ */
+export const GetCreatorProfileResponse = zod.object({
+  "data": zod.object({
+  "videoCallProvider": zod.enum(['zoom', 'teams', 'meet', 'custom']).nullish(),
+  "videoCallLink": zod.string().nullish()
+})
+})
+
+
+/**
+ * @summary Update the logged-in creator's video call settings
+ */
+export const UpdateCreatorProfileBody = zod.object({
+  "videoCallProvider": zod.enum(['zoom', 'teams', 'meet', 'custom']).nullish(),
+  "videoCallLink": zod.string().nullish()
+})
+
+export const UpdateCreatorProfileResponse = zod.object({
+  "data": zod.object({
+  "videoCallProvider": zod.enum(['zoom', 'teams', 'meet', 'custom']).nullish(),
+  "videoCallLink": zod.string().nullish()
+})
+})
+
+
+/**
  * @summary Update the logged-in user's profile
  */
 export const UpdateProfileBody = zod.object({

@@ -45,6 +45,13 @@ export const commissionScopeEnum = pgEnum("commission_scope", [
   "category",
 ]);
 
+export const videoCallProviderEnum = pgEnum("video_call_provider", [
+  "zoom",
+  "teams",
+  "meet",
+  "custom",
+]);
+
 export const creatorProfilesTable = pgTable("creator_profiles", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
@@ -64,6 +71,8 @@ export const creatorProfilesTable = pgTable("creator_profiles", {
   averageRating: integer("average_rating"),
   reviewCount: integer("review_count").notNull().default(0),
   reviewNotes: text("review_notes"),
+  videoCallProvider: videoCallProviderEnum("video_call_provider"),
+  videoCallLink: text("video_call_link"),
   verifiedAt: timestamp("verified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -158,6 +167,7 @@ export const commissionRulesTable = pgTable("commission_rules", {
     .$onUpdate(() => new Date()),
 });
 
+export type VideoCallProvider = typeof videoCallProviderEnum.enumValues[number];
 export type CreatorProfile = typeof creatorProfilesTable.$inferSelect;
 export type CreatorVerification = typeof creatorVerificationsTable.$inferSelect;
 export type Storefront = typeof storefrontsTable.$inferSelect;

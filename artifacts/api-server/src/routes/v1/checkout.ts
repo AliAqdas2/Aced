@@ -394,6 +394,14 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
             .where(eq(listingsTable.id, hold.listingId))
             .limit(1);
 
+          // Fetch creator's video call link alongside userId in one query
+          const [cp] = await db
+            .select({ userId: creatorProfilesTable.userId, videoCallLink: creatorProfilesTable.videoCallLink })
+            .from(creatorProfilesTable)
+            .where(eq(creatorProfilesTable.id, listing.creatorId))
+            .limit(1);
+          const meetingLink = cp?.videoCallLink ?? null;
+
           const [newBooking] = await db.insert(bookingsTable).values({
             holdId,
             orderId,
@@ -404,14 +412,11 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
             scheduledStartAt: hold.holdStartsAt,
             scheduledEndAt: hold.holdEndsAt,
             status: "confirmed",
+            meetingLink,
           }).returning();
 
           // Sync to calendars — fire-and-forget, must not block webhook
           if (newBooking) {
-            const [cp] = await db.select({ userId: creatorProfilesTable.userId })
-              .from(creatorProfilesTable)
-              .where(eq(creatorProfilesTable.id, listing.creatorId))
-              .limit(1);
 
             if (cp) {
               syncBookingCreated({
@@ -419,7 +424,7 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
                 listingTitle: listing.title,
                 scheduledStartAt: hold.holdStartsAt,
                 scheduledEndAt: hold.holdEndsAt,
-                meetingLink: null,
+                meetingLink,
                 learnerId: order.buyerId,
                 creatorUserId: cp.userId,
               }).catch(() => {}); // non-blocking

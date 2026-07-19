@@ -414,6 +414,54 @@ router.get(
   }
 );
 
+// PATCH /api/v1/creator/profile — update video call settings
+router.patch(
+  "/creator/profile",
+  requireRole("creator"),
+  async (req, res): Promise<void> => {
+    const Body = z.object({
+      videoCallProvider: z.enum(["zoom", "teams", "meet", "custom"]).nullable().optional(),
+      videoCallLink: z.string().url("Must be a valid URL").nullable().optional(),
+    });
+    const parsed = Body.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+      return;
+    }
+
+    const userId = req.session.userId!;
+    const [cp] = await db
+      .select()
+      .from(creatorProfilesTable)
+      .where(eq(creatorProfilesTable.userId, userId))
+      .limit(1);
+
+    if (!cp) {
+      res.status(404).json({ error: "Creator profile not found" });
+      return;
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (parsed.data.videoCallProvider !== undefined)
+      updates.videoCallProvider = parsed.data.videoCallProvider;
+    if (parsed.data.videoCallLink !== undefined)
+      updates.videoCallLink = parsed.data.videoCallLink;
+
+    const [updated] = await db
+      .update(creatorProfilesTable)
+      .set(updates)
+      .where(eq(creatorProfilesTable.id, cp.id))
+      .returning();
+
+    res.json({
+      data: {
+        videoCallProvider: updated.videoCallProvider ?? null,
+        videoCallLink: updated.videoCallLink ?? null,
+      },
+    });
+  }
+);
+
 // --- Admin routes for creator management ---
 
 // GET /api/v1/admin/applications
