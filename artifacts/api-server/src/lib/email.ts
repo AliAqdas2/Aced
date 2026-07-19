@@ -225,6 +225,51 @@ export function buildChangesRequestedEmail(opts: {
   `;
 }
 
+export function buildApprovedEmail(opts: {
+  applicantName: string;
+  appUrl?: string;
+}): EmailPayload["html"] {
+  const dashboardUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://aced.co.uk"}/creator/dashboard`;
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #7B2FF7;">🎉 Welcome to Aced — You're Approved!</h2>
+      <p>Hi ${opts.applicantName},</p>
+      <p>Congratulations! Your creator application has been <strong>approved</strong>. You're now part of the Aced community and can start sharing your knowledge with students.</p>
+      <p>Here's what to do next:</p>
+      <ul style="line-height:1.8;">
+        <li>Complete your creator profile and add a bio</li>
+        <li>Connect your Stripe account to receive payments</li>
+        <li>Create your first listing — a session, course, or subscription plan</li>
+      </ul>
+      <a href="${dashboardUrl}" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#7B2FF7,#00D4FF);color:white;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:8px;">Go to Your Creator Dashboard</a>
+      <p style="color:#666;font-size:12px;margin-top:24px;">If you have any questions, reply to this email and we'll be happy to help.</p>
+    </div>
+  `;
+}
+
+export function buildRejectedEmail(opts: {
+  applicantName: string;
+  notes?: string;
+  appUrl?: string;
+}): EmailPayload["html"] {
+  const appUrl = opts.appUrl ?? process.env.APP_URL ?? "https://aced.co.uk";
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #7B2FF7;">Update on Your Aced Creator Application</h2>
+      <p>Hi ${opts.applicantName},</p>
+      <p>Thank you for taking the time to apply to become a creator on Aced. After careful review, we're unable to approve your application at this time.</p>
+      ${opts.notes ? `
+      <div style="background:#f9fafb;border-left:4px solid #e5e7eb;padding:12px 16px;margin:16px 0;border-radius:4px;">
+        <p style="margin:0;font-weight:bold;">Reviewer note:</p>
+        <p style="margin:8px 0 0;">${opts.notes}</p>
+      </div>` : ""}
+      <p>We appreciate your interest in Aced and wish you all the best. If you believe this decision was made in error or have further questions, please don't hesitate to reach out.</p>
+      <a href="${appUrl}" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#7B2FF7,#00D4FF);color:white;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:8px;">Visit Aced</a>
+      <p style="color:#666;font-size:12px;margin-top:24px;">If you have questions, reply to this email and our team will be happy to help.</p>
+    </div>
+  `;
+}
+
 export function buildBookingConfirmationEmail(opts: {
   learnerName: string;
   creatorName: string;
