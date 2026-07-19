@@ -21,19 +21,53 @@ app.use(
   })
 );
 
-// CORS
-const allowedOrigins = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(",")
-  : ["http://localhost:5173", "http://localhost:3000"];
+// CORS — build allowed origins from env vars plus Replit-managed domains
+const allowedOrigins: Set<string> = new Set([
+  "http://localhost:5173",
+  "http://localhost:3000",
+]);
+
+// Explicit overrides (comma-separated)
+if (process.env.CORS_ORIGINS) {
+  for (const o of process.env.CORS_ORIGINS.split(",")) {
+    const trimmed = o.trim();
+    if (trimmed) allowedOrigins.add(trimmed);
+  }
+}
+
+// APP_URL (production canonical domain)
+if (process.env.APP_URL) {
+  try {
+    allowedOrigins.add(new URL(process.env.APP_URL).origin);
+  } catch { /* ignore malformed */ }
+}
+
+// REPLIT_DOMAINS — space-separated hostnames provided by the Replit runtime
+if (process.env.REPLIT_DOMAINS) {
+  for (const host of process.env.REPLIT_DOMAINS.split(" ")) {
+    const h = host.trim();
+    if (h) {
+      allowedOrigins.add(`https://${h}`);
+      allowedOrigins.add(`http://${h}`);
+    }
+  }
+}
+
+// REPLIT_DEV_DOMAIN — single dev-preview hostname
+if (process.env.REPLIT_DEV_DOMAIN) {
+  allowedOrigins.add(`https://${process.env.REPLIT_DEV_DOMAIN}`);
+}
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== "production") {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
+      // No origin = same-origin or server-to-server: allow
+      if (!origin) return callback(null, true);
+      // Non-production: allow everything
+      if (process.env.NODE_ENV !== "production") return callback(null, true);
+      // Production: check allowlist
+      if (allowedOrigins.has(origin)) return callback(null, true);
+      callback(new Error(`CORS: origin '${origin}' not allowed`));
     },
     credentials: true,
   })

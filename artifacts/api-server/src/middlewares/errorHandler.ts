@@ -35,10 +35,11 @@ export function errorHandler(
   const statusCode = err.statusCode ?? 500;
   const traceId = (req as any).id;
 
+  const log = req.log ?? logger;
   if (statusCode >= 500) {
-    req.log.error({ err, traceId }, "Unhandled server error");
+    log.error({ err, traceId }, "Unhandled server error");
   } else {
-    req.log.warn({ err, traceId }, "Request error");
+    log.warn({ err, traceId }, "Request error");
   }
 
   res.status(statusCode).json({
