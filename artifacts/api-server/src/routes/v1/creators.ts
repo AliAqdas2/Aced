@@ -334,6 +334,17 @@ router.post(
       return;
     }
 
+    // Replace any existing verification of the same claimType so resubmits
+    // don't accumulate duplicate rows for the same document type.
+    await db
+      .delete(creatorVerificationsTable)
+      .where(
+        and(
+          eq(creatorVerificationsTable.creatorId, cp.id),
+          eq(creatorVerificationsTable.claimType, parsed.data.claimType)
+        )
+      );
+
     const [verification] = await db
       .insert(creatorVerificationsTable)
       .values({

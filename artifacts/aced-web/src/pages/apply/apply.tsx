@@ -41,9 +41,11 @@ interface FileInputProps {
   file: File | null;
   onSelect: (f: File | null) => void;
   error?: string;
+  /** Filename of an already-uploaded document stored in the DB. */
+  existingFileName?: string;
 }
 
-function FileInput({ label, hint, required, file, onSelect, error }: FileInputProps) {
+function FileInput({ label, hint, required, file, onSelect, error, existingFileName }: FileInputProps) {
   const ref = useRef<HTMLInputElement>(null);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -60,11 +62,24 @@ function FileInput({ label, hint, required, file, onSelect, error }: FileInputPr
     onSelect(f);
   }
 
+  /** True when no new file selected but an existing one is on record. */
+  const hasExisting = !file && Boolean(existingFileName);
+
   return (
     <div className="space-y-1.5">
       <label className="text-sm font-medium leading-none">
         {label}{required && <span className="text-destructive ml-1">*</span>}
       </label>
+
+      {/* Existing-file pill shown above the drop zone when no replacement chosen */}
+      {hasExisting && (
+        <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="truncate flex-1 text-muted-foreground">{existingFileName}</span>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">on file</span>
+        </div>
+      )}
+
       <div
         role="button"
         tabIndex={0}
@@ -97,7 +112,7 @@ function FileInput({ label, hint, required, file, onSelect, error }: FileInputPr
           <>
             <Upload className="h-5 w-5 text-muted-foreground shrink-0" />
             <div>
-              <p className="text-sm font-medium">Click to upload</p>
+              <p className="text-sm font-medium">{hasExisting ? 'Click to replace' : 'Click to upload'}</p>
               <p className="text-xs text-muted-foreground">{hint}</p>
             </div>
           </>
@@ -140,12 +155,19 @@ async function uploadVerificationDoc(file: File, claimType: string): Promise<voi
   }
 }
 
+interface ExistingVerification {
+  claimType: string;
+  evidenceFileName: string;
+}
+
 interface ApplicationInitialValues {
   universityId?: string;
   courseId?: string;
   graduationYear?: number;
   academicResult?: string;
   headline?: string;
+  /** Verifications already stored in the DB for this applicant. */
+  existingVerifications?: ExistingVerification[];
 }
 
 /** Reusable application form — used on both /apply and /become-a-creator */
@@ -157,6 +179,11 @@ export function CreatorApplicationForm({ initialValues }: { initialValues?: Appl
     query: { queryKey: getGetApplicationConfigQueryKey() },
   });
   const dbsRequired = configData?.data?.dbsRequired ?? false;
+
+  // Existing on-file filenames (resubmit only)
+  const existingVerifications = initialValues?.existingVerifications ?? [];
+  const existingDegreeFileName = existingVerifications.find(v => v.claimType === 'degree_certificate')?.evidenceFileName;
+  const existingDbsFileName = existingVerifications.find(v => v.claimType === 'dbs_check')?.evidenceFileName;
 
   const [degreeFile, setDegreeFile] = useState<File | null>(null);
   const [dbsFile, setDbsFile] = useState<File | null>(null);
@@ -403,21 +430,23 @@ export function CreatorApplicationForm({ initialValues }: { initialValues?: Appl
               </p>
 
               <FileInput
-                label={isResubmit ? 'Degree Certificate or Transcript (optional — only if replacing)' : 'Degree Certificate or Transcript'}
+                label={isResubmit ? 'Degree Certificate or Transcript' : 'Degree Certificate or Transcript'}
                 hint="PDF or image of your official degree certificate or final transcript"
-                required={!isResubmit}
+                required={!isResubmit && !existingDegreeFileName}
                 file={degreeFile}
                 onSelect={setDegreeFile}
                 error={fileErrors.degree}
+                existingFileName={existingDegreeFileName}
               />
 
               <FileInput
-                label={`DBS Check${dbsRequired && !isResubmit ? '' : ' (optional)'}`}
+                label={`DBS Check${dbsRequired && !isResubmit && !existingDbsFileName ? '' : ' (optional)'}`}
                 hint="Enhanced DBS certificate or Basic Disclosure — leave blank to upload later"
-                required={dbsRequired && !isResubmit}
+                required={dbsRequired && !isResubmit && !existingDbsFileName}
                 file={dbsFile}
                 onSelect={setDbsFile}
                 error={fileErrors.dbs}
+                existingFileName={existingDbsFileName}
               />
             </div>
 
@@ -499,13 +528,25 @@ export default function Apply() {
 
   // Derive pre-population values from existing application data
   const initialValues: ApplicationInitialValues | undefined = isResubmit && statusData?.data
-    ? {
-        universityId: (statusData.data as { expertise?: Array<{ universityId?: string }> }).expertise?.[0]?.universityId ?? '',
-        courseId: (statusData.data as { expertise?: Array<{ courseId?: string }> }).expertise?.[0]?.courseId ?? '',
-        graduationYear: (statusData.data as { expertise?: Array<{ graduationYear?: number }> }).expertise?.[0]?.graduationYear ?? new Date().getFullYear(),
-        academicResult: (statusData.data as { expertise?: Array<{ academicResult?: string }> }).expertise?.[0]?.academicResult ?? '',
-        headline: (statusData.data as { headline?: string }).headline ?? '',
-      }
+    ? (() => {
+        type StatusData = {
+          headline?: string;
+          expertise?: Array<{ universityId?: string; courseId?: string; graduationYear?: number; academicResult?: string }>;
+          verifications?: Array<{ claimType: string; evidenceFileName: string }>;
+        };
+        const d = statusData.data as StatusData;
+        return {
+          universityId: d.expertise?.[0]?.universityId ?? '',
+          courseId: d.expertise?.[0]?.courseId ?? '',
+          graduationYear: d.expertise?.[0]?.graduationYear ?? new Date().getFullYear(),
+          academicResult: d.expertise?.[0]?.academicResult ?? '',
+          headline: d.headline ?? '',
+          existingVerifications: (d.verifications ?? []).map(v => ({
+            claimType: v.claimType,
+            evidenceFileName: v.evidenceFileName,
+          })),
+        };
+      })()
     : undefined;
 
   if (isResubmit && statusLoading) {
