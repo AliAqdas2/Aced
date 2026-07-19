@@ -2,6 +2,8 @@ import { useState } from 'react';
 import {
   useGetCreatorListings,
   useCreateListing,
+  useGetListing,
+  useCreateSubscriptionPlan,
   getGetCreatorListingsQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -12,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, MoreHorizontal, Edit, Trash, FileText, Video, Users, User, Calendar, Clock, RefreshCw } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Edit, Trash, FileText, Video, Users, User, Calendar, Clock, RefreshCw, AlertTriangle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import {
@@ -35,6 +37,198 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useToast } from '@/hooks/use-toast';
+
+// ---------------------------------------------------------------------------
+// Edit subscription plan modal
+// ---------------------------------------------------------------------------
+
+const editPlanSchema = z.object({
+  subscriptionInterval: z.enum(['weekly', 'monthly']),
+  sessionsPerPeriod: z.coerce.number().int().min(1),
+  subscriptionPrice: z.coerce.number().min(1),
+});
+
+type EditPlanFormValues = z.infer<typeof editPlanSchema>;
+
+function EditSubscriptionPlanModal({
+  listingId,
+  onClose,
+}: {
+  listingId: string;
+  onClose: () => void;
+}) {
+  const { data: listingDetail, isLoading } = useGetListing(listingId);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const plan = (listingDetail?.data as any)?.subscriptionPlan ?? null;
+  const serviceOffer = (listingDetail?.data as any)?.serviceOffer ?? null;
+
+  const form = useForm<EditPlanFormValues>({
+    resolver: zodResolver(editPlanSchema),
+    values: plan
+      ? {
+          subscriptionInterval: plan.billingInterval ?? 'monthly',
+          sessionsPerPeriod: plan.sessionsPerPeriod ?? 4,
+          subscriptionPrice: (plan.amountMinorUnits ?? 4000) / 100,
+        }
+      : {
+          subscriptionInterval: 'monthly',
+          sessionsPerPeriod: 4,
+          subscriptionPrice: 40,
+        },
+  });
+
+  const updateMutation = useCreateSubscriptionPlan({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetCreatorListingsQueryKey() });
+        toast({ title: 'Subscription plan updated' });
+        onClose();
+      },
+      onError: () => {
+        toast({ title: 'Failed to update plan', variant: 'destructive' });
+      },
+    },
+  });
+
+  function onSubmit(values: EditPlanFormValues) {
+    if (!serviceOffer?.id) return;
+    updateMutation.mutate({
+      data: {
+        serviceOfferId: serviceOffer.id,
+        billingInterval: values.subscriptionInterval,
+        sessionsPerPeriod: values.sessionsPerPeriod,
+        amountMinorUnits: Math.round(values.subscriptionPrice * 100),
+        currency: plan?.currency ?? 'GBP',
+      },
+    });
+  }
+
+  const watchInterval = form.watch('subscriptionInterval');
+  const watchSessions = form.watch('sessionsPerPeriod');
+
+  return (
+    <DialogContent className="max-w-md">
+      <DialogHeader>
+        <DialogTitle className="font-serif text-2xl">Edit subscription plan</DialogTitle>
+        <DialogDescription>
+          Update price, billing period, or sessions included per period.
+        </DialogDescription>
+      </DialogHeader>
+
+      {isLoading ? (
+        <div className="py-8 text-center text-muted-foreground animate-pulse">Loading plan…</div>
+      ) : (
+        <>
+          {/* Existing subscribers warning */}
+          <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            <p>
+              Existing subscribers are <strong>not affected</strong> mid-period. Changes apply only
+              to new subscribers or renewals after the current billing cycle ends.
+            </p>
+          </div>
+
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 mt-2">
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="subscriptionInterval"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Billing period</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="weekly">Weekly</SelectItem>
+                          <SelectItem value="monthly">Monthly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="sessionsPerPeriod"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sessions per period</FormLabel>
+                      <Select
+                        onValueChange={(v) => field.onChange(Number(v))}
+                        value={String(field.value)}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {[1, 2, 3, 4, 6, 8, 10, 12].map((n) => (
+                            <SelectItem key={n} value={String(n)}>
+                              {n} session{n !== 1 ? 's' : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="subscriptionPrice"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Price per period (£)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                          £
+                        </span>
+                        <Input
+                          type="number"
+                          min="1"
+                          step="1"
+                          placeholder="40.00"
+                          className="pl-7"
+                          {...field}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      Students pay this amount each {watchInterval} for {watchSessions} session
+                      {watchSessions !== 1 ? 's' : ''}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex gap-3 pt-2">
+                <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="flex-1" disabled={updateMutation.isPending}>
+                  {updateMutation.isPending ? 'Saving…' : 'Save changes'}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </>
+      )}
+    </DialogContent>
+  );
+}
+
+// ---------------------------------------------------------------------------
 
 const LISTING_TYPE_LABELS: Record<string, string> = {
   service_offer: 'Tutoring Session',
@@ -92,6 +286,7 @@ export default function StudioListings() {
   const { data: response, isLoading } = useGetCreatorListings();
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editPlanListingId, setEditPlanListingId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -173,7 +368,7 @@ export default function StudioListings() {
   }
 
   const listings = (response?.data ?? []) as Array<{
-    id: string; title: string; type: string; status: string;
+    id: string; title: string; type: string; status: string; pricingMode: string;
     createdAt: string; purchaseCount: number; activePrice?: { amountMinorUnits: number } | null;
   }>;
 
@@ -646,6 +841,15 @@ export default function StudioListings() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          {listing.status === 'published' &&
+                            listing.pricingMode === 'subscription' &&
+                            listing.type === 'service_offer' && (
+                              <DropdownMenuItem
+                                onSelect={() => setEditPlanListingId(listing.id)}
+                              >
+                                <RefreshCw className="mr-2 h-4 w-4" /> Edit plan
+                              </DropdownMenuItem>
+                            )}
                           <DropdownMenuItem>
                             <Edit className="mr-2 h-4 w-4" /> Edit
                           </DropdownMenuItem>
@@ -677,6 +881,19 @@ export default function StudioListings() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit subscription plan modal */}
+      <Dialog
+        open={editPlanListingId !== null}
+        onOpenChange={(open) => { if (!open) setEditPlanListingId(null); }}
+      >
+        {editPlanListingId && (
+          <EditSubscriptionPlanModal
+            listingId={editPlanListingId}
+            onClose={() => setEditPlanListingId(null)}
+          />
+        )}
+      </Dialog>
     </div>
   );
 }
