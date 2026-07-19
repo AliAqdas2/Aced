@@ -525,6 +525,17 @@ export default function ListingDetail() {
                           </div>
                         )}
                       </>
+                    ) : subscriptionPlan.isActive === false ? (
+                      /* Plan paused — no new subscribers */
+                      <div className="text-center py-4 space-y-3">
+                        <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                          <Clock className="h-5 w-5" />
+                          <span className="text-sm font-semibold">Subscriptions paused</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          The creator has temporarily paused new subscriptions. Check back later.
+                        </p>
+                      </div>
                     ) : (
                       /* Not yet subscribed — show Subscribe CTA */
                       <>

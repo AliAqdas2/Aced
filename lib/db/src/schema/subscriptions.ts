@@ -45,6 +45,7 @@ export const subscriptionPlansTable = pgTable("subscription_plans", {
   amountMinorUnits: integer("amount_minor_units").notNull(),
   currency: text("currency").notNull().default("GBP"),
   isActive: boolean("is_active").notNull().default(true),
+  pausedAt: timestamp("paused_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
