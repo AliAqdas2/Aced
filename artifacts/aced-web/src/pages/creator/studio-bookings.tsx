@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calendar, Clock, User, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Calendar, Clock, User, CheckCircle, XCircle, AlertTriangle, Video } from 'lucide-react';
 import { format, isPast, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
@@ -235,6 +235,19 @@ export default function StudioBookings() {
                         <span className="flex items-center gap-1 text-xs text-green-600 font-semibold">
                           <CheckCircle className="h-4 w-4" /> Completed
                         </span>
+                      )}
+                      {booking.meetingLink ? (
+                        <Button size="sm" className="gap-1.5 rounded-xl" asChild>
+                          <a href={booking.meetingLink} target="_blank" rel="noopener noreferrer">
+                            <Video className="h-4 w-4" /> Join Call
+                          </a>
+                        </Button>
+                      ) : (
+                        !inPast && booking.status !== 'cancelled' && (
+                          <Button size="sm" variant="outline" className="gap-1.5 rounded-xl" disabled>
+                            <Video className="h-4 w-4" /> Join Call
+                          </Button>
+                        )
                       )}
                       {canCancel && (
                         <Button
