@@ -66,6 +66,23 @@ router.get("/taxonomy/universities/:slug", async (req, res): Promise<void> => {
   res.json({ data: { ...university, courses } });
 });
 
+// GET /api/v1/taxonomy/courses?universityId=:uuid
+router.get("/taxonomy/courses", async (req, res): Promise<void> => {
+  const universityId = req.query["universityId"] as string | undefined;
+  if (!universityId) {
+    res.status(400).json({ error: "universityId query parameter is required" });
+    return;
+  }
+
+  const courses = await db
+    .select()
+    .from(coursesTable)
+    .where(eq(coursesTable.universityId, universityId))
+    .orderBy(coursesTable.name);
+
+  res.json({ data: courses });
+});
+
 // GET /api/v1/taxonomy/courses/:id/modules
 router.get("/taxonomy/courses/:id/modules", async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
