@@ -18,8 +18,9 @@ import {
   platformConfigTable,
   universitiesTable,
   creatorExpertiseTable,
+  failedEmailsTable,
 } from "@workspace/db";
-import { eq, and, desc, ilike, gte, lt, inArray, sql } from "drizzle-orm";
+import { eq, and, desc, ilike, gte, lt, inArray, sql, isNull, isNotNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { requireRole } from "../../middlewares/auth";
 import { logAuditEvent } from "../../lib/auth";
@@ -738,5 +739,74 @@ router.post("/reports", async (req, res): Promise<void> => {
 
   res.status(201).json({ data: report });
 });
+
+// GET /api/v1/admin/failed-emails — list emails that failed all delivery attempts
+// Admins use this to identify applicants who were never notified so they can follow up manually.
+router.get(
+  "/admin/failed-emails",
+  requireRole("admin"),
+  async (req, res): Promise<void> => {
+    const showResolved = req.query["resolved"] === "true";
+
+    const rows = await db
+      .select({
+        id: failedEmailsTable.id,
+        toEmail: failedEmailsTable.toEmail,
+        subject: failedEmailsTable.subject,
+        context: failedEmailsTable.context,
+        errorMessage: failedEmailsTable.errorMessage,
+        attempts: failedEmailsTable.attempts,
+        resolvedAt: failedEmailsTable.resolvedAt,
+        resolvedBy: failedEmailsTable.resolvedBy,
+        createdAt: failedEmailsTable.createdAt,
+      })
+      .from(failedEmailsTable)
+      .where(showResolved ? isNotNull(failedEmailsTable.resolvedAt) : isNull(failedEmailsTable.resolvedAt))
+      .orderBy(desc(failedEmailsTable.createdAt))
+      .limit(200);
+
+    res.json({ data: rows, total: rows.length });
+  }
+);
+
+// PATCH /api/v1/admin/failed-emails/:id/resolve — mark a failed email as manually resolved
+router.patch(
+  "/admin/failed-emails/:id/resolve",
+  requireRole("admin"),
+  async (req, res): Promise<void> => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    const [row] = await db
+      .select()
+      .from(failedEmailsTable)
+      .where(eq(failedEmailsTable.id, id))
+      .limit(1);
+
+    if (!row) {
+      res.status(404).json({ error: "Failed email record not found" });
+      return;
+    }
+
+    const [updated] = await db
+      .update(failedEmailsTable)
+      .set({
+        resolvedAt: new Date(),
+        resolvedBy: req.session.userId,
+      })
+      .where(eq(failedEmailsTable.id, id))
+      .returning();
+
+    await logAuditEvent({
+      actorId: req.session.userId,
+      actorRole: req.session.role,
+      action: "failed_email.resolved",
+      targetId: id,
+      targetType: "failed_email",
+      summary: `Resolved failed email to ${row.toEmail} (${row.context})`,
+    });
+
+    res.json({ data: updated });
+  }
+);
 
 export default router;

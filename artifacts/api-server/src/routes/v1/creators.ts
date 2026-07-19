@@ -17,7 +17,6 @@ import { requireAuth, requireRole } from "../../middlewares/auth";
 import { generateUploadUrl } from "../../lib/storage";
 import { logAuditEvent } from "../../lib/auth";
 import {
-  sendEmail,
   sendEmailResilient,
   buildCreatorApplicationEmail,
   buildApprovalEmail,
@@ -177,20 +176,23 @@ router.post(
           .limit(1);
 
         if (userInfo?.email) {
-          await sendEmail({
-            to: userInfo.email,
-            subject: "We've received your Aced application",
-            html: buildApplicationReceivedEmail({
-              applicantName: userInfo.displayName ?? "there",
-            }),
-          });
+          await sendEmailResilient(
+            {
+              to: userInfo.email,
+              subject: "We've received your Aced application",
+              html: buildApplicationReceivedEmail({
+                applicantName: userInfo.displayName ?? "there",
+              }),
+            },
+            "creator_application_received_applicant"
+          );
         }
       } catch (err) {
         logger.error({ err }, "Failed to send application received email to applicant");
       }
     })();
 
-    // Send approval notification email to internal team (fire and forget — don't block response)
+    // Send notification email to internal team (fire-and-forget — must not fail the response)
     (async () => {
       try {
         const [approvalCfg] = await db
@@ -207,20 +209,23 @@ router.post(
           .where(eq(usersTable.id, userId))
           .limit(1);
 
-        await sendEmail({
-          to: approvalEmail,
-          subject: `New Creator Application — ${userInfo?.displayName ?? userInfo?.email ?? "Unknown"}`,
-          html: buildCreatorApplicationEmail({
-            applicantName: userInfo?.displayName ?? "Unknown",
-            applicantEmail: userInfo?.email ?? "",
-            grade: parsed.data.academicResult,
-            graduationYear: parsed.data.graduationYear,
-            headline: parsed.data.headline,
-            creatorProfileId: creatorProfile.id,
-          }),
-        });
+        await sendEmailResilient(
+          {
+            to: approvalEmail,
+            subject: `New Creator Application — ${userInfo?.displayName ?? userInfo?.email ?? "Unknown"}`,
+            html: buildCreatorApplicationEmail({
+              applicantName: userInfo?.displayName ?? "Unknown",
+              applicantEmail: userInfo?.email ?? "",
+              grade: parsed.data.academicResult,
+              graduationYear: parsed.data.graduationYear,
+              headline: parsed.data.headline,
+              creatorProfileId: creatorProfile.id,
+            }),
+          },
+          "creator_application_received_internal"
+        );
       } catch (err) {
-        logger.error({ err }, "Failed to send creator application approval email");
+        logger.error({ err }, "Failed to send creator application notification email to internal team");
       }
     })();
 
@@ -632,31 +637,40 @@ router.post(
         if (!userInfo) return;
 
         if (parsed.data.decision === "approved") {
-          await sendEmailResilient({
-            to: userInfo.email,
-            subject: "You're approved — welcome to Aced! 🎉",
-            html: buildApprovalEmail({
-              applicantName: userInfo.displayName ?? "Applicant",
-            }),
-          });
+          await sendEmailResilient(
+            {
+              to: userInfo.email,
+              subject: "You're approved — welcome to Aced! 🎉",
+              html: buildApprovalEmail({
+                applicantName: userInfo.displayName ?? "Applicant",
+              }),
+            },
+            "creator_application_decision_approved"
+          );
         } else if (parsed.data.decision === "rejected") {
-          await sendEmailResilient({
-            to: userInfo.email,
-            subject: "Update on your Aced creator application",
-            html: buildRejectionEmail({
-              applicantName: userInfo.displayName ?? "Applicant",
-              notes: parsed.data.notes,
-            }),
-          });
+          await sendEmailResilient(
+            {
+              to: userInfo.email,
+              subject: "Update on your Aced creator application",
+              html: buildRejectionEmail({
+                applicantName: userInfo.displayName ?? "Applicant",
+                notes: parsed.data.notes,
+              }),
+            },
+            "creator_application_decision_rejected"
+          );
         } else if (parsed.data.decision === "changes_requested") {
-          await sendEmailResilient({
-            to: userInfo.email,
-            subject: "Changes requested on your Aced creator application",
-            html: buildChangesRequestedEmail({
-              applicantName: userInfo.displayName ?? "Applicant",
-              notes: parsed.data.notes ?? "Please review the feedback on your application status page.",
-            }),
-          });
+          await sendEmailResilient(
+            {
+              to: userInfo.email,
+              subject: "Changes requested on your Aced creator application",
+              html: buildChangesRequestedEmail({
+                applicantName: userInfo.displayName ?? "Applicant",
+                notes: parsed.data.notes ?? "Please review the feedback on your application status page.",
+              }),
+            },
+            "creator_application_decision_changes_requested"
+          );
         }
       } catch (err) {
         logger.error({ err }, "Failed to send decision email to applicant");

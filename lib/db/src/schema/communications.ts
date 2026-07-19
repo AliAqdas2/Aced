@@ -5,6 +5,7 @@ import {
   timestamp,
   uuid,
   boolean,
+  integer,
 } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 import { listingsTable } from "./listings";
@@ -80,6 +81,29 @@ export const notificationsTable = pgTable("notifications", {
     .defaultNow(),
 });
 
+/**
+ * Dead-letter log for transactional emails that failed all retry attempts.
+ * Admins can view this via GET /api/v1/admin/failed-emails to see which
+ * applicants/users were never notified so they can manually follow up.
+ */
+export const failedEmailsTable = pgTable("failed_emails", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  /** Recipient email address */
+  toEmail: text("to_email").notNull(),
+  subject: text("subject").notNull(),
+  /** Caller-supplied label for where in the codebase this send originated */
+  context: text("context").notNull(),
+  /** Last error message from the SMTP/provider call */
+  errorMessage: text("error_message").notNull(),
+  /** Total number of delivery attempts made before giving up */
+  attempts: integer("attempts").notNull().default(1),
+  /** Whether an admin has manually resolved / re-sent this */
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  resolvedBy: uuid("resolved_by").references(() => usersTable.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type Conversation = typeof conversationsTable.$inferSelect;
 export type Message = typeof messagesTable.$inferSelect;
 export type Notification = typeof notificationsTable.$inferSelect;
+export type FailedEmail = typeof failedEmailsTable.$inferSelect;

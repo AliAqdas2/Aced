@@ -1,4 +1,5 @@
 import { logger } from "./logger";
+import { db, failedEmailsTable } from "@workspace/db";
 
 export interface EmailPayload {
   to: string;
@@ -35,20 +36,52 @@ export async function retryWithBackoff<T>(
 
 /**
  * Resilient send — retries up to 3 times with exponential backoff.
- * On total failure, logs a structured error to stderr for log aggregators.
+ * On total failure:
+ *   1. Writes a structured JSON error line to stderr for log aggregators.
+ *   2. Persists a record to the `failed_emails` table so admins can see
+ *      which applicants/users were never notified and manually follow up.
+ *
+ * @param context  Short label identifying the call-site (e.g. "creator_application_decision")
  */
-export async function sendEmailResilient(payload: EmailPayload): Promise<void> {
+export async function sendEmailResilient(
+  payload: EmailPayload,
+  context = "unknown"
+): Promise<void> {
+  const maxAttempts = 3;
   try {
-    await retryWithBackoff(() => sendEmail(payload), 3, 2000);
+    await retryWithBackoff(() => sendEmail(payload), maxAttempts, 2000);
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+
+    // Structured stderr entry for log aggregators / ops dashboards
     process.stderr.write(
       JSON.stringify({
         event: "email_failed",
+        context,
         to: payload.to,
         subject: payload.subject,
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage,
       }) + "\n"
     );
+
+    // Persist to dead-letter table so admins can see missed recipients
+    try {
+      await db.insert(failedEmailsTable).values({
+        toEmail: payload.to,
+        subject: payload.subject,
+        context,
+        errorMessage,
+        attempts: maxAttempts + 1,
+      });
+    } catch (dbErr) {
+      // Don't throw — DB write failure must not mask the original email failure
+      process.stderr.write(
+        JSON.stringify({
+          event: "failed_email_record_write_failed",
+          error: dbErr instanceof Error ? dbErr.message : String(dbErr),
+        }) + "\n"
+      );
+    }
   }
 }
 
