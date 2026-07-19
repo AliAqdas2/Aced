@@ -1065,6 +1065,8 @@ status?: string;
 
 export type GetAdminOrdersParams = {
 status?: string;
+creatorId?: string;
+buyerEmail?: string;
 };
 
 export type GetAdminListingsParams = {

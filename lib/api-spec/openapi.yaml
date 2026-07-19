@@ -1207,6 +1207,14 @@ paths:
           in: query
           schema:
             type: string
+        - name: creatorId
+          in: query
+          schema:
+            type: string
+        - name: buyerEmail
+          in: query
+          schema:
+            type: string
       responses:
         "200":
           description: Orders

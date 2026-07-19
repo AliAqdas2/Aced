@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertTriangle, Download, X, Check } from 'lucide-react';
+import { AlertTriangle, Download, X, Check, Filter } from 'lucide-react';
 
 interface CreatorSuggestion {
   id: string;
@@ -15,9 +15,11 @@ interface CreatorSuggestion {
 function CreatorTypeahead({
   creatorId,
   onChange,
+  inputId,
 }: {
   creatorId: string;
   onChange: (id: string, label: string) => void;
+  inputId?: string;
 }) {
   const [query, setQuery] = useState('');
   const [label, setLabel] = useState('');
@@ -89,7 +91,7 @@ function CreatorTypeahead({
     <div ref={containerRef} className="relative w-64">
       <div className="relative">
         <Input
-          id="export-creator"
+          id={inputId}
           type="text"
           value={label}
           onChange={(e) => handleInput(e.target.value)}
@@ -137,17 +139,54 @@ function CreatorTypeahead({
 }
 
 export default function AdminOrders() {
-  const { data: response, isLoading } = useGetAdminOrders();
+  // Live table filters
+  const [filterCreatorId, setFilterCreatorId] = useState('');
+  const [filterBuyerEmail, setFilterBuyerEmail] = useState('');
+  const [filterBuyerEmailInput, setFilterBuyerEmailInput] = useState('');
+  const [appliedBuyerEmail, setAppliedBuyerEmail] = useState('');
 
+  // Build params for the live query — only send buyerEmail when user has committed it
+  const queryParams = {
+    ...(filterCreatorId ? { creatorId: filterCreatorId } : {}),
+    ...(appliedBuyerEmail ? { buyerEmail: appliedBuyerEmail } : {}),
+  };
+  const hasQueryParams = Object.keys(queryParams).length > 0;
+
+  const { data: response, isLoading } = useGetAdminOrders(
+    hasQueryParams ? queryParams : undefined
+  );
+
+  // Export picker state
   const [showPicker, setShowPicker] = useState(false);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [creatorId, setCreatorId] = useState('');
-  const [buyerEmail, setBuyerEmail] = useState('');
+  const [exportCreatorId, setExportCreatorId] = useState('');
+  const [exportBuyerEmail, setExportBuyerEmail] = useState('');
   const [exporting, setExporting] = useState(false);
   const [truncationWarning, setTruncationWarning] = useState<{ rowCount: number } | null>(null);
 
-  if (isLoading) return <div className="p-8 text-center text-muted-foreground">Loading orders...</div>;
+  // When opening the export picker, pre-fill with active live filters
+  const openExportPicker = () => {
+    if (!showPicker) {
+      setExportCreatorId(filterCreatorId);
+      setExportBuyerEmail(appliedBuyerEmail);
+    }
+    setShowPicker((v) => !v);
+  };
+
+  const hasActiveFilters = filterCreatorId || appliedBuyerEmail;
+
+  const clearLiveFilters = () => {
+    setFilterCreatorId('');
+    setFilterBuyerEmail('');
+    setFilterBuyerEmailInput('');
+    setAppliedBuyerEmail('');
+  };
+
+  // Apply buyer email on Enter or blur
+  const commitBuyerEmail = () => {
+    setAppliedBuyerEmail(filterBuyerEmailInput.trim());
+  };
 
   const orders = response?.data || [];
 
@@ -155,8 +194,8 @@ export default function AdminOrders() {
     const params = new URLSearchParams();
     if (from) params.set('from', from);
     if (to) params.set('to', to);
-    if (creatorId.trim()) params.set('creatorId', creatorId.trim());
-    if (buyerEmail.trim()) params.set('buyerEmail', buyerEmail.trim());
+    if (exportCreatorId.trim()) params.set('creatorId', exportCreatorId.trim());
+    if (exportBuyerEmail.trim()) params.set('buyerEmail', exportBuyerEmail.trim());
     const qs = params.toString();
     const url = `/api/v1/admin/orders/export${qs ? `?${qs}` : ''}`;
 
@@ -197,7 +236,7 @@ export default function AdminOrders() {
     }
   };
 
-  const hasFilters = from || to || creatorId.trim() || buyerEmail.trim();
+  const hasExportFilters = from || to || exportCreatorId.trim() || exportBuyerEmail.trim();
 
   return (
     <div className="space-y-6">
@@ -208,13 +247,63 @@ export default function AdminOrders() {
         </div>
         <Button
           variant="outline"
-          onClick={() => setShowPicker((v) => !v)}
+          onClick={openExportPicker}
           className="flex items-center gap-2"
         >
           <Download className="h-4 w-4" />
           Download CSV
         </Button>
       </div>
+
+      {/* Live filter bar */}
+      <Card className="border-dashed">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground self-end pb-0.5">
+              <Filter className="h-3.5 w-3.5" />
+              Filter
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="filter-creator">Creator</Label>
+              <CreatorTypeahead
+                inputId="filter-creator"
+                creatorId={filterCreatorId}
+                onChange={(id) => setFilterCreatorId(id)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="filter-buyer">Buyer Email</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="filter-buyer"
+                  type="email"
+                  value={filterBuyerEmailInput}
+                  onChange={(e) => {
+                    setFilterBuyerEmailInput(e.target.value);
+                    if (!e.target.value.trim()) {
+                      setAppliedBuyerEmail('');
+                    }
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') commitBuyerEmail(); }}
+                  onBlur={commitBuyerEmail}
+                  placeholder="buyer@example.com"
+                  className="w-56"
+                />
+              </div>
+            </div>
+            {hasActiveFilters && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={clearLiveFilters}
+                className="self-end"
+              >
+                Clear filters
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {truncationWarning && (
         <div className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -273,8 +362,9 @@ export default function AdminOrders() {
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="export-creator">Creator</Label>
                   <CreatorTypeahead
-                    creatorId={creatorId}
-                    onChange={(id) => setCreatorId(id)}
+                    inputId="export-creator"
+                    creatorId={exportCreatorId}
+                    onChange={(id) => setExportCreatorId(id)}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -282,8 +372,8 @@ export default function AdminOrders() {
                   <Input
                     id="export-buyer"
                     type="email"
-                    value={buyerEmail}
-                    onChange={(e) => setBuyerEmail(e.target.value)}
+                    value={exportBuyerEmail}
+                    onChange={(e) => setExportBuyerEmail(e.target.value)}
                     placeholder="buyer@example.com"
                     className="w-64"
                   />
@@ -292,13 +382,13 @@ export default function AdminOrders() {
               <div className="flex items-center gap-2">
                 <Button size="sm" onClick={handleExport} disabled={exporting} className="flex items-center gap-2">
                   <Download className="h-4 w-4" />
-                  {exporting ? 'Exporting…' : hasFilters ? 'Export filtered' : 'Export all time'}
+                  {exporting ? 'Exporting…' : hasExportFilters ? 'Export filtered' : 'Export all time'}
                 </Button>
-                {hasFilters && (
+                {hasExportFilters && (
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => { setFrom(''); setTo(''); setCreatorId(''); setBuyerEmail(''); }}
+                    onClick={() => { setFrom(''); setTo(''); setExportCreatorId(''); setExportBuyerEmail(''); }}
                   >
                     Clear
                   </Button>
@@ -311,7 +401,9 @@ export default function AdminOrders() {
 
       <Card>
         <CardContent className="p-0">
-          {orders.length > 0 ? (
+          {isLoading ? (
+            <div className="p-12 text-center text-muted-foreground">Loading orders…</div>
+          ) : orders.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -373,7 +465,9 @@ export default function AdminOrders() {
               </table>
             </div>
           ) : (
-            <div className="p-12 text-center text-muted-foreground">No orders found.</div>
+            <div className="p-12 text-center text-muted-foreground">
+              {hasActiveFilters ? 'No orders match the current filters.' : 'No orders found.'}
+            </div>
           )}
         </CardContent>
       </Card>

@@ -312,8 +312,26 @@ router.get(
   requireRole("finance"),
   async (req, res): Promise<void> => {
     const status = req.query["status"] as string | undefined;
+    const creatorIdParam = req.query["creatorId"] as string | undefined;
+    const buyerEmailParam = req.query["buyerEmail"] as string | undefined;
 
-    const conditions = status ? [eq(ordersTable.status, status as any)] : [];
+    const conditions: ReturnType<typeof eq>[] = [];
+    if (status) conditions.push(eq(ordersTable.status, status as any));
+    if (creatorIdParam) conditions.push(eq(orderItemsTable.creatorIdSnapshot, creatorIdParam));
+
+    // Resolve buyer email to user IDs before building the query
+    if (buyerEmailParam) {
+      const matchingBuyers = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(ilike(usersTable.email, buyerEmailParam));
+      const buyerIds = matchingBuyers.map((u) => u.id);
+      if (buyerIds.length === 0) {
+        res.json({ data: [] });
+        return;
+      }
+      conditions.push(inArray(ordersTable.buyerId, buyerIds) as any);
+    }
 
     // Join path for the live fallback:
     //   order_items.creator_id_snapshot → creator_profiles.id
