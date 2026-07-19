@@ -325,7 +325,8 @@ router.post("/bookings/confirm", requireAuth, async (req, res): Promise<void> =>
           eq(learnerSubscriptionsTable.learnerId, learnerId),
           eq(learnerSubscriptionsTable.serviceOfferId, serviceOfferId),
           eq(learnerSubscriptionsTable.status, "active"),
-          gt(learnerSubscriptionsTable.sessionsRemaining, 0)
+          gt(learnerSubscriptionsTable.sessionsRemaining, 0),
+          gt(learnerSubscriptionsTable.currentPeriodEnd, new Date())
         )
       )
       .limit(1);
