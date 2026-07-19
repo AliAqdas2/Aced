@@ -47,3 +47,8 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Playwright e2e scratch files
+.tmp-e2e-session.json
+test-results/
+playwright-report/
