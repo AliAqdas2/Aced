@@ -332,6 +332,10 @@ router.get(
   }
 );
 
+// Maximum rows returned by the CSV export. Requests exceeding this will be
+// truncated and the response will carry X-Export-Truncated: true.
+const EXPORT_ROW_LIMIT = 10_000;
+
 // GET /api/v1/admin/orders/export — download paid orders as CSV (optional ?from=&to= ISO date filters, ?creatorId=, ?buyerEmail=)
 router.get(
   "/admin/orders/export",
@@ -396,6 +400,7 @@ router.get(
 
     const creatorProfile = alias(profilesTable, "creator_profile");
 
+    // Fetch one extra row so we can detect truncation without a separate COUNT query
     const rows = await db
       .select({
         orderId: ordersTable.id,
@@ -414,7 +419,11 @@ router.get(
       .innerJoin(orderItemsTable, eq(orderItemsTable.orderId, ordersTable.id))
       .leftJoin(creatorProfile, eq(creatorProfile.userId, orderItemsTable.creatorIdSnapshot))
       .where(and(...conditions))
-      .orderBy(desc(ordersTable.createdAt));
+      .orderBy(desc(ordersTable.createdAt))
+      .limit(EXPORT_ROW_LIMIT + 1);
+
+    const truncated = rows.length > EXPORT_ROW_LIMIT;
+    const exportRows = truncated ? rows.slice(0, EXPORT_ROW_LIMIT) : rows;
 
     const headers = [
       "Order ID",
@@ -441,7 +450,7 @@ router.get(
 
     const csvRows = [
       headers.map(escape).join(","),
-      ...rows.map((r) =>
+      ...exportRows.map((r) =>
         [
           r.orderId,
           r.createdAt.toISOString(),
@@ -476,6 +485,10 @@ router.get(
 
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("X-Export-Row-Count", String(exportRows.length));
+    res.setHeader("X-Export-Truncated", String(truncated));
+    // Expose custom headers to browser JS (required for cross-origin fetch; harmless for same-origin)
+    res.setHeader("Access-Control-Expose-Headers", "X-Export-Row-Count, X-Export-Truncated");
     res.send(csvRows);
   }
 );

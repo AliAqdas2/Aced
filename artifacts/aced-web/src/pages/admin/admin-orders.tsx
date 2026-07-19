@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Download, X } from 'lucide-react';
+import { AlertTriangle, Download, X } from 'lucide-react';
 
 export default function AdminOrders() {
   const { data: response, isLoading } = useGetAdminOrders();
@@ -14,12 +14,14 @@ export default function AdminOrders() {
   const [to, setTo] = useState('');
   const [creatorId, setCreatorId] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [truncationWarning, setTruncationWarning] = useState<{ rowCount: number } | null>(null);
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">Loading orders...</div>;
 
   const orders = response?.data || [];
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const params = new URLSearchParams();
     if (from) params.set('from', from);
     if (to) params.set('to', to);
@@ -28,13 +30,41 @@ export default function AdminOrders() {
     const qs = params.toString();
     const url = `/api/v1/admin/orders/export${qs ? `?${qs}` : ''}`;
 
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = '';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setShowPicker(false);
+    setExporting(true);
+    setTruncationWarning(null);
+    try {
+      const fetchResponse = await fetch(url, { credentials: 'include' });
+      if (!fetchResponse.ok) {
+        const text = await fetchResponse.text();
+        alert(`Export failed: ${text}`);
+        return;
+      }
+
+      const wasTruncated = fetchResponse.headers.get('X-Export-Truncated') === 'true';
+      const rowCount = parseInt(fetchResponse.headers.get('X-Export-Row-Count') ?? '0', 10);
+
+      const blob = await fetchResponse.blob();
+      const disposition = fetchResponse.headers.get('Content-Disposition') ?? '';
+      const filenameMatch = disposition.match(/filename="([^"]+)"/);
+      const filename = filenameMatch ? filenameMatch[1] : 'aced-transactions.csv';
+
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+
+      if (wasTruncated) {
+        setTruncationWarning({ rowCount });
+      }
+
+      setShowPicker(false);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const hasFilters = from || to || creatorId.trim() || buyerEmail.trim();
@@ -55,6 +85,23 @@ export default function AdminOrders() {
           Download CSV
         </Button>
       </div>
+
+      {truncationWarning && (
+        <div className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
+          <div>
+            <span className="font-semibold">Export capped at {truncationWarning.rowCount.toLocaleString()} rows.</span>{' '}
+            Your date range contains more transactions than this limit. Narrow the date range or add a creator / buyer filter to export the full data.
+          </div>
+          <button
+            onClick={() => setTruncationWarning(null)}
+            className="ml-auto text-amber-600 hover:text-amber-800"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {showPicker && (
         <Card className="border-dashed">
@@ -117,9 +164,9 @@ export default function AdminOrders() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button size="sm" onClick={handleExport} className="flex items-center gap-2">
+                <Button size="sm" onClick={handleExport} disabled={exporting} className="flex items-center gap-2">
                   <Download className="h-4 w-4" />
-                  {hasFilters ? 'Export filtered' : 'Export all time'}
+                  {exporting ? 'Exporting…' : hasFilters ? 'Export filtered' : 'Export all time'}
                 </Button>
                 {hasFilters && (
                   <Button
