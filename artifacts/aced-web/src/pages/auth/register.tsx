@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,46 +9,61 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff } from 'lucide-react';
 
-const registerSchema = z.object({
-  displayName: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-});
+const registerSchema = z
+  .object({
+    displayName: z.string().min(2, 'Name must be at least 2 characters'),
+    email: z.string().email('Please enter a valid email address'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+type RegisterForm = z.infer<typeof registerSchema>;
+
+const inputClass =
+  'h-14 rounded-xl px-4 bg-muted/50 border-transparent focus-visible:ring-primary focus-visible:bg-background transition-all';
 
 export default function Register() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
-  
-  const form = useForm<z.infer<typeof registerSchema>>({
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const form = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { displayName: '', email: '', password: '' },
+    defaultValues: { displayName: '', email: '', password: '', confirmPassword: '' },
   });
 
   const registerMutation = useRegister({
     mutation: {
       onSuccess: () => {
-        // Refresh auth state globally
         queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-        // Redirect to dashboard
         setLocation('/dashboard');
-      }
-    }
+      },
+    },
   });
 
-  function onSubmit(values: z.infer<typeof registerSchema>) {
-    registerMutation.mutate({ data: values });
+  function onSubmit(values: RegisterForm) {
+    registerMutation.mutate({ data: { displayName: values.displayName, email: values.email, password: values.password } });
   }
 
   return (
     <div className="w-full">
       <h1 className="font-serif text-5xl tracking-tight mb-4">Create an account</h1>
-      <p className="text-muted-foreground mb-10 text-lg font-medium">Join the UK's premium student marketplace.</p>
+      <p className="text-muted-foreground mb-10 text-lg font-medium">
+        Join the UK's premium student marketplace.
+      </p>
 
       {registerMutation.isError && (
         <Alert variant="destructive" className="mb-6 rounded-xl border-destructive/50">
-          <AlertDescription className="font-medium">An error occurred. That email might already be registered.</AlertDescription>
+          <AlertDescription className="font-medium">
+            An error occurred. That email might already be registered.
+          </AlertDescription>
         </Alert>
       )}
 
@@ -60,12 +76,13 @@ export default function Register() {
               <FormItem>
                 <FormLabel className="font-bold">Full Name</FormLabel>
                 <FormControl>
-                  <Input placeholder="John Doe" className="h-14 rounded-xl px-4 bg-muted/50 border-transparent focus-visible:ring-primary focus-visible:bg-background transition-all" {...field} />
+                  <Input placeholder="John Doe" className={inputClass} {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
+
           <FormField
             control={form.control}
             name="email"
@@ -73,13 +90,21 @@ export default function Register() {
               <FormItem>
                 <FormLabel className="font-bold">Email</FormLabel>
                 <FormControl>
-                  <Input placeholder="name@university.ac.uk" type="email" className="h-14 rounded-xl px-4 bg-muted/50 border-transparent focus-visible:ring-primary focus-visible:bg-background transition-all" {...field} />
+                  <Input
+                    placeholder="name@university.ac.uk"
+                    type="email"
+                    className={inputClass}
+                    {...field}
+                  />
                 </FormControl>
-                <p className="text-xs font-medium text-muted-foreground mt-2">Use your university email if applying to be a creator.</p>
+                <p className="text-xs font-medium text-muted-foreground mt-2">
+                  Use your university email if applying to be a creator.
+                </p>
                 <FormMessage />
               </FormItem>
             )}
           />
+
           <FormField
             control={form.control}
             name="password"
@@ -87,25 +112,82 @@ export default function Register() {
               <FormItem>
                 <FormLabel className="font-bold">Password</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="••••••••" className="h-14 rounded-xl px-4 bg-muted/50 border-transparent focus-visible:ring-primary focus-visible:bg-background transition-all" {...field} />
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      className={`${inputClass} pr-12`}
+                      {...field}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <Button 
-            type="submit" 
-            className="w-full h-14 text-lg font-bold shadow-none rounded-xl mt-4 group" 
+
+          <FormField
+            control={form.control}
+            name="confirmPassword"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="font-bold">Confirm Password</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <Input
+                      type={showConfirm ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      className={`${inputClass} pr-12`}
+                      {...field}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm((v) => !v)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                      aria-label={showConfirm ? 'Hide confirm password' : 'Show confirm password'}
+                    >
+                      {showConfirm ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <Button
+            type="submit"
+            className="w-full h-14 text-lg font-bold shadow-none rounded-xl mt-4 group"
             disabled={registerMutation.isPending}
           >
-            {registerMutation.isPending ? "Creating account..." : "Sign up"}
-            {!registerMutation.isPending && <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />}
+            {registerMutation.isPending ? 'Creating account…' : 'Sign up'}
+            {!registerMutation.isPending && (
+              <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+            )}
           </Button>
         </form>
       </Form>
 
       <p className="text-sm font-medium text-center text-muted-foreground mt-8 px-4">
-        By signing up, you agree to our <Link href="/terms" className="underline hover:text-primary font-bold">Terms of Service</Link> and <Link href="/privacy" className="underline hover:text-primary font-bold">Privacy Policy</Link>.
+        By signing up, you agree to our{' '}
+        <Link href="/terms" className="underline hover:text-primary font-bold">
+          Terms of Service
+        </Link>{' '}
+        and{' '}
+        <Link href="/privacy" className="underline hover:text-primary font-bold">
+          Privacy Policy
+        </Link>
+        .
       </p>
 
       <div className="mt-8 text-center text-sm font-medium text-muted-foreground">
