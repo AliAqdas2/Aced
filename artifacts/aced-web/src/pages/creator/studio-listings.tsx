@@ -67,6 +67,11 @@ function EditSubscriptionPlanModal({
   const plan = (listingDetail?.data as any)?.subscriptionPlan ?? null;
   const serviceOffer = (listingDetail?.data as any)?.serviceOffer ?? null;
 
+  const { data: impactData } = useGetSubscriptionPlanImpact(plan?.id ?? '', {
+    query: { enabled: !!plan?.id },
+  });
+  const activeSubscriberCount = (impactData?.data as any)?.activeSubscriberCount ?? null;
+
   const form = useForm<EditPlanFormValues>({
     resolver: zodResolver(editPlanSchema),
     values: plan
@@ -128,8 +133,17 @@ function EditSubscriptionPlanModal({
           <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
             <p>
-              Existing subscribers are <strong>not affected</strong> mid-period. Changes apply only
-              to new subscribers or renewals after the current billing cycle ends.
+              {activeSubscriberCount !== null ? (
+                <>
+                  <strong>{activeSubscriberCount} active subscriber{activeSubscriberCount !== 1 ? 's' : ''}</strong>
+                  {' — they will not be charged the new price until their next renewal.'}
+                </>
+              ) : (
+                <>
+                  Existing subscribers are <strong>not affected</strong> mid-period. Changes apply only
+                  to new subscribers or renewals after the current billing cycle ends.
+                </>
+              )}
             </p>
           </div>
 

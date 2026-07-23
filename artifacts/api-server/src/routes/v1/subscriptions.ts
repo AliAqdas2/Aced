@@ -24,7 +24,7 @@ import {
   usersTable,
   profilesTable,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { requireAuth, requireRole } from "../../middlewares/auth";
 import Stripe from "stripe";
 
@@ -540,6 +540,76 @@ router.post(
       .returning();
 
     res.json({ data: updated });
+  }
+);
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/creator/subscription-plans/:planId/impact
+// Returns the count of active subscribers for a plan (creator only).
+// ---------------------------------------------------------------------------
+
+router.get(
+  "/creator/subscription-plans/:planId/impact",
+  requireRole("creator"),
+  async (req, res): Promise<void> => {
+    const planId = Array.isArray(req.params.planId) ? req.params.planId[0] : req.params.planId;
+
+    const [cp] = await db
+      .select()
+      .from(creatorProfilesTable)
+      .where(eq(creatorProfilesTable.userId, req.session.userId!))
+      .limit(1);
+
+    if (!cp) {
+      res.status(404).json({ error: "Creator profile not found" });
+      return;
+    }
+
+    // Verify plan belongs to this creator
+    const [plan] = await db
+      .select()
+      .from(subscriptionPlansTable)
+      .where(eq(subscriptionPlansTable.id, planId))
+      .limit(1);
+
+    if (!plan) {
+      res.status(404).json({ error: "Subscription plan not found" });
+      return;
+    }
+
+    const [offer] = await db
+      .select()
+      .from(serviceOffersTable)
+      .where(eq(serviceOffersTable.id, plan.serviceOfferId))
+      .limit(1);
+
+    if (!offer) {
+      res.status(404).json({ error: "Service offer not found" });
+      return;
+    }
+
+    const [listing] = await db
+      .select()
+      .from(listingsTable)
+      .where(and(eq(listingsTable.id, offer.listingId), eq(listingsTable.creatorId, cp.id)))
+      .limit(1);
+
+    if (!listing) {
+      res.status(403).json({ error: "Access denied" });
+      return;
+    }
+
+    const [result] = await db
+      .select({ activeSubscriberCount: count() })
+      .from(learnerSubscriptionsTable)
+      .where(
+        and(
+          eq(learnerSubscriptionsTable.subscriptionPlanId, planId),
+          eq(learnerSubscriptionsTable.status, "active")
+        )
+      );
+
+    res.json({ data: { activeSubscriberCount: result?.activeSubscriberCount ?? 0 } });
   }
 );
 
