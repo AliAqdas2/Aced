@@ -19,7 +19,7 @@ import {
   consumeEmailVerification,
   logAuditEvent,
 } from "../../lib/auth";
-import { sendEmail, buildMagicLinkEmail, buildPasswordResetEmail } from "../../lib/email";
+import { sendEmailResilient, buildMagicLinkEmail, buildPasswordResetEmail } from "../../lib/email";
 import { requireAuth } from "../../middlewares/auth";
 
 const router: IRouter = Router();
@@ -75,7 +75,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   // Send verification email
   const token = await generateEmailVerificationToken(user.id, email);
   const verifyUrl = `${process.env.APP_URL ?? "http://localhost:5000"}/api/v1/auth/verify-email?token=${token}`;
-  await sendEmail({
+  await sendEmailResilient({
     to: email,
     subject: "Verify your Aced email",
     html: `<p>Please <a href="${verifyUrl}">verify your email</a> to activate your account.</p>`,
@@ -192,7 +192,7 @@ router.post("/auth/magic-link", async (req, res): Promise<void> => {
   const token = await generateMagicLink(user.id);
   const loginUrl = `${process.env.APP_URL ?? "http://localhost:5000"}/api/v1/auth/magic-link/verify?token=${token}`;
 
-  await sendEmail({
+  await sendEmailResilient({
     to: email,
     subject: "Your Aced sign-in link",
     html: buildMagicLinkEmail(loginUrl),
@@ -258,7 +258,7 @@ router.post("/auth/password-reset/request", async (req, res): Promise<void> => {
   if (user) {
     const token = await generatePasswordResetToken(user.id);
     const resetUrl = `${process.env.APP_URL ?? "http://localhost:5000"}/reset-password?token=${token}`;
-    await sendEmail({
+    await sendEmailResilient({
       to: user.email,
       subject: "Reset your Aced password",
       html: buildPasswordResetEmail(resetUrl),
