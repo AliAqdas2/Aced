@@ -25,4 +25,5 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-APP_URL = "https://9b677da7-d0b0-44f0-ad02-ea01ad0b328a-00-3tk8j2v0c851f-dfy4ec2t.riker.replit.dev"
+APP_URL = "https://acedtutoring.co.uk"
+CORS_ORIGINS = "https://acedtutoring.co.uk"
