@@ -183,7 +183,7 @@ export default function ProfileScreen() {
           {/* Account */}
           <Section title="ACCOUNT">
             <SettingRow icon="receipt-outline" label="My orders" onPress={() => {}} />
-            <SettingRow icon="library-outline" label="My library" onPress={() => {}} />
+            <SettingRow icon="library-outline" label="My library" onPress={() => router.push('/library')} />
             <SettingRow icon="card-outline" label="Subscriptions" onPress={() => {}} />
             <SettingRow icon="notifications-outline" label="Notifications" onPress={() => {}} />
           </Section>
