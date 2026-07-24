@@ -126,7 +126,7 @@ export async function syncBookingCreated({
     ].join("\n");
 
     const ics = buildIcs({
-      uid: `booking-${bookingId}@aced.co.uk`,
+      uid: `booking-${bookingId}@acedtutoring.co.uk`,
       summary: `Aced session: ${listingTitle}`,
       description,
       location,
@@ -261,7 +261,7 @@ export async function syncBookingMeetingLinkUpdated(
     // Re-send with METHOD:REQUEST and the same UID so calendar clients update
     // the existing event rather than creating a duplicate.
     const ics = buildIcs({
-      uid: `booking-${bookingId}@aced.co.uk`,
+      uid: `booking-${bookingId}@acedtutoring.co.uk`,
       summary: `Aced session: ${listing.title}`,
       description,
       location,
@@ -375,13 +375,13 @@ export async function syncBookingCancelled(bookingId: string): Promise<void> {
     const dateLabel = format(booking.scheduledStartAt, "EEE, d MMM yyyy 'at' HH:mm 'UTC'");
 
     const cancelIcs = buildIcs({
-      uid: `booking-${bookingId}@aced.co.uk`,
+      uid: `booking-${bookingId}@acedtutoring.co.uk`,
       summary: `Cancelled: ${listing.title}`,
       description: `Your session on ${dateLabel} has been cancelled.`,
       location: "N/A",
       startAt: booking.scheduledStartAt,
       endAt: booking.scheduledEndAt,
-      organizerEmail: "noreply@aced.co.uk",
+      organizerEmail: "noreply@acedtutoring.co.uk",
       method: "CANCEL",
     });
 

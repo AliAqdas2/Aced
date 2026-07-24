@@ -146,9 +146,9 @@ describe("syncBookingMeetingLinkUpdated", () => {
     expect(creatorEmail.icsContent).toContain(`Join here: ${newLink}`);
 
     // Both invites carry the same UID so calendar clients update the existing event
-    // UID format: "booking-{bookingId}@aced.co.uk"
-    expect(learnerEmail.icsContent).toContain("UID:booking-booking-id-123@aced.co.uk");
-    expect(creatorEmail.icsContent).toContain("UID:booking-booking-id-123@aced.co.uk");
+    // UID format: "booking-{bookingId}@acedtutoring.co.uk"
+    expect(learnerEmail.icsContent).toContain("UID:booking-booking-id-123@acedtutoring.co.uk");
+    expect(creatorEmail.icsContent).toContain("UID:booking-booking-id-123@acedtutoring.co.uk");
 
     // Method must be REQUEST (not CANCEL) so clients update rather than delete
     expect(learnerEmail.icsContent).toContain("METHOD:REQUEST");

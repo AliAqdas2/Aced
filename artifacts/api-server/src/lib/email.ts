@@ -108,7 +108,7 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
     const connectors = new ReplitConnectors();
 
     const body: Record<string, unknown> = {
-      from: process.env.EMAIL_FROM ?? "Aced <noreply@aced.co.uk>",
+      from: process.env.EMAIL_FROM ?? "Aced <noreply@acedtutoring.co.uk>",
       to: [payload.to],
       subject: payload.subject,
       html: payload.html,
@@ -171,7 +171,7 @@ export function buildCreatorApplicationEmail(opts: {
   creatorProfileId: string;
   appUrl?: string;
 }): EmailPayload["html"] {
-  const adminUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://aced.co.uk"}/admin/applications`;
+  const adminUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://acedtutoring.co.uk"}/admin/applications`;
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #7B2FF7;">New Creator Application — Aced</h2>
@@ -197,7 +197,7 @@ export function buildApplicationReceivedEmail(opts: {
   grade: string;
   appUrl?: string;
 }): EmailPayload["html"] {
-  const statusUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://aced.co.uk"}/apply/status`;
+  const statusUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://acedtutoring.co.uk"}/apply/status`;
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #7B2FF7;">We've received your Aced application</h2>
@@ -219,7 +219,7 @@ export function buildApprovalEmail(opts: {
   applicantName: string;
   appUrl?: string;
 }): EmailPayload["html"] {
-  const studioUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://aced.co.uk"}/studio`;
+  const studioUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://acedtutoring.co.uk"}/studio`;
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #7B2FF7;">You're Approved — Welcome to Aced! 🎉</h2>
@@ -264,7 +264,7 @@ export function buildChangesRequestedEmail(opts: {
   notes: string;
   appUrl?: string;
 }): EmailPayload["html"] {
-  const statusUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://aced.co.uk"}/creator/apply/status`;
+  const statusUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://acedtutoring.co.uk"}/creator/apply/status`;
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #7B2FF7;">Changes Requested on Your Aced Application</h2>
@@ -285,7 +285,7 @@ export function buildApprovedEmail(opts: {
   applicantName: string;
   appUrl?: string;
 }): EmailPayload["html"] {
-  const dashboardUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://aced.co.uk"}/creator/dashboard`;
+  const dashboardUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://acedtutoring.co.uk"}/creator/dashboard`;
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #7B2FF7;">🎉 Welcome to Aced — You're Approved!</h2>
@@ -308,7 +308,7 @@ export function buildRejectedEmail(opts: {
   notes?: string;
   appUrl?: string;
 }): EmailPayload["html"] {
-  const appUrl = opts.appUrl ?? process.env.APP_URL ?? "https://aced.co.uk";
+  const appUrl = opts.appUrl ?? process.env.APP_URL ?? "https://acedtutoring.co.uk";
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #7B2FF7;">Update on Your Aced Creator Application</h2>
@@ -339,7 +339,7 @@ export function buildBookingConfirmationEmail(opts: {
       <p>Your session with <strong>${opts.creatorName}</strong> is confirmed.</p>
       <p><strong>When:</strong> ${opts.startAt}</p>
       ${opts.meetingLink ? `<p><strong>Meeting link:</strong> <a href="${opts.meetingLink}">${opts.meetingLink}</a></p>` : ""}
-      <p>You can view your booking in your <a href="${process.env.APP_URL ?? "https://aced.co.uk"}/dashboard">Aced dashboard</a>.</p>
+      <p>You can view your booking in your <a href="${process.env.APP_URL ?? "https://acedtutoring.co.uk"}/dashboard">Aced dashboard</a>.</p>
     </div>
   `;
 }
