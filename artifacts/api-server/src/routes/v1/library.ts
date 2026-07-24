@@ -15,7 +15,7 @@ import {
   ordersTable,
   platformConfigTable,
 } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, or, desc } from "drizzle-orm";
 import { requireAuth } from "../../middlewares/auth";
 import { generateDownloadUrl } from "../../lib/storage";
 import Stripe from "stripe";
@@ -424,11 +424,31 @@ router.post("/bookings/:id/cancel", requireAuth, async (req, res): Promise<void>
     }
   }
 
+  // Atomic status transition — the WHERE guard on status means only one
+  // concurrent cancel request can win. If another request already transitioned
+  // this booking (or it was never in a cancellable state), 0 rows are returned
+  // and we reject immediately without restoring any credits.
   const [updated] = await db
     .update(bookingsTable)
     .set({ status: finalStatus, cancellationReason: parsed.data.reason })
-    .where(eq(bookingsTable.id, id))
+    .where(
+      and(
+        eq(bookingsTable.id, id),
+        or(
+          eq(bookingsTable.status, "confirmed"),
+          eq(bookingsTable.status, "in_progress")
+        )
+      )
+    )
     .returning();
+
+  if (!updated) {
+    res.status(409).json({
+      error: "Booking cannot be cancelled in its current state",
+      code: "INVALID_STATUS",
+    });
+    return;
+  }
 
   // Fire-and-forget calendar event deletion — looks up all mapping rows internally
   syncBookingCancelled(booking.id).catch(() => {});
