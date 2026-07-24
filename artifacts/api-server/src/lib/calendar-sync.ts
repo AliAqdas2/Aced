@@ -146,13 +146,32 @@ export async function syncBookingCreated({
 
     const learnerHtml = `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-        <h2 style="color:#7B2FF7;">Your session is confirmed 🎉</h2>
-        <p><strong>${listingTitle}</strong> is booked for <strong>${dateLabel}</strong>.</p>
-        ${meetingLink ? `<p><a href="${meetingLink}" style="color:#7B2FF7;">Join the session</a></p>` : ""}
-        <p style="color:#666;font-size:14px;">
-          A calendar invite is attached — open it to add the session directly to
-          Google Calendar, Outlook, or Apple Calendar.
-        </p>
+        <div style="background:linear-gradient(135deg,#7B2FF7,#00D4FF);padding:24px;border-radius:8px 8px 0 0;">
+          <h2 style="color:#fff;margin:0;">Your session is confirmed 🎉</h2>
+        </div>
+        <div style="padding:24px;border:1px solid #eee;border-top:0;border-radius:0 0 8px 8px;">
+          <p style="font-size:16px;margin-top:0;">
+            <strong>${listingTitle}</strong> is booked for
+            <strong>${dateLabel}</strong>.
+          </p>
+          ${meetingLink ? `
+          <div style="text-align:center;margin:28px 0;">
+            <a href="${meetingLink}"
+               style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#7B2FF7,#00D4FF);color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:16px;">
+              Join your session →
+            </a>
+            <p style="color:#888;font-size:12px;margin-top:8px;">
+              Or copy this link: <a href="${meetingLink}" style="color:#7B2FF7;">${meetingLink}</a>
+            </p>
+          </div>` : `
+          <p style="color:#555;">
+            Your tutor will share a meeting link before the session.
+          </p>`}
+          <p style="color:#666;font-size:13px;border-top:1px solid #eee;padding-top:16px;margin-bottom:0;">
+            A calendar invite is attached — open it to add the session directly to
+            Google Calendar, Outlook, or Apple Calendar.
+          </p>
+        </div>
       </div>`;
 
     const creatorHtml = `
