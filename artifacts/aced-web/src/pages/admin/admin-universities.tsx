@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { useGetAdminUniversities, getGetAdminUniversitiesQueryKey } from '@workspace/api-client-react';
+import { useLocation } from 'wouter';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { GraduationCap, Search, ArrowUpDown } from 'lucide-react';
+import { GraduationCap, Search, ArrowUpDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 type SortKey = 'name' | 'creatorCount' | 'status';
 
 export default function AdminUniversities() {
+  const [, setLocation] = useLocation();
   const { data: response, isLoading } = useGetAdminUniversities({
     query: { queryKey: getGetAdminUniversitiesQueryKey() },
   });
@@ -101,8 +103,15 @@ export default function AdminUniversities() {
             </thead>
             <tbody className="divide-y divide-border">
               {filtered.map(uni => (
-                <tr key={uni.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 font-medium">{uni.name}</td>
+                <tr
+                  key={uni.id}
+                  className="hover:bg-muted/20 transition-colors cursor-pointer"
+                  onClick={() => setLocation(`/admin/universities/${uni.slug}`)}
+                >
+                  <td className="px-4 py-3 font-medium flex items-center gap-1">
+                    {uni.name}
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-50" />
+                  </td>
                   <td className="px-4 py-3">
                     <Badge variant={uni.status === 'active' ? 'default' : 'secondary'}>
                       {uni.status}

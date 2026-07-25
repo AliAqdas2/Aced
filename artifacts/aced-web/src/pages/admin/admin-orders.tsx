@@ -153,7 +153,7 @@ export default function AdminOrders() {
   const hasQueryParams = Object.keys(queryParams).length > 0;
 
   const { data: response, isLoading } = useGetAdminOrders(
-    hasQueryParams ? queryParams : undefined
+    hasQueryParams ? (queryParams as Parameters<typeof useGetAdminOrders>[0]) : undefined
   );
 
   // Export picker state

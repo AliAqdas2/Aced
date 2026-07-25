@@ -65,6 +65,7 @@ import AdminAuditLogs from '@/pages/admin/admin-audit-logs';
 import AdminCommission from '@/pages/admin/admin-commission';
 import AdminSettings from '@/pages/admin/admin-settings';
 import AdminUniversities from '@/pages/admin/admin-universities';
+import AdminUniversityDetail from '@/pages/admin/admin-university-detail';
 
 import { HowItWorks, BecomeACreator } from '@/pages/public/static';
 import StudentProfilePage from '@/pages/public/student-profile';
@@ -144,6 +145,11 @@ function Router() {
       </Route>
       <Route path="/admin/universities">
         <AdminLayout><AdminUniversities /></AdminLayout>
+      </Route>
+      <Route path="/admin/universities/:slug">
+        {(params: { slug: string }) => (
+          <AdminLayout><AdminUniversityDetail slug={params.slug} /></AdminLayout>
+        )}
       </Route>
 
       {/* Creator Studio Routes */}

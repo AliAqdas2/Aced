@@ -48,6 +48,10 @@ export default function Register() {
     },
   });
 
+  // Distinguish between "email already taken" (409) and any other failure
+  const regError = registerMutation.error as { status?: number } | null;
+  const isEmailTaken = regError?.status === 409;
+
   function onSubmit(values: RegisterForm) {
     registerMutation.mutate({ data: { displayName: values.displayName, email: values.email, password: values.password } });
   }
@@ -62,7 +66,21 @@ export default function Register() {
       {registerMutation.isError && (
         <Alert variant="destructive" className="mb-6 rounded-xl border-destructive/50">
           <AlertDescription className="font-medium">
-            An error occurred. That email might already be registered.
+            {isEmailTaken ? (
+              <>
+                This email is already registered.{' '}
+                <Link href="/auth/login" className="underline font-bold hover:opacity-80">
+                  Sign in instead
+                </Link>
+                {' '}or{' '}
+                <Link href="/auth/forgot-password" className="underline font-bold hover:opacity-80">
+                  reset your password
+                </Link>
+                .
+              </>
+            ) : (
+              'Registration failed. Please check your details and try again.'
+            )}
           </AlertDescription>
         </Alert>
       )}

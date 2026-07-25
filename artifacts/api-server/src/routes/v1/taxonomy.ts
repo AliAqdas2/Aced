@@ -179,6 +179,59 @@ router.post(
   }
 );
 
+// PATCH /api/v1/admin/taxonomy/courses/:id
+router.patch(
+  "/admin/taxonomy/courses/:id",
+  requireRole("admin"),
+  async (req, res): Promise<void> => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const Body = z.object({
+      name: z.string().min(2).optional(),
+      slug: z.string().min(2).optional(),
+      faculty: z.string().optional(),
+      level: z.string().optional(),
+      durationYears: z.number().int().optional(),
+    });
+    const parsed = Body.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+      return;
+    }
+
+    const [updated] = await db
+      .update(coursesTable)
+      .set(parsed.data)
+      .where(eq(coursesTable.id, id))
+      .returning();
+
+    if (!updated) {
+      res.status(404).json({ error: "Course not found" });
+      return;
+    }
+    res.json({ data: updated });
+  }
+);
+
+// DELETE /api/v1/admin/taxonomy/courses/:id
+router.delete(
+  "/admin/taxonomy/courses/:id",
+  requireRole("admin"),
+  async (req, res): Promise<void> => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    const [deleted] = await db
+      .delete(coursesTable)
+      .where(eq(coursesTable.id, id))
+      .returning();
+
+    if (!deleted) {
+      res.status(404).json({ error: "Course not found" });
+      return;
+    }
+    res.json({ data: deleted });
+  }
+);
+
 // POST /api/v1/admin/taxonomy/modules
 router.post(
   "/admin/taxonomy/modules",

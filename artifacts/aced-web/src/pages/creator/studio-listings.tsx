@@ -68,7 +68,7 @@ function EditSubscriptionPlanModal({
   const serviceOffer = (listingDetail?.data as any)?.serviceOffer ?? null;
 
   const { data: impactData } = useGetSubscriptionPlanImpact(plan?.id ?? '', {
-    query: { enabled: !!plan?.id },
+    query: { enabled: !!plan?.id, queryKey: ['getSubscriptionPlanImpact', plan?.id ?? ''] },
   });
   const activeSubscriberCount = (impactData?.data as any)?.activeSubscriberCount ?? null;
 
