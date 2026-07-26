@@ -169,8 +169,8 @@ export default function Profile() {
                   <FormItem>
                     <FormLabel>University <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
                     <Select
-                      value={field.value ?? ''}
-                      onValueChange={(v) => field.onChange(v || null)}
+                      value={field.value ?? 'none'}
+                      onValueChange={(v) => field.onChange(v === 'none' ? null : v)}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -178,7 +178,7 @@ export default function Profile() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="none">None</SelectItem>
                         {universities.map((u) => (
                           <SelectItem key={u.id} value={u.id}>
                             {u.name}
