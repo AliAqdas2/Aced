@@ -11,43 +11,90 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
-import { CheckCircle, XCircle, Mail, Loader2 } from 'lucide-react';
+import { CheckCircle, XCircle, Mail, Loader2, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-// ── Email template previews (mirrors server-side templates) ──────────────────
+// ── Email template previews ───────────────────────────────────────────────────
+// These functions mirror the EXACT server-side builder functions called by the
+// POST /api/v1/admin/applications/:id/decision endpoint in creators.ts:
+//   approved          → buildApprovalEmail      (email.ts:224)
+//   rejected          → buildRejectionEmail     (email.ts:248)
+//   changes_requested → buildChangesRequestedEmail (email.ts:268)
+// Subjects are copied verbatim from the sendEmailResilient calls in creators.ts.
 
-function buildApprovalPreview(name: string) {
+const APP_URL = 'https://acedtutoring.co.uk';
+
+/** Mirrors buildApprovalEmail in email.ts — subject: "You're approved — welcome to Aced! 🎉" */
+function buildApprovalPreview(name: string): { subject: string; html: string } {
+  const studioUrl = `${APP_URL}/studio`;
   return {
     subject: "You're approved — welcome to Aced! 🎉",
-    body: `Hi ${name},
-
-Congratulations! Your creator application has been approved. You're now ready to start sharing your expertise and earning on Aced.
-
-Get started:
-  1. Set up your Stripe account to receive payouts
-  2. Customise your creator studio and storefront
-  3. Create your first listing and go live
-
-Welcome to the Aced community. If you have questions, reply to this email and our team will be happy to help.`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7B2FF7;">You're Approved — Welcome to Aced! 🎉</h2>
+        <p>Hi ${name},</p>
+        <p>Congratulations! Your creator application has been approved. You're now ready to start sharing your expertise and earning on Aced.</p>
+        <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:12px 16px;margin:16px 0;border-radius:4px;">
+          <p style="margin:0;font-weight:bold;color:#15803d;">Get started:</p>
+          <ol style="margin:8px 0 0;padding-left:20px;color:#166534;">
+            <li>Set up your Stripe account to receive payouts</li>
+            <li>Customise your creator studio and storefront</li>
+            <li>Create your first listing and go live</li>
+          </ol>
+        </div>
+        <a href="${studioUrl}" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#7B2FF7,#00D4FF);color:white;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:8px;">Go to My Studio</a>
+        <p style="color:#666;font-size:12px;margin-top:24px;">Welcome to the Aced community. If you have questions, reply to this email and our team will be happy to help.</p>
+      </div>
+    `,
   };
 }
 
-function buildRejectionPreview(name: string, notes?: string) {
+/** Mirrors buildRejectionEmail in email.ts — subject: "Update on your Aced creator application" */
+function buildRejectionPreview(name: string, notes?: string): { subject: string; html: string } {
   return {
     subject: 'Update on your Aced creator application',
-    body: `Hi ${name},
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7B2FF7;">Your Aced Application Update</h2>
+        <p>Hi ${name},</p>
+        <p>Thank you for taking the time to apply to become a creator on Aced. After reviewing your application, we are unable to approve it at this time.</p>
+        ${notes ? `
+        <div style="background:#f9fafb;border-left:4px solid #6b7280;padding:12px 16px;margin:16px 0;border-radius:4px;">
+          <p style="margin:0;font-weight:bold;">Reviewer note:</p>
+          <p style="margin:8px 0 0;">${notes}</p>
+        </div>` : ''}
+        <p>This is usually due to academic credential requirements not being met. You may re-apply once you have additional supporting credentials.</p>
+        <p style="color:#666;font-size:12px;margin-top:24px;">If you have questions, reply to this email and our team will be happy to help.</p>
+      </div>
+    `,
+  };
+}
 
-Thank you for taking the time to apply to become a creator on Aced. After reviewing your application, we are unable to approve it at this time.
-${notes ? `\nReviewer note:\n${notes}\n` : ''}
-This is usually due to academic credential requirements not being met. You may re-apply once you have additional supporting credentials.
-
-If you have questions, reply to this email and our team will be happy to help.`,
+/** Mirrors buildChangesRequestedEmail in email.ts — subject: "Changes requested on your Aced creator application" */
+function buildChangesRequestedPreview(name: string, notes: string): { subject: string; html: string } {
+  const statusUrl = `${APP_URL}/creator/apply/status`;
+  return {
+    subject: 'Changes requested on your Aced creator application',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7B2FF7;">Changes Requested on Your Aced Application</h2>
+        <p>Hi ${name},</p>
+        <p>Our team has reviewed your creator application and is asking you to make some changes before we can proceed.</p>
+        <div style="background:#f9fafb;border-left:4px solid #7B2FF7;padding:12px 16px;margin:16px 0;border-radius:4px;">
+          <p style="margin:0;font-weight:bold;">Reviewer note:</p>
+          <p style="margin:8px 0 0;">${notes || 'Please review the feedback on your application status page.'}</p>
+        </div>
+        <p>Please visit your application status page to review the feedback and resubmit when you're ready.</p>
+        <a href="${statusUrl}" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#7B2FF7,#00D4FF);color:white;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:8px;">View Application Status</a>
+        <p style="color:#666;font-size:12px;margin-top:24px;">If you have questions, reply to this email and our team will be happy to help.</p>
+      </div>
+    `,
   };
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type DecisionType = 'approved' | 'rejected';
+type DecisionType = 'approved' | 'rejected' | 'changes_requested';
 
 interface PendingDecision {
   appId: string;
@@ -55,6 +102,67 @@ interface PendingDecision {
   applicantName: string;
   decision: DecisionType;
   notes: string;
+}
+
+// ── Email preview panel (collapsible) ─────────────────────────────────────────
+
+function EmailPreviewPanel({
+  subject,
+  html,
+  recipientEmail,
+}: {
+  subject: string;
+  html: string;
+  recipientEmail: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="rounded-lg border border-border overflow-hidden">
+      {/* Header / toggle */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-4 py-2.5 bg-muted/60 hover:bg-muted/80 transition-colors text-left"
+      >
+        <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+        <span className="flex-1 font-semibold text-xs uppercase tracking-wide text-muted-foreground">
+          Email Preview
+        </span>
+        {open ? (
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        )}
+      </button>
+
+      {open && (
+        <div className="bg-muted/30">
+          {/* Header rows */}
+          <div className="px-4 py-3 border-b border-border space-y-1.5">
+            <div className="flex gap-2 text-xs">
+              <span className="text-muted-foreground w-14 shrink-0">To:</span>
+              <span className="font-medium">{recipientEmail}</span>
+            </div>
+            <div className="flex gap-2 text-xs">
+              <span className="text-muted-foreground w-14 shrink-0">Subject:</span>
+              <span className="font-medium">{subject}</span>
+            </div>
+          </div>
+          {/* Rendered HTML body */}
+          <div className="px-4 py-3">
+            <iframe
+              srcDoc={`<!DOCTYPE html><html><body style="margin:0;padding:0;">${html}</body></html>`}
+              title="Email preview"
+              className="w-full border-0 rounded"
+              style={{ height: 320 }}
+              sandbox="allow-same-origin"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -105,10 +213,15 @@ export default function AdminApplications() {
       await queryClient.invalidateQueries({
         queryKey: getGetAdminApplicationsQueryKey({ status: 'submitted' }),
       });
-      const action = pending.decision === 'approved' ? 'approved' : 'rejected';
+      const label =
+        pending.decision === 'approved'
+          ? 'approved'
+          : pending.decision === 'rejected'
+          ? 'rejected'
+          : 'sent back for changes';
       toast({
-        title: `Application ${action}`,
-        description: `${pending.applicantName}'s application has been ${action}.`,
+        title: `Application ${pending.decision === 'changes_requested' ? 'updated' : pending.decision}`,
+        description: `${pending.applicantName}'s application has been ${label}.`,
       });
       setPending(null);
     } catch (err) {
@@ -124,8 +237,33 @@ export default function AdminApplications() {
   const emailPreview = pending
     ? pending.decision === 'approved'
       ? buildApprovalPreview(pending.applicantName)
-      : buildRejectionPreview(pending.applicantName, pending.notes)
+      : pending.decision === 'rejected'
+      ? buildRejectionPreview(pending.applicantName, pending.notes)
+      : buildChangesRequestedPreview(pending.applicantName, pending.notes)
     : null;
+
+  const modalTitle =
+    pending?.decision === 'approved'
+      ? '✅ Approve Application'
+      : pending?.decision === 'rejected'
+      ? '❌ Reject Application'
+      : '🔄 Request Changes';
+
+  const confirmLabel =
+    pending?.decision === 'approved'
+      ? 'Send & Approve'
+      : pending?.decision === 'rejected'
+      ? 'Send & Reject'
+      : 'Send & Request Changes';
+
+  const confirmClass =
+    pending?.decision === 'approved'
+      ? 'bg-green-600 hover:bg-green-700 text-white'
+      : pending?.decision === 'rejected'
+      ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
+      : 'bg-amber-500 hover:bg-amber-600 text-white';
+
+  const notesRequired = pending?.decision === 'changes_requested';
 
   return (
     <div className="space-y-6">
@@ -164,6 +302,13 @@ export default function AdminApplications() {
                         <CheckCircle className="mr-2 h-4 w-4" /> Approve
                       </Button>
                       <Button
+                        variant="outline"
+                        className="flex-1 border-amber-400 text-amber-600 hover:bg-amber-50"
+                        onClick={() => openModal(app, 'changes_requested')}
+                      >
+                        <RefreshCw className="mr-2 h-4 w-4" /> Request Changes
+                      </Button>
+                      <Button
                         variant="destructive"
                         className="flex-1"
                         onClick={() => openModal(app, 'rejected')}
@@ -192,13 +337,9 @@ export default function AdminApplications() {
           if (!open && !submitting) setPending(null);
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {pending?.decision === 'approved'
-                ? '✅ Approve Application'
-                : '❌ Reject Application'}
-            </DialogTitle>
+            <DialogTitle>{modalTitle}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 text-sm">
@@ -207,15 +348,22 @@ export default function AdminApplications() {
               <strong>{pending?.applicantEmail}</strong> when you confirm.
             </p>
 
-            {/* Optional reviewer note for rejections */}
-            {pending?.decision === 'rejected' && (
+            {/* Notes field — optional for rejection, required for changes_requested */}
+            {(pending?.decision === 'rejected' || pending?.decision === 'changes_requested') && (
               <div className="space-y-1.5">
-                <label className="font-medium text-sm">Reviewer note (optional)</label>
+                <label className="font-medium text-sm">
+                  Reviewer note{notesRequired ? '' : ' (optional)'}
+                  {notesRequired && <span className="text-destructive ml-0.5">*</span>}
+                </label>
                 <textarea
                   className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
                   rows={3}
-                  placeholder="Reason for rejection — shown in email and on the applicant's status page…"
-                  value={pending.notes}
+                  placeholder={
+                    pending?.decision === 'changes_requested'
+                      ? "Describe what needs to change — shown in the email and on the applicant's status page…"
+                      : "Reason for rejection — shown in email and on the applicant's status page…"
+                  }
+                  value={pending?.notes ?? ''}
                   onChange={(e) =>
                     setPending((p) => (p ? { ...p, notes: e.target.value } : p))
                   }
@@ -223,30 +371,13 @@ export default function AdminApplications() {
               </div>
             )}
 
-            {/* Email preview panel */}
-            {emailPreview && (
-              <div className="rounded-lg border border-border bg-muted/30 overflow-hidden">
-                <div className="border-b border-border px-4 py-2 flex items-center gap-2 bg-muted/60">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-semibold text-xs uppercase tracking-wide text-muted-foreground">
-                    Email Preview
-                  </span>
-                </div>
-                <div className="px-4 py-3 space-y-2">
-                  <div className="flex gap-2 text-xs">
-                    <span className="text-muted-foreground w-14 shrink-0">To:</span>
-                    <span className="font-medium">{pending?.applicantEmail}</span>
-                  </div>
-                  <div className="flex gap-2 text-xs">
-                    <span className="text-muted-foreground w-14 shrink-0">Subject:</span>
-                    <span className="font-medium">{emailPreview.subject}</span>
-                  </div>
-                  <hr className="border-border" />
-                  <pre className="text-xs text-foreground whitespace-pre-wrap font-sans leading-relaxed max-h-48 overflow-y-auto">
-                    {emailPreview.body}
-                  </pre>
-                </div>
-              </div>
+            {/* Collapsible email preview panel */}
+            {emailPreview && pending && (
+              <EmailPreviewPanel
+                subject={emailPreview.subject}
+                html={emailPreview.html}
+                recipientEmail={pending.applicantEmail}
+              />
             )}
 
             {submitError && (
@@ -264,22 +395,16 @@ export default function AdminApplications() {
             </DialogClose>
             <Button
               onClick={confirmDecision}
-              disabled={submitting}
-              className={
-                pending?.decision === 'approved'
-                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                  : 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
-              }
+              disabled={submitting || (notesRequired && !pending?.notes?.trim())}
+              className={confirmClass}
             >
               {submitting ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Sending…
                 </span>
-              ) : pending?.decision === 'approved' ? (
-                'Send & Approve'
               ) : (
-                'Send & Reject'
+                confirmLabel
               )}
             </Button>
           </DialogFooter>
