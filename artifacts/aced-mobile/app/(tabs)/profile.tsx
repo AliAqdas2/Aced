@@ -188,9 +188,9 @@ export default function ProfileScreen() {
             <SettingRow icon="notifications-outline" label="Notifications" onPress={() => {}} />
           </Section>
 
-          {/* Creator */}
+          {/* Tutor */}
           {(user.role === 'creator' || user.role === 'admin') && (
-            <Section title="CREATOR">
+            <Section title="TUTOR">
               <SettingRow
                 icon="storefront-outline"
                 label="My storefront"

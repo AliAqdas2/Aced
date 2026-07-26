@@ -452,7 +452,7 @@ export default function ListingDetail() {
             {/* Creator Info */}
             <Card className="rounded-2xl border-border/50 bg-muted/10 shadow-none">
               <CardContent className="p-8 sm:p-10">
-                <h3 className="font-serif text-3xl mb-8">About the Creator</h3>
+                <h3 className="font-serif text-3xl mb-8">About the Tutor</h3>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
                   <Avatar className="h-24 w-24 border bg-background">
                     <AvatarFallback className="bg-primary/10 text-primary text-3xl font-serif">

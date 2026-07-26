@@ -63,7 +63,7 @@ export function Navbar() {
               Explore
             </Link>
             {!isCreator && (
-              <Link href="/become-a-creator" className="text-sm font-bold tracking-tight hover:text-primary transition-colors">
+              <Link href="/become-a-tutor" className="text-sm font-bold tracking-tight hover:text-primary transition-colors">
                 Join as an Ace
               </Link>
             )}
@@ -112,7 +112,7 @@ export function Navbar() {
                 {isCreator && (
                   <>
                     <DropdownMenuSeparator className="my-1" />
-                    <DropdownMenuLabel className="text-xs tracking-widest uppercase text-muted-foreground p-2">Creator Studio</DropdownMenuLabel>
+                    <DropdownMenuLabel className="text-xs tracking-widest uppercase text-muted-foreground p-2">Tutor Studio</DropdownMenuLabel>
                     <DropdownMenuItem asChild className="rounded-lg cursor-pointer">
                       <Link href="/studio" className="w-full flex items-center py-2 font-medium">
                         Overview

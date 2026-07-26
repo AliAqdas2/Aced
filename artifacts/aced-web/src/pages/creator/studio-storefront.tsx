@@ -31,8 +31,11 @@ import {
   Video,
   Loader2,
   ExternalLink,
+  Camera,
+  ImagePlus,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useUpload } from '@workspace/object-storage-web';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -63,9 +66,137 @@ function parseFaqJson(raw: unknown): FaqJson {
       funFacts: Array.isArray(obj.funFacts) ? obj.funFacts as string[] : [],
     };
   }
-  // Legacy: raw was an array of FAQs
   if (Array.isArray(raw)) return { faqs: raw as FaqItem[], funFacts: [] };
   return { faqs: [], funFacts: [] };
+}
+
+/** Convert an objectPath like /objects/uploads/xyz to the serving URL */
+function objectPathToUrl(objectPath: string): string {
+  return `/api/storage${objectPath}`;
+}
+
+// ─── Image Upload Button ─────────────────────────────────────────────────────
+
+function AvatarUpload({
+  currentUrl,
+  onUploaded,
+}: {
+  currentUrl: string;
+  onUploaded: (url: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { uploadFile, isUploading } = useUpload({
+    onSuccess: (res) => onUploaded(objectPathToUrl(res.objectPath)),
+    onError: () => {},
+  });
+
+  return (
+    <div className="relative shrink-0">
+      <div
+        className="h-20 w-20 rounded-full bg-muted overflow-hidden border-2 border-border cursor-pointer group"
+        onClick={() => !isUploading && inputRef.current?.click()}
+        title="Click to upload photo"
+      >
+        {currentUrl ? (
+          <img
+            src={currentUrl}
+            alt="Profile"
+            className="h-full w-full object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
+        ) : (
+          <div className="h-full w-full flex items-center justify-center text-muted-foreground">
+            <User className="h-8 w-8" />
+          </div>
+        )}
+        <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          {isUploading
+            ? <Loader2 className="h-5 w-5 text-white animate-spin" />
+            : <Camera className="h-5 w-5 text-white" />}
+        </div>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) uploadFile(f);
+          e.target.value = '';
+        }}
+      />
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="mt-2 w-full text-xs h-7"
+        disabled={isUploading}
+        onClick={() => inputRef.current?.click()}
+      >
+        {isUploading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Camera className="h-3 w-3 mr-1" />}
+        {isUploading ? 'Uploading…' : 'Upload photo'}
+      </Button>
+    </div>
+  );
+}
+
+function BannerUpload({
+  currentUrl,
+  onUploaded,
+}: {
+  currentUrl: string;
+  onUploaded: (url: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { uploadFile, isUploading } = useUpload({
+    onSuccess: (res) => onUploaded(objectPathToUrl(res.objectPath)),
+    onError: () => {},
+  });
+
+  return (
+    <div className="space-y-1">
+      <Label>Cover / banner image</Label>
+      <div
+        className="relative w-full h-28 rounded-xl border-2 border-dashed border-border bg-muted/30 overflow-hidden cursor-pointer group"
+        onClick={() => !isUploading && inputRef.current?.click()}
+        title="Click to upload banner"
+      >
+        {currentUrl ? (
+          <img
+            src={currentUrl}
+            alt="Banner"
+            className="h-full w-full object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
+        ) : (
+          <div className="h-full w-full flex flex-col items-center justify-center gap-1 text-muted-foreground">
+            <ImagePlus className="h-6 w-6" />
+            <span className="text-xs">Click to upload banner image</span>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
+          {isUploading
+            ? <Loader2 className="h-6 w-6 text-white animate-spin" />
+            : <><ImagePlus className="h-6 w-6 text-white" /><span className="text-xs text-white">Replace banner</span></>}
+        </div>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) uploadFile(f);
+          e.target.value = '';
+        }}
+      />
+      {currentUrl && (
+        <p className="text-xs text-muted-foreground">Click the banner to replace it.</p>
+      )}
+    </div>
+  );
 }
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
@@ -155,7 +286,6 @@ export default function StudioStorefront() {
     if (!sf || seeded.current) return;
     seeded.current = true;
     setDisplayName(sf.displayName ?? '');
-    setAvatarUrl(sf.coverImageUrl ?? ''); // we'll use avatarUrl from profile fetch
     setCoverImageUrl(sf.coverImageUrl ?? '');
     setIntroVideoUrl(sf.introVideoUrl ?? '');
     setBio(sf.bio ?? '');
@@ -185,15 +315,12 @@ export default function StudioStorefront() {
     setSavingIdentity(true);
     try {
       await Promise.all([
-        // Update storefront display name
         updateStorefront.mutateAsync({ data: { displayName, coverImageUrl: coverImageUrl || null } } as any),
-        // Update creator profile headline
         fetch('/api/v1/creator/profile', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ headline }),
         }),
-        // Update user profile avatar
         avatarUrl
           ? fetch('/api/v1/profile', {
               method: 'PATCH',
@@ -380,52 +507,35 @@ export default function StudioStorefront() {
       {/* ── Identity ──────────────────────────────────────────────────── */}
       <SectionCard icon={User} title="Public identity" description="How students first see you">
         <div className="space-y-4">
-          {/* Avatar preview */}
-          <div className="flex items-center gap-4">
-            <div className="h-20 w-20 rounded-full bg-muted overflow-hidden shrink-0 border-2 border-border">
-              {avatarUrl ? (
-                <img src={avatarUrl} alt="Profile" className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-              ) : (
-                <div className="h-full w-full flex items-center justify-center text-muted-foreground">
-                  <User className="h-8 w-8" />
-                </div>
-              )}
-            </div>
-            <div className="flex-1 space-y-1">
-              <Label>Profile photo URL</Label>
-              <Input
-                placeholder="https://example.com/your-photo.jpg"
-                value={avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">Paste a direct link to your photo (LinkedIn, Gravatar, etc.)</p>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <Label>Display name</Label>
-            <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" />
-          </div>
-
-          <div className="space-y-1">
-            <Label>Headline <span className="text-muted-foreground font-normal">(shown under your name)</span></Label>
-            <Input
-              value={headline}
-              onChange={(e) => setHeadline(e.target.value)}
-              placeholder="e.g. Warwick Law First Class — Contract & Tort specialist"
-              maxLength={160}
+          {/* Avatar upload */}
+          <div className="flex items-start gap-4">
+            <AvatarUpload
+              currentUrl={avatarUrl}
+              onUploaded={(url) => setAvatarUrl(url)}
             />
-            <p className="text-xs text-muted-foreground">{headline.length}/160 characters</p>
+            <div className="flex-1 space-y-3 pt-1">
+              <div className="space-y-1">
+                <Label>Display name</Label>
+                <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" />
+              </div>
+              <div className="space-y-1">
+                <Label>Headline <span className="text-muted-foreground font-normal">(shown under your name)</span></Label>
+                <Input
+                  value={headline}
+                  onChange={(e) => setHeadline(e.target.value)}
+                  placeholder="e.g. Warwick Law First Class — Contract & Tort specialist"
+                  maxLength={160}
+                />
+                <p className="text-xs text-muted-foreground">{headline.length}/160 characters</p>
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-1">
-            <Label>Cover / banner image URL</Label>
-            <Input
-              placeholder="https://example.com/banner.jpg"
-              value={coverImageUrl}
-              onChange={(e) => setCoverImageUrl(e.target.value)}
-            />
-          </div>
+          {/* Banner upload */}
+          <BannerUpload
+            currentUrl={coverImageUrl}
+            onUploaded={(url) => setCoverImageUrl(url)}
+          />
 
           {/* Academic background (read-only from expertise) */}
           {primaryExp && (

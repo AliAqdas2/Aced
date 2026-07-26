@@ -106,7 +106,7 @@ export default defineConfig(async ({ command }) => {
       strictPort: true,
       host: '0.0.0.0',
       allowedHosts: true,
-      fs: { strict: true },
+      fs: { strict: false },
       proxy: {
         // Forward /api requests to the API server when running locally
         // (in the Replit hosted environment, path-based routing handles this)

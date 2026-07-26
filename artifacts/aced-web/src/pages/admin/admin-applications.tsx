@@ -268,7 +268,7 @@ export default function AdminApplications() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold font-serif">Creator Applications</h1>
+        <h1 className="text-3xl font-bold font-serif">Tutor Applications</h1>
         <p className="text-muted-foreground">Review and approve pending creator applications.</p>
       </div>
 

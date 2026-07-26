@@ -193,7 +193,7 @@ export default function Home() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
             <Button size="lg" className="h-16 px-10 text-lg font-bold rounded-xl shadow-none bg-primary text-primary-foreground hover:bg-primary/90" asChild>
-              <Link href="/become-a-creator">Join as an Ace</Link>
+              <Link href="/become-a-tutor">Join as an Ace</Link>
             </Button>
             <Button size="lg" variant="outline" className="h-16 px-10 text-lg font-bold rounded-xl shadow-none border-background/20 text-background hover:bg-background/10 hover:text-background" asChild>
               <Link href="/how-it-works">How it works</Link>

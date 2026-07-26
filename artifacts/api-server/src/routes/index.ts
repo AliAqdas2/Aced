@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import storageRouter from "./storage";
 import authRouter from "./v1/auth";
 import taxonomyRouter from "./v1/taxonomy";
 import creatorsRouter from "./v1/creators";
@@ -21,6 +22,9 @@ const router: IRouter = Router();
 
 // Health check
 router.use(healthRouter);
+
+// Object storage (upload presigned URLs + object serving)
+router.use(storageRouter);
 
 // Versioned API routes
 const v1 = Router();

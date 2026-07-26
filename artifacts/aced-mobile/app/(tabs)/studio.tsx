@@ -109,7 +109,7 @@ export default function StudioScreen() {
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.centerState, { paddingTop: topPad + 40 }]}>
           <Ionicons name="briefcase-outline" size={48} color={colors.mutedForeground} />
-          <Text style={[styles.stateTitle, { color: colors.foreground }]}>Creator Studio</Text>
+          <Text style={[styles.stateTitle, { color: colors.foreground }]}>Tutor Studio</Text>
           <Text style={[styles.stateSub, { color: colors.mutedForeground }]}>
             Sign in to manage your listings and earnings
           </Text>

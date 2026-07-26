@@ -92,7 +92,7 @@ export function StudioLayout({ children }: { children: React.ReactNode }) {
       <div className="bg-foreground text-background py-10 relative overflow-hidden">
         <div className="absolute inset-0 pattern-grid opacity-10"></div>
         <div className="container mx-auto px-4 relative z-10">
-          <h1 className="text-4xl md:text-5xl font-serif tracking-tight">Creator Studio</h1>
+          <h1 className="text-4xl md:text-5xl font-serif tracking-tight">Tutor Studio</h1>
         </div>
       </div>
       <div className="container mx-auto flex-1 items-start md:grid md:grid-cols-[240px_minmax(0,1fr)] lg:grid-cols-[280px_minmax(0,1fr)] gap-8 lg:gap-12 pt-10 pb-16 px-4">

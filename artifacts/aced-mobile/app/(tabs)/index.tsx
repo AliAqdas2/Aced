@@ -166,7 +166,7 @@ export default function DiscoverScreen() {
               <Ionicons name="rocket-outline" size={28} color={colors.primary} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.ctaTitle, { color: colors.foreground }]}>Share your expertise</Text>
-                <Text style={[styles.ctaSub, { color: colors.mutedForeground }]}>Apply to become a creator</Text>
+                <Text style={[styles.ctaSub, { color: colors.mutedForeground }]}>Apply to become a tutor</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.mutedForeground} />
             </LinearGradient>

@@ -67,7 +67,7 @@ import AdminSettings from '@/pages/admin/admin-settings';
 import AdminUniversities from '@/pages/admin/admin-universities';
 import AdminUniversityDetail from '@/pages/admin/admin-university-detail';
 
-import { HowItWorks, BecomeACreator } from '@/pages/public/static';
+import { HowItWorks, BecomeATutor } from '@/pages/public/static';
 import StudentProfilePage from '@/pages/public/student-profile';
 import NotFound from './pages/not-found';
 
@@ -228,8 +228,8 @@ function Router() {
       <Route path="/how-it-works">
         <PublicLayout><HowItWorks /></PublicLayout>
       </Route>
-      <Route path="/become-a-creator">
-        <PublicLayout><BecomeACreator /></PublicLayout>
+      <Route path="/become-a-tutor">
+        <PublicLayout><BecomeATutor /></PublicLayout>
       </Route>
       <Route path="/trust">
         <PublicLayout><Trust /></PublicLayout>

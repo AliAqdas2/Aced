@@ -158,7 +158,7 @@ export default function StudioSettings() {
     <div className="space-y-6 max-w-2xl">
       <div>
         <h1 className="text-3xl font-bold font-serif">Settings</h1>
-        <p className="text-muted-foreground">Manage your creator account settings.</p>
+        <p className="text-muted-foreground">Manage your tutor account settings.</p>
       </div>
 
       {/* Profile */}

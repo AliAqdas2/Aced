@@ -465,7 +465,7 @@ export function CreatorApplicationForm({ initialValues }: { initialValues?: Appl
                     />
                   </FormControl>
                   <div className="space-y-1 leading-none">
-                    <FormLabel>I agree to the Creator Terms</FormLabel>
+                    <FormLabel>I agree to the Tutor Terms</FormLabel>
                     <p className="text-sm text-muted-foreground">
                       I confirm that the academic information and documents provided are genuine. Submitting false credentials will result in a permanent ban.
                     </p>
@@ -695,7 +695,7 @@ function ApprovedStatus() {
         <div className="font-semibold mb-2">Get started:</div>
         <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
           <li>Set up your Stripe account to receive payouts</li>
-          <li>Customise your creator studio and storefront</li>
+          <li>Customise your tutor studio and storefront</li>
           <li>Create your first listing and go live</li>
         </ol>
       </div>
