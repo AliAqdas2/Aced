@@ -132,7 +132,7 @@ router.patch(
       displayName: z.string().min(2).max(80).optional(),
       slug: z.string().min(3).max(60).optional(),
       bio: z.string().max(2000).optional(),
-      coverImageUrl: z.string().url().optional().nullable(),
+      coverImageUrl: z.string().min(1).optional().nullable(),
       introVideoUrl: z.string().url().optional().nullable(),
       policies: z.string().max(5000).optional().nullable(),
       faqJson: z.any().optional(),
