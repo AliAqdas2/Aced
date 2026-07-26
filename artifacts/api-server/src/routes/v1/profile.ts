@@ -14,12 +14,30 @@ import { requireAuth } from "../../middlewares/auth";
 
 const router: IRouter = Router();
 
+// GET /api/v1/profile — return the logged-in user's own profile
+router.get("/profile", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
+  const [profile] = await db
+    .select()
+    .from(profilesTable)
+    .where(eq(profilesTable.userId, userId))
+    .limit(1);
+
+  if (!profile) {
+    res.status(404).json({ error: "Profile not found" });
+    return;
+  }
+
+  res.json({ data: profile });
+});
+
 // PATCH /api/v1/profile — update the logged-in learner's profile
 router.patch("/profile", requireAuth, async (req, res): Promise<void> => {
   const Body = z.object({
     displayName: z.string().min(1).max(100).optional(),
     bio: z.string().max(500).optional(),
-    avatarUrl: z.string().url().optional().nullable(),
+    // Accept both absolute URLs (https://…) and relative storage paths (/api/storage/…)
+    avatarUrl: z.string().min(1).optional().nullable(),
     universityId: z.string().uuid().optional().nullable(),
   });
 
