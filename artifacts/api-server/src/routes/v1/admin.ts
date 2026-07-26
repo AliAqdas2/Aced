@@ -314,6 +314,12 @@ router.get(
     const status = req.query["status"] as string | undefined;
     const creatorIdParam = req.query["creatorId"] as string | undefined;
     const buyerEmailParam = req.query["buyerEmail"] as string | undefined;
+    const limitParam = req.query["limit"] as string | undefined;
+    const offsetParam = req.query["offset"] as string | undefined;
+
+    const PAGE_SIZE = 50;
+    const limit = Math.min(Math.max(parseInt(limitParam ?? "50", 10) || PAGE_SIZE, 1), 200);
+    const offset = Math.max(parseInt(offsetParam ?? "0", 10) || 0, 0);
 
     const conditions: ReturnType<typeof eq>[] = [];
     if (status) conditions.push(eq(ordersTable.status, status as any));
@@ -327,7 +333,7 @@ router.get(
         .where(ilike(usersTable.email, buyerEmailParam));
       const buyerIds = matchingBuyers.map((u) => u.id);
       if (buyerIds.length === 0) {
-        res.json({ data: [] });
+        res.json({ data: [], hasMore: false });
         return;
       }
       conditions.push(inArray(ordersTable.buyerId, buyerIds) as any);
@@ -340,6 +346,7 @@ router.get(
     // falls back to the live profile for orders created before the snapshot was added.
     const creatorUserProfile = alias(profilesTable, "creator_user_profile");
 
+    // Fetch one extra row to detect whether more pages exist without a COUNT query.
     const rows = await db
       .select({
         orderId: ordersTable.id,
@@ -361,9 +368,13 @@ router.get(
       .leftJoin(creatorUserProfile, eq(creatorUserProfile.userId, creatorProfilesTable.userId))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(ordersTable.createdAt))
-      .limit(50);
+      .limit(limit + 1)
+      .offset(offset);
 
-    res.json({ data: rows });
+    const hasMore = rows.length > limit;
+    const data = hasMore ? rows.slice(0, limit) : rows;
+
+    res.json({ data, hasMore });
   }
 );
 

@@ -138,6 +138,8 @@ function CreatorTypeahead({
   );
 }
 
+const PAGE_SIZE = 50;
+
 export default function AdminOrders() {
   // Live table filters
   const [filterCreatorId, setFilterCreatorId] = useState('');
@@ -145,16 +147,40 @@ export default function AdminOrders() {
   const [filterBuyerEmailInput, setFilterBuyerEmailInput] = useState('');
   const [appliedBuyerEmail, setAppliedBuyerEmail] = useState('');
 
+  // Pagination state
+  const [offset, setOffset] = useState(0);
+  const [accumulatedOrders, setAccumulatedOrders] = useState<any[]>([]);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   // Build params for the live query — only send buyerEmail when user has committed it
   const queryParams = {
     ...(filterCreatorId ? { creatorId: filterCreatorId } : {}),
     ...(appliedBuyerEmail ? { buyerEmail: appliedBuyerEmail } : {}),
+    limit: PAGE_SIZE,
+    offset,
   };
-  const hasQueryParams = Object.keys(queryParams).length > 0;
 
   const { data: response, isLoading } = useGetAdminOrders(
-    hasQueryParams ? (queryParams as Parameters<typeof useGetAdminOrders>[0]) : undefined
+    queryParams as Parameters<typeof useGetAdminOrders>[0]
   );
+
+  // When the first page loads (offset 0), reset accumulation
+  useEffect(() => {
+    if (offset === 0 && response?.data) {
+      setAccumulatedOrders(response.data as any[]);
+      setIsLoadingMore(false);
+    }
+  }, [offset, response?.data]);
+
+  // When a subsequent page loads, append to accumulated list
+  useEffect(() => {
+    if (offset > 0 && response?.data && !isLoading) {
+      setAccumulatedOrders((prev) => [...prev, ...(response.data as any[])]);
+      setIsLoadingMore(false);
+    }
+  }, [offset, response, isLoading]);
+
+  const hasMore = (response as any)?.hasMore ?? false;
 
   // Export picker state
   const [showPicker, setShowPicker] = useState(false);
@@ -217,19 +243,36 @@ export default function AdminOrders() {
 
   const hasActiveFilters = filterCreatorId || appliedBuyerEmail;
 
+  // Reset pagination whenever filters change
+  const resetPagination = () => {
+    setOffset(0);
+    setAccumulatedOrders([]);
+    setIsLoadingMore(false);
+  };
+
   const clearLiveFilters = () => {
     setFilterCreatorId('');
     setFilterBuyerEmail('');
     setFilterBuyerEmailInput('');
     setAppliedBuyerEmail('');
+    resetPagination();
   };
 
   // Apply buyer email on Enter or blur
   const commitBuyerEmail = () => {
-    setAppliedBuyerEmail(filterBuyerEmailInput.trim());
+    const trimmed = filterBuyerEmailInput.trim();
+    if (trimmed !== appliedBuyerEmail) {
+      setAppliedBuyerEmail(trimmed);
+      resetPagination();
+    }
   };
 
-  const orders = response?.data || [];
+  const orders = accumulatedOrders;
+
+  const handleLoadMore = () => {
+    setIsLoadingMore(true);
+    setOffset((prev) => prev + PAGE_SIZE);
+  };
 
   const handleExport = async () => {
     const params = new URLSearchParams();
@@ -309,7 +352,7 @@ export default function AdminOrders() {
               <CreatorTypeahead
                 inputId="filter-creator"
                 creatorId={filterCreatorId}
-                onChange={(id) => setFilterCreatorId(id)}
+                onChange={(id) => { setFilterCreatorId(id); resetPagination(); }}
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -323,6 +366,7 @@ export default function AdminOrders() {
                     setFilterBuyerEmailInput(e.target.value);
                     if (!e.target.value.trim()) {
                       setAppliedBuyerEmail('');
+                      resetPagination();
                     }
                   }}
                   onKeyDown={(e) => { if (e.key === 'Enter') commitBuyerEmail(); }}
@@ -526,6 +570,18 @@ export default function AdminOrders() {
           ) : (
             <div className="p-12 text-center text-muted-foreground">
               {hasActiveFilters ? 'No orders match the current filters.' : 'No orders found.'}
+            </div>
+          )}
+          {orders.length > 0 && (hasMore || isLoadingMore) && (
+            <div className="flex justify-center border-t py-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLoadMore}
+                disabled={isLoadingMore || isLoading}
+              >
+                {isLoadingMore || (isLoading && offset > 0) ? 'Loading…' : `Load more`}
+              </Button>
             </div>
           )}
         </CardContent>

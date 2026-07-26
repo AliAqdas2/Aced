@@ -1067,6 +1067,8 @@ export type GetAdminOrdersParams = {
 status?: string;
 creatorId?: string;
 buyerEmail?: string;
+limit?: number;
+offset?: number;
 };
 
 export type GetAdminListingsParams = {
