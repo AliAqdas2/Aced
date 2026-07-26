@@ -141,6 +141,12 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
+  // Regenerate session ID before writing data — prevents session fixation
+  // and ensures a clean session after logout even if the old cookie lingers.
+  await new Promise<void>((resolve, reject) =>
+    req.session.regenerate((err) => (err ? reject(err) : resolve()))
+  );
+
   req.session.userId = user.id;
   req.session.role = user.role;
   req.session.email = user.email;
@@ -173,7 +179,14 @@ router.post("/auth/logout", requireAuth, (req, res): void => {
       res.status(500).json({ error: "Logout failed" });
       return;
     }
-    res.clearCookie("aced.sid");
+    // Must pass the same options used when the cookie was set so the
+    // browser actually removes it (path, secure, sameSite must match).
+    res.clearCookie("aced.sid", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+    });
     res.json({ data: { success: true } });
   });
 });
