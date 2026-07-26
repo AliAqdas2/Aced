@@ -85,6 +85,11 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   req.session.role = user.role;
   req.session.email = user.email;
 
+  // Persist session before responding so the cookie is valid on the next request
+  await new Promise<void>((resolve, reject) =>
+    req.session.save((err) => (err ? reject(err) : resolve()))
+  );
+
   await logAuditEvent({
     actorId: user.id,
     action: "user.register",
@@ -139,6 +144,11 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   req.session.userId = user.id;
   req.session.role = user.role;
   req.session.email = user.email;
+
+  // Persist session before responding so the cookie is valid on the next request
+  await new Promise<void>((resolve, reject) =>
+    req.session.save((err) => (err ? reject(err) : resolve()))
+  );
 
   await db
     .update(usersTable)
