@@ -489,12 +489,13 @@ router.get(
   }
 );
 
-// PATCH /api/v1/creator/profile — update video call settings
+// PATCH /api/v1/creator/profile — update headline + video call settings
 router.patch(
   "/creator/profile",
   requireRole("creator"),
   async (req, res): Promise<void> => {
     const Body = z.object({
+      headline: z.string().min(10).max(160).optional(),
       videoCallProvider: z.enum(["zoom", "teams", "meet", "custom"]).nullable().optional(),
       videoCallLink: z.string().url("Must be a valid URL").nullable().optional(),
     });
@@ -517,6 +518,7 @@ router.patch(
     }
 
     const updates: Record<string, unknown> = {};
+    if (parsed.data.headline !== undefined) updates.headline = parsed.data.headline;
     if (parsed.data.videoCallProvider !== undefined)
       updates.videoCallProvider = parsed.data.videoCallProvider;
     if (parsed.data.videoCallLink !== undefined)
@@ -530,6 +532,7 @@ router.patch(
 
     res.json({
       data: {
+        headline: updated.headline ?? null,
         videoCallProvider: updated.videoCallProvider ?? null,
         videoCallLink: updated.videoCallLink ?? null,
       },

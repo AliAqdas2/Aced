@@ -11,7 +11,9 @@ import {
   reviewsTable,
   subscriptionPlansTable,
   learnerSubscriptionsTable,
+  assetsTable,
 } from "@workspace/db";
+import { generateUploadUrl } from "../../lib/storage";
 import { eq, and, desc } from "drizzle-orm";
 import { requireRole } from "../../middlewares/auth";
 import { logAuditEvent } from "../../lib/auth";
@@ -511,6 +513,134 @@ router.post(
     });
 
     res.json({ data: updated });
+  }
+);
+
+// POST /api/v1/creator/listings/:id/upload-url — signed PUT URL for digital product file
+router.post(
+  "/creator/listings/:id/upload-url",
+  requireRole("creator"),
+  async (req, res): Promise<void> => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const Body = z.object({
+      fileName: z.string().min(1).max(260),
+      mimeType: z.string().min(1).max(100),
+      sizeBytes: z.number().int().positive(),
+    });
+    const parsed = Body.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+      return;
+    }
+
+    const [cp] = await db
+      .select()
+      .from(creatorProfilesTable)
+      .where(eq(creatorProfilesTable.userId, req.session.userId!))
+      .limit(1);
+
+    if (!cp) { res.status(404).json({ error: "Creator profile not found" }); return; }
+
+    const [listing] = await db
+      .select()
+      .from(listingsTable)
+      .where(and(eq(listingsTable.id, id), eq(listingsTable.creatorId, cp.id)))
+      .limit(1);
+
+    if (!listing) { res.status(404).json({ error: "Listing not found or access denied" }); return; }
+
+    if (listing.type !== "digital_product" && listing.type !== "recorded_course") {
+      res.status(400).json({ error: "File uploads are only supported for digital products and recorded courses" });
+      return;
+    }
+
+    const { uploadUrl, storageKey } = await generateUploadUrl({
+      folder: `digital-products/${cp.id}`,
+      fileName: parsed.data.fileName,
+      mimeType: parsed.data.mimeType,
+      sizeBytes: parsed.data.sizeBytes,
+    });
+
+    res.json({ data: { uploadUrl, storageKey } });
+  }
+);
+
+// POST /api/v1/creator/listings/:id/paid-asset — register uploaded file as listing's paid asset
+router.post(
+  "/creator/listings/:id/paid-asset",
+  requireRole("creator"),
+  async (req, res): Promise<void> => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const Body = z.object({
+      storageKey: z.string().min(1),
+      fileName: z.string().min(1).max(260),
+      mimeType: z.string().min(1).max(100),
+      sizeBytes: z.number().int().positive(),
+    });
+    const parsed = Body.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+      return;
+    }
+
+    const [cp] = await db
+      .select()
+      .from(creatorProfilesTable)
+      .where(eq(creatorProfilesTable.userId, req.session.userId!))
+      .limit(1);
+
+    if (!cp) { res.status(404).json({ error: "Creator profile not found" }); return; }
+
+    const [listing] = await db
+      .select()
+      .from(listingsTable)
+      .where(and(eq(listingsTable.id, id), eq(listingsTable.creatorId, cp.id)))
+      .limit(1);
+
+    if (!listing) { res.status(404).json({ error: "Listing not found or access denied" }); return; }
+
+    if (listing.type !== "digital_product" && listing.type !== "recorded_course") {
+      res.status(400).json({ error: "File uploads not supported for this listing type" });
+      return;
+    }
+
+    // Create asset record — auto-marked clean for MVP (production: run virus scan first)
+    const [asset] = await db
+      .insert(assetsTable)
+      .values({
+        ownerId: req.session.userId!,
+        ownerType: "creator",
+        fileName: parsed.data.fileName,
+        mimeType: parsed.data.mimeType,
+        sizeBytes: parsed.data.sizeBytes,
+        storageKey: parsed.data.storageKey,
+        isPrivate: true,
+        scanStatus: "clean",
+      })
+      .returning();
+
+    // Upsert product row and link asset
+    const ext = parsed.data.mimeType.split("/")[1] ?? parsed.data.fileName.split(".").pop() ?? "bin";
+    const [existingProduct] = await db
+      .select()
+      .from(productsTable)
+      .where(eq(productsTable.listingId, id))
+      .limit(1);
+
+    if (existingProduct) {
+      await db
+        .update(productsTable)
+        .set({ paidAssetId: asset.id, fileFormat: ext })
+        .where(eq(productsTable.id, existingProduct.id));
+    } else {
+      await db.insert(productsTable).values({
+        listingId: id,
+        paidAssetId: asset.id,
+        fileFormat: ext,
+      });
+    }
+
+    res.json({ data: { assetId: asset.id, fileName: asset.fileName } });
   }
 );
 

@@ -76,17 +76,40 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isLoading) {
       if (!isAuthenticated) {
-        setLocation('/auth/login');
-      } else if (!isAdmin) {
-        setLocation('/');
+        setLocation(`/auth/login?redirect=${encodeURIComponent(location)}`);
       }
+      // Non-admin authenticated users: stay here and see the access-denied state below
     }
-  }, [isLoading, isAuthenticated, isAdmin, setLocation]);
+  }, [isLoading, isAuthenticated, isAdmin, location, setLocation]);
 
-  if (isLoading || !isAuthenticated || !isAdmin) {
+  if (isLoading) {
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null; // redirect in-flight
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background gap-4 text-center px-4">
+        <div className="text-5xl">🔒</div>
+        <h1 className="text-2xl font-bold font-serif">Admin access required</h1>
+        <p className="text-muted-foreground max-w-sm">
+          Your current account doesn't have admin privileges. Please sign in with the admin account.
+        </p>
+        <div className="flex gap-3 mt-2">
+          <a href="/auth/login" className="inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground px-6 py-2.5 text-sm font-bold hover:bg-primary/90 transition-colors">
+            Sign in as admin
+          </a>
+          <a href="/" className="inline-flex items-center justify-center rounded-xl border px-6 py-2.5 text-sm font-bold hover:bg-muted transition-colors">
+            Go home
+          </a>
+        </div>
       </div>
     );
   }

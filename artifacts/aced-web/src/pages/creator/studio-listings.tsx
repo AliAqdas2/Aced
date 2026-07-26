@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   useGetCreatorListings,
   useCreateListing,
@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, MoreHorizontal, Edit, Trash, FileText, Video, Users, User, Calendar, Clock, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Edit, Trash, FileText, Video, Users, User, Calendar, Clock, RefreshCw, AlertTriangle, Upload, CheckCircle2, Loader2 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import {
@@ -40,6 +40,112 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useToast } from '@/hooks/use-toast';
+
+// ---------------------------------------------------------------------------
+// Digital file upload dialog
+// ---------------------------------------------------------------------------
+
+function DigitalFileUploadDialog({
+  listingId,
+  onClose,
+}: {
+  listingId: string;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const [phase, setPhase] = useState<'pick' | 'uploading' | 'done'>('pick');
+  const [fileName, setFileName] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFile(file: File) {
+    setFileName(file.name);
+    setPhase('uploading');
+    try {
+      // 1. Get signed upload URL
+      const urlRes = await fetch(`/api/v1/creator/listings/${listingId}/upload-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: file.name, mimeType: file.type || 'application/octet-stream', sizeBytes: file.size }),
+      });
+      if (!urlRes.ok) throw new Error('Could not get upload URL');
+      const { data: { uploadUrl, storageKey } } = await urlRes.json();
+
+      // 2. PUT file to GCS
+      const putRes = await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type || 'application/octet-stream' } });
+      if (!putRes.ok) throw new Error('File upload failed');
+
+      // 3. Register asset
+      const assetRes = await fetch(`/api/v1/creator/listings/${listingId}/paid-asset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storageKey, fileName: file.name, mimeType: file.type || 'application/octet-stream', sizeBytes: file.size }),
+      });
+      if (!assetRes.ok) throw new Error('Failed to register file');
+
+      setPhase('done');
+      toast({ title: 'File uploaded successfully ✓' });
+    } catch (err: any) {
+      toast({ title: err.message ?? 'Upload failed', variant: 'destructive' });
+      setPhase('pick');
+    }
+  }
+
+  return (
+    <DialogContent className="max-w-md">
+      <DialogHeader>
+        <DialogTitle className="font-serif text-xl">Upload file</DialogTitle>
+        <DialogDescription>
+          This file will be delivered to students after purchase.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="space-y-4 py-2">
+        {phase === 'pick' && (
+          <>
+            <div
+              className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-3 text-center cursor-pointer hover:border-primary/40 hover:bg-muted/30 transition-colors"
+              onClick={() => inputRef.current?.click()}
+            >
+              <Upload className="h-8 w-8 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-semibold">Click to choose a file</p>
+                <p className="text-xs text-muted-foreground mt-1">PDFs, videos, ZIPs, or any document</p>
+              </div>
+            </div>
+            <input
+              ref={inputRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+            />
+            <Button variant="outline" className="w-full" onClick={onClose}>Cancel</Button>
+          </>
+        )}
+
+        {phase === 'uploading' && (
+          <div className="flex flex-col items-center gap-4 py-6">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <div className="text-center">
+              <p className="font-semibold text-sm">Uploading…</p>
+              <p className="text-xs text-muted-foreground mt-1 truncate max-w-xs">{fileName}</p>
+            </div>
+          </div>
+        )}
+
+        {phase === 'done' && (
+          <div className="flex flex-col items-center gap-4 py-6">
+            <CheckCircle2 className="h-10 w-10 text-green-500" />
+            <div className="text-center">
+              <p className="font-semibold text-sm">Upload complete</p>
+              <p className="text-xs text-muted-foreground mt-1 truncate max-w-xs">{fileName}</p>
+            </div>
+            <Button className="w-full" onClick={onClose}>Done</Button>
+          </div>
+        )}
+      </div>
+    </DialogContent>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Edit subscription plan modal
@@ -304,6 +410,7 @@ export default function StudioListings() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editPlanListingId, setEditPlanListingId] = useState<string | null>(null);
+  const [uploadListingId, setUploadListingId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -906,6 +1013,11 @@ export default function StudioListings() {
                                 )}
                               </>
                             )}
+                          {(listing.type === 'digital_product' || listing.type === 'recorded_course') && (
+                            <DropdownMenuItem onSelect={() => setUploadListingId(listing.id)}>
+                              <Upload className="mr-2 h-4 w-4" /> Upload file
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem>
                             <Edit className="mr-2 h-4 w-4" /> Edit
                           </DropdownMenuItem>
@@ -947,6 +1059,19 @@ export default function StudioListings() {
           <EditSubscriptionPlanModal
             listingId={editPlanListingId}
             onClose={() => setEditPlanListingId(null)}
+          />
+        )}
+      </Dialog>
+
+      {/* Digital file upload dialog */}
+      <Dialog
+        open={uploadListingId !== null}
+        onOpenChange={(open) => { if (!open) setUploadListingId(null); }}
+      >
+        {uploadListingId && (
+          <DigitalFileUploadDialog
+            listingId={uploadListingId}
+            onClose={() => setUploadListingId(null)}
           />
         )}
       </Dialog>
