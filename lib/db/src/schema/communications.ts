@@ -85,18 +85,28 @@ export const notificationsTable = pgTable("notifications", {
  * Dead-letter log for transactional emails that failed all retry attempts.
  * Admins can view this via GET /api/v1/admin/failed-emails to see which
  * applicants/users were never notified so they can manually follow up.
+ * The full email payload (htmlBody, textBody) is stored so a background
+ * retry worker can attempt re-delivery without needing the original callsite.
  */
 export const failedEmailsTable = pgTable("failed_emails", {
   id: uuid("id").defaultRandom().primaryKey(),
   /** Recipient email address */
   toEmail: text("to_email").notNull(),
   subject: text("subject").notNull(),
+  /** Full HTML body stored so the retry worker can re-send without the original callsite */
+  htmlBody: text("html_body").notNull().default(""),
+  /** Optional plain-text alternative */
+  textBody: text("text_body"),
   /** Caller-supplied label for where in the codebase this send originated */
   context: text("context").notNull(),
   /** Last error message from the SMTP/provider call */
   errorMessage: text("error_message").notNull(),
   /** Total number of delivery attempts made before giving up */
   attempts: integer("attempts").notNull().default(1),
+  /** When the retry worker should next attempt re-delivery (null = ready immediately) */
+  nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+  /** Set once a retry worker has permanently given up (attempts >= MAX_RETRY_ATTEMPTS) */
+  permanentlyFailed: boolean("permanently_failed").notNull().default(false),
   /** Whether an admin has manually resolved / re-sent this */
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   resolvedBy: uuid("resolved_by").references(() => usersTable.id, { onDelete: "set null" }),

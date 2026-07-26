@@ -72,14 +72,20 @@ export async function sendEmailResilient(
       }) + "\n"
     );
 
-    // Persist to dead-letter table so admins can see missed recipients
+    // Persist to dead-letter table so the retry worker can re-attempt delivery
+    // and admins can see which recipients were never notified.
     try {
+      // Schedule first retry attempt 5 minutes from now
+      const nextRetryAt = new Date(Date.now() + 5 * 60 * 1000);
       await db.insert(failedEmailsTable).values({
         toEmail: payload.to,
         subject: payload.subject,
+        htmlBody: payload.html,
+        textBody: payload.text ?? null,
         context,
         errorMessage,
         attempts: maxAttempts + 1,
+        nextRetryAt,
       });
     } catch (dbErr) {
       // Don't throw — DB write failure must not mask the original email failure
