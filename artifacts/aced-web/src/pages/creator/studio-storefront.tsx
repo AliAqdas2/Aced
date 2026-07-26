@@ -415,7 +415,7 @@ export default function StudioStorefront() {
         body: JSON.stringify({ published: val }),
       });
       setIsPublished(val);
-      toast({ title: val ? 'Storefront published ✓' : 'Storefront unpublished' });
+      toast({ title: val ? 'Showcase published ✓' : 'Showcase unpublished' });
       queryClient.invalidateQueries({ queryKey: ['creator-storefront'] });
     } catch {
       toast({ title: 'Failed to update visibility', variant: 'destructive' });
@@ -459,7 +459,7 @@ export default function StudioStorefront() {
   const verifications = (profileData as any)?.verifications ?? [];
   const hasDbs = verifications.some((v: any) => v.claimType === 'dbs_check');
   const certificates = verifications.filter((v: any) => v.claimType === 'certificate');
-  const storefrontUrl = slug ? `${window.location.origin}/storefronts/${slug}` : null;
+  const storefrontUrl = slug ? `${window.location.origin}/showcases/${slug}` : null;
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -478,7 +478,7 @@ export default function StudioStorefront() {
               <Eye className={`h-5 w-5 ${isPublished ? 'text-green-600' : 'text-amber-600'}`} />
               <div>
                 <p className="text-sm font-semibold">
-                  {isPublished ? 'Your storefront is live' : 'Storefront is hidden from students'}
+                  {isPublished ? 'Your showcase is live' : 'Showcase is hidden from students'}
                 </p>
                 {storefrontUrl && (
                   <a
@@ -676,13 +676,13 @@ export default function StudioStorefront() {
       </SectionCard>
 
       {/* ── Settings ──────────────────────────────────────────────────── */}
-      <SectionCard icon={Settings} title="Settings" description="Booking policies, video call link, and storefront URL">
+      <SectionCard icon={Settings} title="Settings" description="Booking policies, video call link, and showcase URL">
         <div className="space-y-4">
           <div className="space-y-1">
-            <Label>Storefront URL slug</Label>
+            <Label>Showcase URL slug</Label>
             <div className="flex items-center gap-0">
               <span className="text-sm text-muted-foreground bg-muted border border-r-0 rounded-l-md px-3 py-2 select-none whitespace-nowrap">
-                /storefronts/
+                /showcases/
               </span>
               <Input
                 className="rounded-l-none"
@@ -753,7 +753,7 @@ export default function StudioStorefront() {
       </SectionCard>
 
       {/* ── Visibility (bottom) ───────────────────────────────────────── */}
-      <SectionCard icon={Globe} title="Storefront visibility">
+      <SectionCard icon={Globe} title="Showcase visibility">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium">

@@ -235,7 +235,7 @@ export function buildApprovalEmail(opts: {
         <p style="margin:0;font-weight:bold;color:#15803d;">Get started:</p>
         <ol style="margin:8px 0 0;padding-left:20px;color:#166534;">
           <li>Set up your Stripe account to receive payouts</li>
-          <li>Customise your creator studio and storefront</li>
+          <li>Customise your tutor studio and showcase</li>
           <li>Create your first listing and go live</li>
         </ol>
       </div>

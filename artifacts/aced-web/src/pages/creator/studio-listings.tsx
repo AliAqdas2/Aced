@@ -539,7 +539,7 @@ export default function StudioListings() {
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="font-serif text-2xl">Create listing</DialogTitle>
-              <DialogDescription>Add a new offer to your storefront.</DialogDescription>
+              <DialogDescription>Add a new offer to your showcase.</DialogDescription>
             </DialogHeader>
 
             <Form {...form}>

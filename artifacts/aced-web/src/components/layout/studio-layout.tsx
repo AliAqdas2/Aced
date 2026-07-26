@@ -23,8 +23,8 @@ const studioNavItems = [
     icon: BarChart,
   },
   {
-    title: 'Storefront',
-    href: '/studio/storefront',
+    title: 'Showcase',
+    href: '/studio/showcase',
     icon: Store,
   },
   {

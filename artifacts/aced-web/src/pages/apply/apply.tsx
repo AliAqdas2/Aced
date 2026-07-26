@@ -410,7 +410,7 @@ export function CreatorApplicationForm({ initialValues }: { initialValues?: Appl
                     <FormControl>
                       <Input placeholder="e.g. Final year Law student specializing in Contract Law" {...field} />
                     </FormControl>
-                    <p className="text-xs text-muted-foreground mt-1">This will appear next to your name on your storefront.</p>
+                    <p className="text-xs text-muted-foreground mt-1">This will appear next to your name on your showcase.</p>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -695,7 +695,7 @@ function ApprovedStatus() {
         <div className="font-semibold mb-2">Get started:</div>
         <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
           <li>Set up your Stripe account to receive payouts</li>
-          <li>Customise your tutor studio and storefront</li>
+          <li>Customise your tutor studio and showcase</li>
           <li>Create your first listing and go live</li>
         </ol>
       </div>

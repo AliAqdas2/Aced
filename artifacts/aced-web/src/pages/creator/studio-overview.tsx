@@ -38,7 +38,7 @@ export default function StudioOverview() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
         <div>
           <h1 className="text-4xl md:text-5xl tracking-tight font-serif mb-3">Overview</h1>
-          <p className="text-muted-foreground font-medium text-lg">Here's how your storefront is performing.</p>
+          <p className="text-muted-foreground font-medium text-lg">Here's how your showcase is performing.</p>
         </div>
         <Button asChild className="rounded-xl h-12 px-6 font-bold shadow-none text-base">
           <Link href="/studio/listings">Create New Listing</Link>

@@ -159,7 +159,7 @@ function Router() {
       <Route path="/studio/listings">
         <StudioLayout><StudioListings /></StudioLayout>
       </Route>
-      <Route path="/studio/storefront">
+      <Route path="/studio/showcase">
         <StudioLayout><StudioStorefront /></StudioLayout>
       </Route>
       <Route path="/studio/availability">
@@ -217,7 +217,7 @@ function Router() {
       <Route path="/listings/:id">
         <PublicLayout><ListingDetail /></PublicLayout>
       </Route>
-      <Route path="/storefronts/:slug">
+      <Route path="/showcases/:slug">
         <PublicLayout><Storefront /></PublicLayout>
       </Route>
 

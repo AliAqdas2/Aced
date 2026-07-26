@@ -193,7 +193,7 @@ export default function ProfileScreen() {
             <Section title="TUTOR">
               <SettingRow
                 icon="storefront-outline"
-                label="My storefront"
+                label="My showcase"
                 onPress={() => router.push('/(tabs)/studio')}
               />
               <SettingRow icon="list-outline" label="My listings" onPress={() => {}} />

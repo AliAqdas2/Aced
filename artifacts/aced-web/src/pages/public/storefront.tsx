@@ -23,7 +23,7 @@ export default function Storefront() {
   if (error || !response?.data) {
     return (
       <div className="container mx-auto px-4 py-32 text-center min-h-[70vh] flex flex-col items-center justify-center">
-        <h1 className="font-serif text-4xl tracking-tight mb-6">Storefront not found</h1>
+        <h1 className="font-serif text-4xl tracking-tight mb-6">Showcase not found</h1>
         <Button asChild size="lg" className="rounded-xl h-14 px-8 font-bold"><Link href="/search">Browse Marketplace</Link></Button>
       </div>
     );
