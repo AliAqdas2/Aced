@@ -39,13 +39,6 @@ router.get(
   "/admin/dashboard",
   requireRole("admin"),
   async (_req, res): Promise<void> => {
-    const [orderStats] = await db
-      .select({
-        totalOrders: db.$count(ordersTable.id),
-      })
-      .from(ordersTable)
-      .where(eq(ordersTable.status, "paid"));
-
     const paidOrders = await db
       .select()
       .from(ordersTable)
@@ -162,9 +155,7 @@ router.get(
   "/admin/platform-stats",
   requireRole("admin"),
   async (_req, res): Promise<void> => {
-    const [uniCount] = await db
-      .select({ count: db.$count(universitiesTable.id) })
-      .from(universitiesTable);
+    const allUniversities = await db.select({ id: universitiesTable.id }).from(universitiesTable);
 
     const allUsers = await db.select({ role: usersTable.role }).from(usersTable);
     const studentCount = allUsers.filter((u) => u.role === "learner").length;
@@ -187,7 +178,7 @@ router.get(
 
     res.json({
       data: {
-        totalUniversities: Number(uniCount?.count ?? 0),
+        totalUniversities: allUniversities.length,
         totalStudents: studentCount,
         totalCreators: creatorCount,
         gmvMinorUnits,
@@ -452,12 +443,12 @@ router.get(
 
     // countOnly: run a lightweight COUNT query and return the estimate
     if (countOnly) {
-      const [countRow] = await db
-        .select({ count: db.$count(ordersTable.id) })
+      const countRows = await db
+        .select({ id: ordersTable.id })
         .from(ordersTable)
         .innerJoin(orderItemsTable, eq(orderItemsTable.orderId, ordersTable.id))
         .where(and(...conditions));
-      res.json({ data: { count: Number(countRow?.count ?? 0) } });
+      res.json({ data: { count: countRows.length } });
       return;
     }
 

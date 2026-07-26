@@ -313,6 +313,18 @@ export default function ListingDetail() {
 
   const checkoutMutation = useCreateCheckoutSession();
 
+  // Must be declared before any early returns to satisfy the Rules of Hooks
+  const subscribeMutation = useSubscribeToListing({
+    mutation: {
+      onSuccess: (res: any) => {
+        if (res.data?.checkoutUrl) window.location.href = res.data.checkoutUrl;
+      },
+      onError: () => {
+        toast({ title: 'Could not start subscription checkout', variant: 'destructive' });
+      },
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center">
@@ -354,17 +366,6 @@ export default function ListingDetail() {
       ? 'Free'
       : `£${((price as any).amountMinorUnits / 100).toFixed(2)}`;
   const isService = listing.type === 'service_offer' || listing.type === 'group_session';
-
-  const subscribeMutation = useSubscribeToListing({
-    mutation: {
-      onSuccess: (res: any) => {
-        if (res.data?.checkoutUrl) window.location.href = res.data.checkoutUrl;
-      },
-      onError: () => {
-        toast({ title: 'Could not start subscription checkout', variant: 'destructive' });
-      },
-    },
-  });
 
   const handleSubscribe = () => {
     if (!isAuthenticated) {
