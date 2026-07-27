@@ -45,6 +45,23 @@ router.get("/storefronts/:slug", async (req, res): Promise<void> => {
     .where(eq(profilesTable.userId, cp.userId))
     .limit(1);
 
+  // Resolve university and course names for the public profile
+  const [university] = cp.universityId
+    ? await db
+        .select({ name: universitiesTable.name })
+        .from(universitiesTable)
+        .where(eq(universitiesTable.id, cp.universityId))
+        .limit(1)
+    : [undefined];
+
+  const [course] = cp.courseId
+    ? await db
+        .select({ name: coursesTable.name })
+        .from(coursesTable)
+        .where(eq(coursesTable.id, cp.courseId))
+        .limit(1)
+    : [undefined];
+
   const listings = await db
     .select()
     .from(listingsTable)
@@ -90,6 +107,8 @@ router.get("/storefronts/:slug", async (req, res): Promise<void> => {
         ...cp,
         profile,
         expertise,
+        universityName: university?.name ?? null,
+        courseName: course?.name ?? null,
       },
       listings: listingsWithPrices,
       reviews,

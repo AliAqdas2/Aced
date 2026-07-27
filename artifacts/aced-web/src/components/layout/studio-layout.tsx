@@ -120,7 +120,7 @@ export function StudioLayout({ children }: { children: React.ReactNode }) {
             </nav>
           </div>
         </aside>
-        <main className="flex w-full flex-col overflow-hidden">
+        <main className="flex w-full min-w-0 flex-col">
           {children}
         </main>
       </div>
