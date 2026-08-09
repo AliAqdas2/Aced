@@ -331,21 +331,3 @@ export function buildRejectedEmail(opts: {
     </div>
   `;
 }
-
-export function buildBookingConfirmationEmail(opts: {
-  learnerName: string;
-  creatorName: string;
-  startAt: string;
-  meetingLink?: string;
-}): EmailPayload["html"] {
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #7B2FF7;">Booking Confirmed</h2>
-      <p>Hi ${opts.learnerName},</p>
-      <p>Your session with <strong>${opts.creatorName}</strong> is confirmed.</p>
-      <p><strong>When:</strong> ${opts.startAt}</p>
-      ${opts.meetingLink ? `<p><strong>Meeting link:</strong> <a href="${opts.meetingLink}">${opts.meetingLink}</a></p>` : ""}
-      <p>You can view your booking in your <a href="${process.env.APP_URL ?? "https://acedtutoring.co.uk"}/dashboard">Aced dashboard</a>.</p>
-    </div>
-  `;
-}
