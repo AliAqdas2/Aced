@@ -9,7 +9,10 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  StatusBar,
 } from 'react-native';
+import { PdfWebView } from '@/components/PdfWebView';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
@@ -68,17 +71,164 @@ function listingTypeLabel(type?: string): string {
   return type ?? 'Content';
 }
 
+/** Returns true for file types that should open in the in-app viewer */
+function isViewableInApp(fileType?: string): boolean {
+  const t = (fileType ?? '').toLowerCase();
+  return t === 'pdf' || t === 'doc' || t === 'docx' || t === 'ppt' || t === 'pptx';
+}
+
+/**
+ * Build the URL to load inside WebView for a given signed download URL.
+ * - PDFs on iOS: WKWebView renders them natively — load the URL directly.
+ * - Office documents (doc, docx, ppt, pptx) on iOS: WKWebView cannot render
+ *   these natively, so wrap in Google Docs viewer just like Android/web.
+ * - Everything on Android / web: wrap in Google Docs viewer.
+ */
+function buildViewerUrl(url: string, fileType?: string): string {
+  const t = (fileType ?? '').toLowerCase();
+  const isPdf = t === 'pdf';
+  if (Platform.OS === 'ios' && isPdf) {
+    // WKWebView renders PDFs natively with pinch-to-zoom and scroll
+    return url;
+  }
+  // Google Docs viewer handles PDF + Office formats on all other paths
+  return `https://docs.google.com/gviewer?embedded=true&url=${encodeURIComponent(url)}`;
+}
+
+// ─── PDF / Document viewer modal ─────────────────────────────────────────────
+
+interface PdfViewerModalProps {
+  visible: boolean;
+  url: string;
+  title: string;
+  fileType?: string;
+  onClose: () => void;
+}
+
+function PdfViewerModal({ visible, url, title, fileType, onClose }: PdfViewerModalProps) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const viewerUrl = url ? buildViewerUrl(url, fileType) : '';
+
+  const headerTop = Platform.OS === 'web' ? 0 : insets.top;
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onRequestClose={onClose}
+    >
+      <StatusBar barStyle="light-content" />
+      <View style={[styles.viewerContainer, { backgroundColor: colors.background }]}>
+        {/* Viewer header */}
+        <View
+          style={[
+            styles.viewerHeader,
+            {
+              paddingTop: headerTop + 8,
+              backgroundColor: colors.card,
+              borderBottomColor: colors.border,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.viewerBackBtn}
+            onPress={onClose}
+            hitSlop={8}
+          >
+            <Ionicons name="chevron-down" size={24} color={colors.foreground} />
+          </TouchableOpacity>
+          <Text
+            style={[styles.viewerTitle, { color: colors.foreground }]}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        {/* Loading overlay */}
+        {loading && !error && (
+          <View style={[styles.viewerLoading, { backgroundColor: colors.background }]}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.viewerLoadingText, { color: colors.mutedForeground }]}>
+              Loading document…
+            </Text>
+          </View>
+        )}
+
+        {/* Error state */}
+        {error && (
+          <View style={[styles.viewerLoading, { backgroundColor: colors.background }]}>
+            <Ionicons name="alert-circle-outline" size={48} color={colors.mutedForeground} />
+            <Text style={[styles.viewerErrorTitle, { color: colors.foreground }]}>
+              Could not load document
+            </Text>
+            <Text style={[styles.viewerLoadingText, { color: colors.mutedForeground }]}>
+              The file may be unavailable. Try again later.
+            </Text>
+            <TouchableOpacity
+              style={[styles.viewerRetryBtn, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                setError(false);
+                setLoading(true);
+              }}
+            >
+              <Text style={styles.viewerRetryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Document viewer */}
+        {!error && viewerUrl ? (
+          <PdfWebView
+            source={{ uri: viewerUrl }}
+            style={styles.webView}
+            onLoadStart={() => {
+              setLoading(true);
+              setError(false);
+            }}
+            onLoadEnd={() => setLoading(false)}
+            onError={() => {
+              setLoading(false);
+              setError(true);
+            }}
+            onHttpError={(e: { nativeEvent: { statusCode: number } }) => {
+              if (e.nativeEvent.statusCode >= 400) {
+                setLoading(false);
+                setError(true);
+              }
+            }}
+            allowsInlineMediaPlayback
+            scalesPageToFit={Platform.OS === 'android'}
+            bounces={false}
+            showsHorizontalScrollIndicator={false}
+          />
+        ) : null}
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Item card ────────────────────────────────────────────────────────────────
 
 function LibraryCard({ item }: { item: LibraryItem }) {
   const colors = useColors();
   const [opening, setOpening] = useState(false);
+  const [pdfVisible, setPdfVisible] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState('');
+  const [pdfFileType, setPdfFileType] = useState<string | undefined>(undefined);
 
   const downloadMutation = useGetAssetDownloadUrl();
 
   const fileType = item.product?.fileType;
   const iconName = fileTypeIcon(fileType);
   const hasAsset = Boolean(item.assetId);
+  const title = item.listing?.title ?? 'Document';
 
   const handleOpen = async () => {
     if (!item.assetId) {
@@ -94,9 +244,18 @@ function LibraryCard({ item }: { item: LibraryItem }) {
       const result = await downloadMutation.mutateAsync({ id: item.assetId });
       const url = result?.data?.url;
       if (!url) throw new Error('No URL returned');
-      await WebBrowser.openBrowserAsync(url, {
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-      });
+
+      if (isViewableInApp(fileType)) {
+        // Open in-app viewer
+        setPdfUrl(url);
+        setPdfFileType(fileType);
+        setPdfVisible(true);
+      } else {
+        // Open other types (video, audio, zip) in the system browser
+        await WebBrowser.openBrowserAsync(url, {
+          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+        });
+      }
     } catch (err: any) {
       Alert.alert(
         'Could not open file',
@@ -108,62 +267,77 @@ function LibraryCard({ item }: { item: LibraryItem }) {
   };
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      {/* Icon */}
-      <View style={[styles.iconWrap, { backgroundColor: colors.primary + '18' }]}>
-        <Ionicons name={iconName as any} size={26} color={colors.primary} />
-      </View>
-
-      {/* Info */}
-      <View style={styles.cardInfo}>
-        <Text style={[styles.cardTitle, { color: colors.foreground }]} numberOfLines={2}>
-          {item.listing?.title ?? 'Untitled'}
-        </Text>
-        <View style={styles.metaRow}>
-          {fileType ? (
-            <View style={[styles.typePill, { backgroundColor: colors.muted }]}>
-              <Text style={[styles.typePillText, { color: colors.mutedForeground }]}>
-                {fileTypeLabel(fileType)}
-              </Text>
-            </View>
-          ) : (
-            <View style={[styles.typePill, { backgroundColor: colors.muted }]}>
-              <Text style={[styles.typePillText, { color: colors.mutedForeground }]}>
-                {listingTypeLabel(item.listing?.type)}
-              </Text>
-            </View>
-          )}
-          {(item.accessCount ?? 0) > 0 && (
-            <Text style={[styles.accessCount, { color: colors.mutedForeground }]}>
-              Opened {item.accessCount} {item.accessCount === 1 ? 'time' : 'times'}
-            </Text>
-          )}
+    <>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {/* Icon */}
+        <View style={[styles.iconWrap, { backgroundColor: colors.primary + '18' }]}>
+          <Ionicons name={iconName as any} size={26} color={colors.primary} />
         </View>
+
+        {/* Info */}
+        <View style={styles.cardInfo}>
+          <Text style={[styles.cardTitle, { color: colors.foreground }]} numberOfLines={2}>
+            {title}
+          </Text>
+          <View style={styles.metaRow}>
+            {fileType ? (
+              <View style={[styles.typePill, { backgroundColor: colors.muted }]}>
+                <Text style={[styles.typePillText, { color: colors.mutedForeground }]}>
+                  {fileTypeLabel(fileType)}
+                </Text>
+              </View>
+            ) : (
+              <View style={[styles.typePill, { backgroundColor: colors.muted }]}>
+                <Text style={[styles.typePillText, { color: colors.mutedForeground }]}>
+                  {listingTypeLabel(item.listing?.type)}
+                </Text>
+              </View>
+            )}
+            {(item.accessCount ?? 0) > 0 && (
+              <Text style={[styles.accessCount, { color: colors.mutedForeground }]}>
+                Opened {item.accessCount} {item.accessCount === 1 ? 'time' : 'times'}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* Open button */}
+        <TouchableOpacity
+          style={[
+            styles.openBtn,
+            {
+              backgroundColor: hasAsset ? colors.primary : colors.muted,
+            },
+          ]}
+          onPress={handleOpen}
+          disabled={opening || !hasAsset}
+          activeOpacity={0.8}
+        >
+          {opening ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Ionicons
+              name={hasAsset ? 'open-outline' : 'lock-closed-outline'}
+              size={16}
+              color={hasAsset ? '#fff' : colors.mutedForeground}
+            />
+          )}
+        </TouchableOpacity>
       </View>
 
-      {/* Open button */}
-      <TouchableOpacity
-        style={[
-          styles.openBtn,
-          {
-            backgroundColor: hasAsset ? colors.primary : colors.muted,
-          },
-        ]}
-        onPress={handleOpen}
-        disabled={opening || !hasAsset}
-        activeOpacity={0.8}
-      >
-        {opening ? (
-          <ActivityIndicator size="small" color="#fff" />
-        ) : (
-          <Ionicons
-            name={hasAsset ? 'open-outline' : 'lock-closed-outline'}
-            size={16}
-            color={hasAsset ? '#fff' : colors.mutedForeground}
-          />
-        )}
-      </TouchableOpacity>
-    </View>
+      {/* In-app PDF/document viewer */}
+      <PdfViewerModal
+        visible={pdfVisible}
+        url={pdfUrl}
+        title={title}
+        fileType={pdfFileType}
+        onClose={() => {
+          setPdfVisible(false);
+          setPdfUrl('');
+          setPdfFileType(undefined);
+        }}
+      />
+    </>
   );
 }
 
@@ -366,4 +540,45 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
+
+  // PDF Viewer modal
+  viewerContainer: { flex: 1 },
+  viewerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+  },
+  viewerBackBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  viewerTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: -0.2,
+  },
+  webView: { flex: 1 },
+  viewerLoading: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    zIndex: 10,
+  },
+  viewerLoadingText: { fontSize: 14, textAlign: 'center' },
+  viewerErrorTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
+  viewerRetryBtn: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  viewerRetryText: { color: '#fff', fontWeight: '600', fontSize: 14 },
 });
