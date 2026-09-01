@@ -5,6 +5,7 @@ import pinoHttp from "pino-http";
 import rateLimit from "express-rate-limit";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { mountProductionWeb } from "./lib/serveWeb";
 import { sessionMiddleware } from "./middlewares/session";
 import { notFound, errorHandler } from "./middlewares/errorHandler";
 
@@ -124,6 +125,11 @@ app.use(sessionMiddleware);
 
 // Routes
 app.use("/api", router);
+
+// Production: serve built web app from the same process (Docker / single-port deploy)
+if (process.env.NODE_ENV === "production") {
+  mountProductionWeb(app);
+}
 
 // 404 handler
 app.use(notFound);

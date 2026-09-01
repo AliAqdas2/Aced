@@ -1,0 +1,59 @@
+services:
+  aced-portal:
+    build:
+      context: .
+      target: runtime
+    image: ghcr.io/aliaqdas2/aced-portal:latest
+    container_name: aced-portal
+    restart: always
+    env_file: .env
+    networks:
+      - infra_internal
+      - caddy
+    volumes:
+      - aced_portal_storage:/app/storage
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # One-shot tools (not started by normal `up`).
+  #   docker compose --profile tools run --rm db-push
+  #   docker compose --profile tools run --rm seed
+  db-push:
+    profiles: [tools]
+    build:
+      context: .
+      target: tools
+    image: ghcr.io/aliaqdas2/aced-portal:latest
+    env_file: .env
+    networks:
+      - infra_internal
+    volumes:
+      - aced_portal_storage:/app/storage
+    restart: "no"
+    entrypoint: ["pnpm", "--filter", "@workspace/db", "run", "push"]
+
+  seed:
+    profiles: [tools]
+    build:
+      context: .
+      target: tools
+    image: ghcr.io/aliaqdas2/aced-portal:latest
+    env_file: .env
+    networks:
+      - infra_internal
+    volumes:
+      - aced_portal_storage:/app/storage
+    restart: "no"
+    entrypoint: ["pnpm", "--filter", "@workspace/scripts", "run", "seed"]
+
+networks:
+  infra_internal:
+    external: true
+  caddy:
+    external: true
+
+volumes:
+  aced_portal_storage:

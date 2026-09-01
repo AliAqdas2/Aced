@@ -21,6 +21,11 @@ function findRepoRoot(): string {
   return process.cwd();
 }
 
+/** Monorepo root (directory containing pnpm-workspace.yaml). */
+export function getRepoRoot(): string {
+  return findRepoRoot();
+}
+
 export const STORAGE_ROOT = path.join(findRepoRoot(), "storage");
 
 /**
