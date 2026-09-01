@@ -10,9 +10,12 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY tsconfig.base.json tsconfig.json ./
 COPY lib ./lib
 COPY artifacts ./artifacts
 COPY scripts ./scripts
+COPY attached_assets ./attached_assets
+COPY storage/.gitkeep ./storage/.gitkeep
 
 RUN pnpm install --frozen-lockfile
 
@@ -21,8 +24,8 @@ RUN pnpm install --frozen-lockfile
 # -----------------------------------------------------------------------------
 FROM deps AS build
 
-RUN pnpm --filter @workspace/api-server run build \
-  && pnpm --filter @workspace/aced-web run build
+RUN pnpm --filter @workspace/api-server run build
+RUN pnpm --filter @workspace/aced-web run build
 
 # -----------------------------------------------------------------------------
 # Production runtime (single container: API + static web on PORT)
