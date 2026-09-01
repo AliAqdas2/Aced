@@ -28,6 +28,9 @@ node_modules
 !.vscode/extensions.json
 
 # misc
+.env
+.env.*
+!.env.example
 /.sass-cache
 /connect.lock
 /coverage
@@ -36,7 +39,7 @@ npm-debug.log
 yarn-error.log
 testem.log
 /typings
-
+.pnpm-store/
 # System Files
 .DS_Store
 Thumbs.db
@@ -44,7 +47,6 @@ Thumbs.db
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
-# Replit
 .cache/
 .local/
 
@@ -52,3 +54,7 @@ Thumbs.db
 .tmp-e2e-session.json
 test-results/
 playwright-report/
+
+# Local object storage (uploaded files)
+storage/**
+!storage/.gitkeep

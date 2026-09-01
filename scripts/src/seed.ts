@@ -2,6 +2,7 @@
  * Aced seed script — realistic demo data for development
  * Run: pnpm --filter @workspace/scripts run seed
  */
+import "@workspace/db/load-env";
 import { db } from "@workspace/db";
 import {
   usersTable,

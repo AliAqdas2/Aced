@@ -29,7 +29,6 @@ const router: IRouter = Router();
 
 function getAppUrl(): string {
   if (process.env.APP_URL) return process.env.APP_URL;
-  if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
   return "http://localhost:5000";
 }
 

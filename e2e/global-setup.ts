@@ -10,6 +10,7 @@
  * All fixture records share a UUID namespace so teardown can wipe them reliably.
  */
 
+import '@workspace/db/load-env';
 import { db } from '@workspace/db';
 import {
   usersTable,

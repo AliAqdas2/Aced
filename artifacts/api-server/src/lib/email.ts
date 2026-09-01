@@ -1,6 +1,5 @@
 import { logger } from "./logger";
 import { db, failedEmailsTable } from "@workspace/db";
-import { ReplitConnectors } from "@replit/connectors-sdk";
 
 export interface EmailAttachment {
   filename: string;
@@ -18,7 +17,7 @@ export interface EmailPayload {
 
 /**
  * Sends a transactional email. In development, logs to console.
- * In production, uses the configured email provider (nodemailer/Resend/etc).
+ * In production, uses the Resend API (RESEND_API_KEY).
  */
 /**
  * Retry helper with exponential backoff.
@@ -110,9 +109,12 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
     return;
   }
 
-  try {
-    const connectors = new ReplitConnectors();
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error("RESEND_API_KEY is not set — cannot send email in production");
+  }
 
+  try {
     const body: Record<string, unknown> = {
       from: process.env.EMAIL_FROM ?? "Aced <noreply@acedtutoring.co.uk>",
       to: [payload.to],
@@ -129,8 +131,12 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
       }));
     }
 
-    const res = await connectors.proxy("resend", "/emails", {
+    const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(body),
     });
 

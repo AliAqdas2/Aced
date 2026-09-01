@@ -230,7 +230,7 @@ router.post(
 
     const stripe = getStripe();
     const commissionPct = await getCommissionRatePct();
-    const appUrl = process.env.APP_URL ?? `https://${process.env.REPLIT_DEV_DOMAIN ?? "localhost:5000"}`;
+    const appUrl = process.env.APP_URL ?? "http://localhost:5000";
 
     // Find or create Stripe Customer for this learner
     const [learner] = await db.select().from(usersTable).where(eq(usersTable.id, learnerId)).limit(1);

@@ -1,16 +1,19 @@
-import { Readable } from 'stream';
-import { z } from 'zod';
-import { Router, type IRouter, type Request, type Response } from 'express';
+import { z } from "zod";
+import { Router, type IRouter, type Request, type Response } from "express";
 
 import {
   ObjectNotFoundError,
   ObjectStorageService,
-} from '../lib/objectStorage';
+} from "../lib/objectStorage";
+import {
+  contentTypeFromKey,
+  readStorageObject,
+  writeStorageObject,
+} from "../lib/localFs";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
-// Inline schemas — avoids requiring openapi codegen for storage endpoints
 const RequestUploadUrlBody = z.object({
   name: z.string(),
   size: z.number(),
@@ -21,25 +24,28 @@ function hasAuthenticatedSession(req: Request): boolean {
   return !!req.session?.userId;
 }
 
+function wildcardParam(raw: string | string[] | undefined): string {
+  if (raw === undefined) return "";
+  return Array.isArray(raw) ? raw.join("/") : raw;
+}
+
 /**
  * POST /storage/uploads/request-url
  *
- * Request a presigned URL for file upload.
- * The client sends JSON metadata (name, size, contentType) — NOT the file.
- * Then uploads the file directly to the returned presigned URL.
- * Requires auth middleware so public callers cannot mint write-capable URLs.
+ * Request a local upload URL. The client sends JSON metadata (name, size,
+ * contentType) — NOT the file — then PUTs the file to the returned URL.
  */
 router.post(
-  '/storage/uploads/request-url',
+  "/storage/uploads/request-url",
   async (req: Request, res: Response) => {
     if (!hasAuthenticatedSession(req)) {
-      res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: "Unauthorized" });
       return;
     }
 
     const parsed = RequestUploadUrlBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: 'Missing or invalid required fields' });
+      res.status(400).json({ error: "Missing or invalid required fields" });
       return;
     }
 
@@ -56,8 +62,73 @@ router.post(
         metadata: { name, size, contentType },
       });
     } catch (error) {
-      req.log.error({ err: error }, 'Error generating upload URL');
-      res.status(500).json({ error: 'Failed to generate upload URL' });
+      req.log.error({ err: error }, "Error generating upload URL");
+      res.status(500).json({ error: "Failed to generate upload URL" });
+    }
+  },
+);
+
+/**
+ * PUT /storage/uploads/*
+ *
+ * Accept raw file bytes and write them under storage/<key>.
+ * Body is parsed as raw Buffer via middleware in app.ts.
+ */
+router.put(
+  "/storage/uploads/*storageKey",
+  async (req: Request, res: Response) => {
+    try {
+      const storageKey = wildcardParam(req.params.storageKey);
+      if (!storageKey) {
+        res.status(400).json({ error: "Missing storage key" });
+        return;
+      }
+
+      const body = req.body;
+      const data = Buffer.isBuffer(body)
+        ? body
+        : Buffer.from(typeof body === "string" ? body : "");
+
+      if (data.length === 0) {
+        res.status(400).json({ error: "Empty upload body" });
+        return;
+      }
+
+      await writeStorageObject(storageKey, data);
+      res.status(200).json({ ok: true, storageKey });
+    } catch (error) {
+      req.log.error({ err: error }, "Error writing uploaded file");
+      res.status(500).json({ error: "Failed to store upload" });
+    }
+  },
+);
+
+/**
+ * GET /storage/files/*
+ *
+ * Serve any file by storage key (used for digital-product downloads).
+ */
+router.get(
+  "/storage/files/*storageKey",
+  async (req: Request, res: Response) => {
+    try {
+      const storageKey = wildcardParam(req.params.storageKey);
+      const result = await readStorageObject(storageKey);
+      if (!result) {
+        res.status(404).json({ error: "File not found" });
+        return;
+      }
+
+      res.setHeader(
+        "Content-Type",
+        contentTypeFromKey(storageKey),
+      );
+      res.setHeader("Content-Length", String(result.size));
+      res.setHeader("Cache-Control", "private, max-age=3600");
+      result.stream.pipe(res);
+    } catch (error) {
+      req.log.error({ err: error }, "Error serving storage file");
+      res.status(500).json({ error: "Failed to serve file" });
     }
   },
 );
@@ -65,37 +136,30 @@ router.post(
 /**
  * GET /storage/public-objects/*
  *
- * Serve public assets from PUBLIC_OBJECT_SEARCH_PATHS.
- * These are unconditionally public — no authentication or ACL checks.
+ * Serve public assets from storage/public/.
  */
 router.get(
-  '/storage/public-objects/*filePath',
+  "/storage/public-objects/*filePath",
   async (req: Request, res: Response) => {
     try {
-      const raw = req.params.filePath;
-      const filePath = Array.isArray(raw) ? raw.join('/') : raw;
+      const filePath = wildcardParam(req.params.filePath);
       const file = await objectStorageService.searchPublicObject(filePath);
       if (!file) {
-        res.status(404).json({ error: 'File not found' });
+        res.status(404).json({ error: "File not found" });
         return;
       }
 
       const response = await objectStorageService.downloadObject(file);
-
       res.status(response.status);
       response.headers.forEach((value, key) => res.setHeader(key, value));
-
-      if (response.body) {
-        const nodeStream = Readable.fromWeb(
-          response.body as ReadableStream<Uint8Array>,
-        );
-        nodeStream.pipe(res);
+      if (response.stream) {
+        response.stream.pipe(res);
       } else {
         res.end();
       }
     } catch (error) {
-      req.log.error({ err: error }, 'Error serving public object');
-      res.status(500).json({ error: 'Failed to serve public object' });
+      req.log.error({ err: error }, "Error serving public object");
+      res.status(500).json({ error: "Failed to serve public object" });
     }
   },
 );
@@ -103,14 +167,11 @@ router.get(
 /**
  * GET /storage/objects/*
  *
- * Serve object entities from PRIVATE_OBJECT_DIR.
- * Profile photos and banner images uploaded by tutors are served here.
- * Public — profile images need to be viewable by all students.
+ * Serve object entities (profile photos, banners). Public-read.
  */
-router.get('/storage/objects/*path', async (req: Request, res: Response) => {
+router.get("/storage/objects/*path", async (req: Request, res: Response) => {
   try {
-    const raw = req.params.path;
-    const wildcardPath = Array.isArray(raw) ? raw.join('/') : raw;
+    const wildcardPath = wildcardParam(req.params.path);
     const objectPath = `/objects/${wildcardPath}`;
     const objectFile =
       await objectStorageService.getObjectEntityFile(objectPath);
@@ -119,23 +180,19 @@ router.get('/storage/objects/*path', async (req: Request, res: Response) => {
 
     res.status(response.status);
     response.headers.forEach((value, key) => res.setHeader(key, value));
-
-    if (response.body) {
-      const nodeStream = Readable.fromWeb(
-        response.body as ReadableStream<Uint8Array>,
-      );
-      nodeStream.pipe(res);
+    if (response.stream) {
+      response.stream.pipe(res);
     } else {
       res.end();
     }
   } catch (error) {
     if (error instanceof ObjectNotFoundError) {
-      req.log.warn({ err: error }, 'Object not found');
-      res.status(404).json({ error: 'Object not found' });
+      req.log.warn({ err: error }, "Object not found");
+      res.status(404).json({ error: "Object not found" });
       return;
     }
-    req.log.error({ err: error }, 'Error serving object');
-    res.status(500).json({ error: 'Failed to serve object' });
+    req.log.error({ err: error }, "Error serving object");
+    res.status(500).json({ error: "Failed to serve object" });
   }
 });
 

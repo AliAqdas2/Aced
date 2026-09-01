@@ -4,8 +4,6 @@ import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
-
 // PORT and BASE_PATH are required at runtime (dev/preview) but not at build time.
 // We only enforce them when actually starting a server.
 const rawPort = process.env.PORT;
@@ -13,7 +11,7 @@ const port = rawPort ? Number(rawPort) : 3000;
 
 const basePath = process.env.BASE_PATH ?? '/';
 
-export default defineConfig(async ({ command }) => {
+export default defineConfig(({ command }) => {
   if (command !== 'build') {
     // Running dev or preview — validate that PORT is usable
     if (!rawPort) {
@@ -29,7 +27,6 @@ export default defineConfig(async ({ command }) => {
     plugins: [
       react(),
       tailwindcss(),
-      runtimeErrorOverlay(),
       VitePWA({
         registerType: 'autoUpdate',
         manifest: {
@@ -78,16 +75,6 @@ export default defineConfig(async ({ command }) => {
           ],
         },
       }),
-      ...(process.env.NODE_ENV !== 'production' && process.env.REPL_ID !== undefined
-        ? [
-            await import('@replit/vite-plugin-cartographer').then((m) =>
-              m.cartographer({ root: path.resolve(import.meta.dirname, '..') }),
-            ),
-            await import('@replit/vite-plugin-dev-banner').then((m) =>
-              m.devBanner(),
-            ),
-          ]
-        : []),
     ],
     resolve: {
       alias: {
@@ -109,7 +96,6 @@ export default defineConfig(async ({ command }) => {
       fs: { strict: false },
       proxy: {
         // Forward /api requests to the API server when running locally
-        // (in the Replit hosted environment, path-based routing handles this)
         '/api': {
           target: `http://localhost:${process.env.API_PORT ?? '8080'}`,
           changeOrigin: true,

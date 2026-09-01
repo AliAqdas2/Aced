@@ -1,3 +1,4 @@
+import "./env";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startEmailRetryWorker } from "./lib/emailRetryWorker";
@@ -6,7 +7,7 @@ const rawPort = process.env["PORT"];
 
 if (!rawPort) {
   throw new Error(
-    "PORT environment variable is required but was not provided.",
+    "PORT environment variable is required but was not provided. Set it in .env.",
   );
 }
 

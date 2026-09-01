@@ -10,7 +10,7 @@ import { notFound, errorHandler } from "./middlewares/errorHandler";
 
 const app: Express = express();
 
-// Trust proxy (Replit runs behind a reverse proxy)
+// Trust proxy (common behind reverse proxies / load balancers)
 app.set("trust proxy", 1);
 
 // Security headers
@@ -21,7 +21,7 @@ app.use(
   })
 );
 
-// CORS — build allowed origins from env vars plus Replit-managed domains
+// CORS — build allowed origins from env vars
 const allowedOrigins: Set<string> = new Set([
   "http://localhost:5173",
   "http://localhost:3000",
@@ -40,22 +40,6 @@ if (process.env.APP_URL) {
   try {
     allowedOrigins.add(new URL(process.env.APP_URL).origin);
   } catch { /* ignore malformed */ }
-}
-
-// REPLIT_DOMAINS — space-separated hostnames provided by the Replit runtime
-if (process.env.REPLIT_DOMAINS) {
-  for (const host of process.env.REPLIT_DOMAINS.split(" ")) {
-    const h = host.trim();
-    if (h) {
-      allowedOrigins.add(`https://${h}`);
-      allowedOrigins.add(`http://${h}`);
-    }
-  }
-}
-
-// REPLIT_DEV_DOMAIN — single dev-preview hostname
-if (process.env.REPLIT_DEV_DOMAIN) {
-  allowedOrigins.add(`https://${process.env.REPLIT_DEV_DOMAIN}`);
 }
 
 app.use(
@@ -119,9 +103,19 @@ app.use("/api/v1/auth/register", authLimiter);
 app.use("/api/v1/auth/magic-link", authLimiter);
 app.use("/api/v1/auth/password-reset", authLimiter);
 
-// Body parsing — raw Buffer for Stripe webhook (must come before express.json),
-// then JSON for all other routes.
+// Body parsing — raw Buffer for Stripe webhook and local file uploads
+// (must come before express.json), then JSON for all other routes.
 app.use("/api/v1/webhooks/stripe", express.raw({ type: "*/*" }));
+app.use(
+  "/api/storage/uploads",
+  (req, res, next) => {
+    // Only apply raw body parsing to PUT uploads, not POST request-url
+    if (req.method === "PUT") {
+      return express.raw({ type: "*/*", limit: "50mb" })(req, res, next);
+    }
+    next();
+  },
+);
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
 
