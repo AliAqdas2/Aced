@@ -48,6 +48,7 @@ export const usersTable = pgTable("users", {
     .defaultNow()
     .$onUpdate(() => new Date()),
 });
+//fdh
 
 export const profilesTable = pgTable("profiles", {
   id: uuid("id").defaultRandom().primaryKey(),
