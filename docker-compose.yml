@@ -18,16 +18,13 @@ services:
         max-size: "20m"
         max-file: "5"
 
-  # One-shot tools (not started by normal `up`).
+  # One-shot tools (not started by normal `up`). Image: ghcr.io/aliaqdas2/aced-portal:tools
   #   docker compose --profile tools run --rm db-push
   #   docker compose --profile tools run --rm seed
   #   docker compose --profile tools run --rm bootstrap-admins
   db-push:
     profiles: [tools]
-    build:
-      context: .
-      target: tools
-    image: ghcr.io/aliaqdas2/aced-portal:latest
+    image: ghcr.io/aliaqdas2/aced-portal:tools
     env_file: .env
     networks:
       - infra_internal
@@ -38,10 +35,7 @@ services:
 
   seed:
     profiles: [tools]
-    build:
-      context: .
-      target: tools
-    image: ghcr.io/aliaqdas2/aced-portal:latest
+    image: ghcr.io/aliaqdas2/aced-portal:tools
     env_file: .env
     networks:
       - infra_internal
@@ -52,10 +46,7 @@ services:
 
   bootstrap-admins:
     profiles: [tools]
-    build:
-      context: .
-      target: tools
-    image: ghcr.io/aliaqdas2/aced-portal:latest
+    image: ghcr.io/aliaqdas2/aced-portal:tools
     env_file: .env
     networks:
       - infra_internal
