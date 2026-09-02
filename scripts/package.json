@@ -12,7 +12,8 @@
   "dependencies": {
     "@workspace/db": "workspace:*",
     "bcryptjs": "^3.0.2",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "catalog:"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
