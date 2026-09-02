@@ -21,6 +21,7 @@ services:
   # One-shot tools (not started by normal `up`).
   #   docker compose --profile tools run --rm db-push
   #   docker compose --profile tools run --rm seed
+  #   docker compose --profile tools run --rm bootstrap-admins
   db-push:
     profiles: [tools]
     build:
@@ -48,6 +49,20 @@ services:
       - aced_portal_storage:/app/storage
     restart: "no"
     entrypoint: ["pnpm", "--filter", "@workspace/scripts", "run", "seed"]
+
+  bootstrap-admins:
+    profiles: [tools]
+    build:
+      context: .
+      target: tools
+    image: ghcr.io/aliaqdas2/aced-portal:latest
+    env_file: .env
+    networks:
+      - infra_internal
+    volumes:
+      - aced_portal_storage:/app/storage
+    restart: "no"
+    entrypoint: ["pnpm", "--filter", "@workspace/scripts", "run", "bootstrap-admins"]
 
 networks:
   infra_internal:

@@ -12,6 +12,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Form,
@@ -136,8 +137,8 @@ export default function Profile() {
               />
 
               <div className="space-y-2">
-                <FormLabel className="text-sm font-medium">Email Address</FormLabel>
-                <Input value={user?.email ?? ''} disabled />
+                <Label className="text-sm font-medium">Email Address</Label>
+                <Input value={user?.email ?? ''} disabled readOnly />
                 <p className="text-xs text-muted-foreground">
                   Email addresses cannot be changed directly.
                 </p>
