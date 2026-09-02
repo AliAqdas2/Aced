@@ -26,3 +26,32 @@ export const db = drizzle(pool, { schema });
 
 export * from "./schema";
 export { loadEnv } from "./loadEnv";
+export {
+  redactDatabaseUrl,
+  type RedactedDatabaseTarget,
+} from "./dbConnection";
+
+export type LiveDbIdentity = {
+  database: string | null;
+  serverAddr: string | null;
+  dbUser: string | null;
+};
+
+/** Query the live connection for database name / server / user (no secrets). */
+export async function getLiveDbIdentity(): Promise<LiveDbIdentity> {
+  const result = await pool.query<{
+    database: string | null;
+    server_addr: string | null;
+    db_user: string | null;
+  }>(
+    `SELECT current_database() AS database,
+            inet_server_addr()::text AS server_addr,
+            current_user AS db_user`,
+  );
+  const row = result.rows[0];
+  return {
+    database: row?.database ?? null,
+    serverAddr: row?.server_addr ?? null,
+    dbUser: row?.db_user ?? null,
+  };
+}

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { db } from "@workspace/db";
+import { db, getLiveDbIdentity } from "@workspace/db";
 import {
   usersTable,
   profilesTable,
@@ -72,6 +72,16 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 
   const user = await createUser({ email, password, displayName });
 
+  try {
+    const live = await getLiveDbIdentity();
+    req.log.info(
+      { email: user.email, userId: user.id, db: live.database },
+      "User registered",
+    );
+  } catch (err) {
+    req.log.warn({ err, email: user.email, userId: user.id }, "User registered (db identity unavailable)");
+  }
+
   // Send verification email
   const token = await generateEmailVerificationToken(user.id, email);
   const verifyUrl = `${process.env.APP_URL ?? "http://localhost:5000"}/api/v1/auth/verify-email?token=${token}`;
@@ -119,24 +129,61 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 
   const { email, password } = parsed.data;
 
+  const normalizedEmail = email.toLowerCase();
+  let dbName: string | null = null;
+  try {
+    const live = await getLiveDbIdentity();
+    dbName = live.database;
+  } catch {
+    // Best-effort identity for diagnostics only
+  }
+
   const [user] = await db
     .select()
     .from(usersTable)
-    .where(eq(usersTable.email, email.toLowerCase()))
+    .where(eq(usersTable.email, normalizedEmail))
     .limit(1);
 
   if (!user || !user.passwordHash) {
+    req.log.warn(
+      {
+        email: normalizedEmail,
+        reason: "user_not_found_or_no_password",
+        db: dbName,
+      },
+      "Login failed",
+    );
     res.status(401).json({ error: "Invalid credentials", code: "INVALID_CREDENTIALS" });
     return;
   }
 
   if (user.status !== "active") {
+    req.log.warn(
+      {
+        email: normalizedEmail,
+        userId: user.id,
+        status: user.status,
+        reason: "account_not_active",
+        db: dbName,
+      },
+      "Login blocked",
+    );
     res.status(403).json({ error: "Account suspended", code: "ACCOUNT_SUSPENDED" });
     return;
   }
 
   const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) {
+    req.log.warn(
+      {
+        email: normalizedEmail,
+        userId: user.id,
+        reason: "password_mismatch",
+        hashLen: user.passwordHash.length,
+        db: dbName,
+      },
+      "Login failed",
+    );
     res.status(401).json({ error: "Invalid credentials", code: "INVALID_CREDENTIALS" });
     return;
   }
@@ -160,6 +207,11 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     .update(usersTable)
     .set({ lastLoginAt: new Date() })
     .where(eq(usersTable.id, user.id));
+
+  req.log.info(
+    { email: user.email, userId: user.id, db: dbName },
+    "Login success",
+  );
 
   res.json({
     data: {

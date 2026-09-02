@@ -40,3 +40,29 @@ export function getDrizzleKitSsl(
 ): false | { rejectUnauthorized: false } {
   return shouldUseSsl(databaseUrl) ? { rejectUnauthorized: false } : false;
 }
+
+export type RedactedDatabaseTarget =
+  | {
+      host: string;
+      port: string;
+      database: string;
+      user: string;
+    }
+  | { parseError: true };
+
+/**
+ * Safe DATABASE_URL summary for logs/health — never includes password.
+ */
+export function redactDatabaseUrl(databaseUrl: string): RedactedDatabaseTarget {
+  try {
+    const parsed = new URL(databaseUrl.replace(/^postgresql:/i, "http:"));
+    return {
+      host: parsed.hostname || "(empty)",
+      port: parsed.port || "5432",
+      database: decodeURIComponent(parsed.pathname.replace(/^\//, "")) || "(empty)",
+      user: decodeURIComponent(parsed.username || "") || "(empty)",
+    };
+  } catch {
+    return { parseError: true };
+  }
+}
