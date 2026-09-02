@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useLocation } from 'wouter';
-import { useRegister, getGetMeQueryKey } from '@workspace/api-client-react';
+import { useRegister, getMe, getGetMeQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,8 +41,11 @@ export default function Register() {
 
   const registerMutation = useRegister({
     mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      onSuccess: async () => {
+        await queryClient.fetchQuery({
+          queryKey: getGetMeQueryKey(),
+          queryFn: ({ signal }) => getMe({ signal }),
+        });
         setLocation('/dashboard');
       },
     },

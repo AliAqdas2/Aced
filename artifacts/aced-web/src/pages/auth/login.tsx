@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useLocation } from 'wouter';
-import { useLogin, getGetMeQueryKey } from '@workspace/api-client-react';
+import { useLogin, getMe, getGetMeQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,11 +28,15 @@ export default function Login() {
 
   const loginMutation = useLogin({
     mutation: {
-      onSuccess: () => {
-        // Refresh auth state globally
-        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-        // Redirect to dashboard
-        setLocation('/dashboard');
+      onSuccess: async () => {
+        // Wait for session cookie to hydrate /auth/me before navigating,
+        // otherwise DashboardLayout can redirect back to login on a canceled me.
+        const me = await queryClient.fetchQuery({
+          queryKey: getGetMeQueryKey(),
+          queryFn: ({ signal }) => getMe({ signal }),
+        });
+        const role = me.data?.role;
+        setLocation(role === 'admin' || role === 'super_admin' ? '/admin' : '/dashboard');
       }
     }
   });

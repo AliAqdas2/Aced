@@ -1,14 +1,14 @@
 import { useGetMe, getGetMeQueryKey } from '@workspace/api-client-react';
 
 export function useAuth() {
-  const { data, isLoading, error } = useGetMe({
+  const { data, isLoading } = useGetMe({
     query: {
       retry: false,
       queryKey: getGetMeQueryKey(),
     }
   });
 
-  const isAuthenticated = !!data && !error;
+  const isAuthenticated = !!data?.data;
   
   return {
     user: data?.data,

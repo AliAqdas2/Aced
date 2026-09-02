@@ -52,15 +52,8 @@ export default defineConfig(({ command }) => {
           ],
         },
         workbox: {
+          // Do not cache /api/ — session-cookie auth must always hit the network.
           runtimeCaching: [
-            {
-              urlPattern: /\/api\//i,
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'api-cache',
-                networkTimeoutSeconds: 10,
-              },
-            },
             {
               urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
               handler: 'CacheFirst',
