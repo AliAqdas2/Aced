@@ -19,10 +19,20 @@ services:
         max-file: "5"
 
   # One-shot tools (not started by normal `up`). Image: ghcr.io/aliaqdas2/aced-portal:tools
-  #   docker compose --profile tools run --rm db-migrate
+  #   docker compose --profile tools run --rm db-baseline   # existing DB (schema already present)
+  #   docker compose --profile tools run --rm db-migrate      # empty DB or after new migrations
   #   docker compose --profile tools run --rm db-push
   #   docker compose --profile tools run --rm seed
   #   docker compose --profile tools run --rm bootstrap-admins
+  db-baseline:
+    profiles: [tools]
+    image: ghcr.io/aliaqdas2/aced-portal:tools
+    env_file: .env
+    networks:
+      - infra_internal
+    restart: "no"
+    entrypoint: ["pnpm", "--filter", "@workspace/db", "run", "baseline"]
+
   db-migrate:
     profiles: [tools]
     image: ghcr.io/aliaqdas2/aced-portal:tools
