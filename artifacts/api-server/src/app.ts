@@ -43,18 +43,36 @@ if (process.env.APP_URL) {
   } catch { /* ignore malformed */ }
 }
 
+// The browser sends Origin on same-origin subresource requests too, so an
+// unlisted deploy domain must never fail the request — it would answer CSS/JS
+// with a JSON error and leave a blank page.
+function isSameOrigin(origin: string, req: express.Request): boolean {
+  const host = req.headers.host;
+  if (!host) return false;
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const proto =
+    (typeof forwardedProto === "string"
+      ? forwardedProto.split(",")[0]?.trim()
+      : undefined) ?? req.protocol;
+  return origin === `${proto}://${host}`;
+}
+
 app.use(
-  cors({
-    origin: (origin, callback) => {
-      // No origin = same-origin or server-to-server: allow
-      if (!origin) return callback(null, true);
-      // Non-production: allow everything
-      if (process.env.NODE_ENV !== "production") return callback(null, true);
-      // Production: check allowlist
-      if (allowedOrigins.has(origin)) return callback(null, true);
-      callback(new Error(`CORS: origin '${origin}' not allowed`));
-    },
-    credentials: true,
+  cors((req, callback) => {
+    const origin = req.headers.origin;
+    const allowed =
+      // No origin = same-origin or server-to-server
+      !origin ||
+      process.env.NODE_ENV !== "production" ||
+      allowedOrigins.has(origin) ||
+      isSameOrigin(origin, req as express.Request);
+
+    if (!allowed) {
+      logger.warn({ origin }, "CORS: origin not allowed");
+    }
+    // Reflect the origin when allowed; otherwise omit CORS headers and let the
+    // browser block the response, rather than erroring the whole request.
+    callback(null, { origin: allowed, credentials: true });
   })
 );
 
