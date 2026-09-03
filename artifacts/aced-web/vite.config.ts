@@ -2,7 +2,6 @@ import path from 'path';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
-import { VitePWA } from 'vite-plugin-pwa';
 
 // PORT and BASE_PATH are required at runtime (dev/preview) but not at build time.
 // We only enforce them when actually starting a server.
@@ -27,47 +26,6 @@ export default defineConfig(({ command }) => {
     plugins: [
       react(),
       tailwindcss(),
-      VitePWA({
-        registerType: 'autoUpdate',
-        manifest: {
-          name: 'Aced',
-          short_name: 'Aced',
-          description: 'The premium UK university creator marketplace',
-          theme_color: '#7B2FF7',
-          background_color: '#0F1A3C',
-          display: 'standalone',
-          start_url: '/',
-          icons: [
-            {
-              src: 'pwa-192x192.png',
-              sizes: '192x192',
-              type: 'image/png',
-            },
-            {
-              src: 'pwa-512x512.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'any maskable',
-            },
-          ],
-        },
-        workbox: {
-          // Do not cache /api/ — session-cookie auth must always hit the network.
-          runtimeCaching: [
-            {
-              urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'image-cache',
-                expiration: {
-                  maxEntries: 60,
-                  maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-                },
-              },
-            },
-          ],
-        },
-      }),
     ],
     resolve: {
       alias: {

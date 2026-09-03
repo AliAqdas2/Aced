@@ -5,6 +5,12 @@ import express, { type Express } from "express";
 import { getRepoRoot } from "./localFs";
 import { logger } from "./logger";
 
+const NEVER_CACHED_FILES = new Set([
+  "index.html",
+  "sw.js",
+  "manifest.webmanifest",
+]);
+
 function resolveWebDist(): string | null {
   const indexRel = path.join("artifacts", "aced-web", "dist", "public");
   const candidates = [
@@ -51,7 +57,26 @@ export function mountProductionWeb(app: Express): void {
 
   logger.info({ webDist, basePath: normalizedBase }, "Mounting production web UI");
 
-  app.use(normalizedBase, express.static(webDist, { index: false }));
+  app.use(
+    normalizedBase,
+    express.static(webDist, {
+      index: false,
+      setHeaders(res, filePath) {
+        const relative = path.relative(webDist, filePath).split(path.sep);
+        if (relative[0] === "assets") {
+          // Vite emits content-hashed filenames under assets/.
+          res.setHeader(
+            "Cache-Control",
+            "public, max-age=31536000, immutable",
+          );
+          return;
+        }
+        if (NEVER_CACHED_FILES.has(relative[relative.length - 1] ?? "")) {
+          res.setHeader("Cache-Control", "no-store");
+        }
+      },
+    }),
+  );
 
   app.use((req, res, next) => {
     if (req.method !== "GET" && req.method !== "HEAD") {
@@ -62,6 +87,16 @@ export function mountProductionWeb(app: Express): void {
       next();
       return;
     }
+    // A request with a file extension is an asset, not an SPA navigation.
+    // Answering it with index.html (or the JSON error handler) breaks the page
+    // with a MIME type mismatch, so fail it plainly instead.
+    if (path.extname(req.path) !== "") {
+      res.status(404);
+      res.setHeader("Cache-Control", "no-store");
+      res.type("text/plain").send("Not found");
+      return;
+    }
+    res.setHeader("Cache-Control", "no-store");
     res.sendFile(path.join(webDist, "index.html"), (err) => {
       if (err) next(err);
     });
