@@ -126,10 +126,9 @@ app.use(sessionMiddleware);
 // Routes
 app.use("/api", router);
 
-// Production: serve built web app from the same process (Docker / single-port deploy)
-if (process.env.NODE_ENV === "production") {
-  mountProductionWeb(app);
-}
+// Serve built web app when dist exists (Docker / single-port deploy).
+// Do not gate only on NODE_ENV — production .env often sets development.
+mountProductionWeb(app);
 
 // 404 handler
 app.use(notFound);
