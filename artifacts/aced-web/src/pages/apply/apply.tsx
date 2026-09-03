@@ -225,6 +225,68 @@ function UniversityCombobox({ universities, value, onChange, isLoading, isError 
   );
 }
 
+interface CourseOption {
+  id: string;
+  name: string;
+}
+
+interface CourseComboboxProps {
+  courses: CourseOption[];
+  value: string;
+  onChange: (id: string) => void;
+  disabled: boolean;
+  isLoading: boolean;
+  placeholder: string;
+}
+
+/** Searchable course picker — common subjects per university are too many for a plain select. */
+function CourseCombobox({ courses, value, onChange, disabled, placeholder }: CourseComboboxProps) {
+  const [open, setOpen] = useState(false);
+  const selected = courses.find(c => c.id === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          disabled={disabled}
+          className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <span className={cn('truncate', !selected && 'text-muted-foreground')}>
+            {selected?.name ?? placeholder}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search courses…" />
+          <CommandList>
+            <CommandEmpty>No course found.</CommandEmpty>
+            <CommandGroup>
+              {courses.map(course => (
+                <CommandItem
+                  key={course.id}
+                  value={course.name}
+                  onSelect={() => {
+                    onChange(course.id);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={cn('h-4 w-4', course.id === value ? 'opacity-100' : 'opacity-0')} />
+                  {course.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 interface ExistingVerification {
   claimType: string;
   evidenceFileName: string;
@@ -389,44 +451,29 @@ export function CreatorApplicationForm({ initialValues }: { initialValues?: Appl
                 )}
               />
 
-              {/* #15 — Course dropdown, filtered by selected university */}
+              {/* #15 — Searchable course picker, filtered by selected university */}
               <FormField
                 control={form.control}
                 name="courseId"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Course / Subject</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                      disabled={!selectedUniversityId || coursesLoading}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue
-                            placeholder={
-                              !selectedUniversityId
-                                ? 'Select a university first'
-                                : coursesLoading
-                                ? 'Loading courses…'
-                                : 'Select your course'
-                            }
-                          />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {coursesData?.data?.map(course => (
-                          <SelectItem key={course.id} value={course.id}>
-                            {course.name}
-                          </SelectItem>
-                        ))}
-                        {selectedUniversityId && !coursesLoading && coursesData?.data?.length === 0 && (
-                          <div className="py-2 px-3 text-sm text-muted-foreground">
-                            No courses found for this university.
-                          </div>
-                        )}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <CourseCombobox
+                        courses={(coursesData?.data ?? []) as CourseOption[]}
+                        value={field.value}
+                        onChange={field.onChange}
+                        disabled={!selectedUniversityId || coursesLoading}
+                        isLoading={coursesLoading}
+                        placeholder={
+                          !selectedUniversityId
+                            ? 'Select a university first'
+                            : coursesLoading
+                            ? 'Loading courses…'
+                            : 'Select your course'
+                        }
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

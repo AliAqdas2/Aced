@@ -77,11 +77,13 @@ export function BecomeATutor() {
         <Card className="bg-primary/5 border-primary/20">
           <CardContent className="p-8">
             <h3 className="font-serif text-2xl font-bold mb-4">Sell Digital Products</h3>
-            <ul className="space-y-3 text-muted-foreground mb-6 list-disc pl-5">
-              <li>Upload once, sell infinitely</li>
-              <li>Revision notes &amp; summaries</li>
-              <li>First-class essay examples</li>
-              <li>Set your own prices</li>
+            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-muted-foreground">
+              {['Upload once, sell infinitely', 'Revision notes & summaries', 'First-class essay examples', 'Set your own prices'].map((item) => (
+                <li key={item} className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+                  <span>{item}</span>
+                </li>
+              ))}
             </ul>
           </CardContent>
         </Card>
@@ -89,11 +91,13 @@ export function BecomeATutor() {
         <Card className="bg-secondary/5 border-secondary/20">
           <CardContent className="p-8">
             <h3 className="font-serif text-2xl font-bold mb-4">Offer 1:1 Services</h3>
-            <ul className="space-y-3 text-muted-foreground mb-6 list-disc pl-5">
-              <li>Set your own hourly rate</li>
-              <li>Manage availability seamlessly</li>
-              <li>Personal statement reviews</li>
-              <li>Interview preparation</li>
+            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-muted-foreground">
+              {['Set your own hourly rate', 'Manage availability seamlessly', 'Personal statement reviews', 'Interview preparation'].map((item) => (
+                <li key={item} className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+                  <span>{item}</span>
+                </li>
+              ))}
             </ul>
           </CardContent>
         </Card>
