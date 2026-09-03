@@ -69,7 +69,7 @@ export function BecomeATutor() {
     <div className="container mx-auto px-4 py-20 max-w-4xl">
       <h1 className="font-serif text-4xl md:text-5xl font-bold mb-6 text-center">Become a Tutor</h1>
       <p className="text-xl text-muted-foreground text-center mb-16 max-w-2xl mx-auto">
-        Monetise your academic success. Join the UK's premium marketplace for top students.
+        Monetise your academic success without giving up learning. One account can tutor one course and still book help on others.
       </p>
 
       {/* Marketing cards */}
@@ -104,22 +104,27 @@ export function BecomeATutor() {
         <div className="text-center mb-10">
           <h2 className="font-serif text-3xl md:text-4xl font-bold mb-4">Apply Now</h2>
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-            Tell us about your academic background. Applications are reviewed within 48 hours.
+            Tell us about the subject you want to teach. Applications are reviewed within 48 hours — applying does not stop you booking help as a student.
           </p>
         </div>
 
         {isCreator ? (
-          /* Already a creator */
+          /* Approved tutor — still a learner on the same account */
           <Card className="border-primary/20 bg-primary/5 max-w-lg mx-auto">
             <CardContent className="p-10 text-center">
               <CheckCircle className="h-12 w-12 text-primary mx-auto mb-4" />
-              <h3 className="font-serif text-2xl font-bold mb-2">You're already a tutor!</h3>
+              <h3 className="font-serif text-2xl font-bold mb-2">You're set up to teach</h3>
               <p className="text-muted-foreground mb-6">
-                Head to your Tutor Studio to manage listings, set availability, and track earnings.
+                Manage listings, availability, and earnings in Tutor Studio. You can still explore the marketplace and book sessions as a student whenever you need help with another course.
               </p>
-              <Button asChild className="w-full h-12 font-bold">
-                <Link href="/studio">Go to Tutor Studio</Link>
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button asChild className="flex-1 h-12 font-bold">
+                  <Link href="/studio">Go to Tutor Studio</Link>
+                </Button>
+                <Button asChild variant="outline" className="flex-1 h-12 font-bold">
+                  <Link href="/search">Keep learning</Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : !isAuthenticated ? (

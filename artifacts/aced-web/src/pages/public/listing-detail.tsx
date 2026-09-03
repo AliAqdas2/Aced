@@ -50,11 +50,13 @@ function SlotPicker({
   serviceOffer,
   price,
   onBooked,
+  isOwnListing = false,
 }: {
   listingId: string;
   serviceOffer: { id: string; durationMinutes: number; bookingHorizonDays: number };
   price: { amountMinorUnits: number } | null;
   onBooked: () => void;
+  isOwnListing?: boolean;
 }) {
   const { isAuthenticated } = useAuth();
   const [, setLocation] = useWouterLocation();
@@ -75,7 +77,7 @@ function SlotPicker({
   const { data: availData, isLoading: slotsLoading } = useGetServiceAvailability(
     listingId,
     availParams,
-    { query: { enabled: !!dateStr, queryKey: getGetServiceAvailabilityQueryKey(listingId, availParams) } }
+    { query: { enabled: !!dateStr && !isOwnListing, queryKey: getGetServiceAvailabilityQueryKey(listingId, availParams) } }
   );
 
   const availableSlots = (availData?.data?.slots ?? []).filter(
@@ -159,6 +161,21 @@ function SlotPicker({
 
   const isPending =
     holdMutation.isPending || checkoutMutation.isPending || confirmFreeMutation.isPending;
+
+  if (isOwnListing) {
+    return (
+      <div className="rounded-2xl border border-border/50 bg-muted/30 p-6 text-center space-y-3">
+        <AlertCircle className="h-10 w-10 text-muted-foreground mx-auto opacity-60" />
+        <h3 className="text-base font-bold">This is your listing</h3>
+        <p className="text-sm text-muted-foreground font-medium">
+          You can&apos;t book your own sessions. Manage bookings from Tutor Studio.
+        </p>
+        <Button asChild variant="outline" className="w-full font-bold">
+          <Link href="/studio/listings">Go to my listings</Link>
+        </Button>
+      </div>
+    );
+  }
 
   if (success) {
     return (
@@ -303,7 +320,7 @@ export default function ListingDetail() {
   const params = useParams();
   const id = params.id as string;
   const [, setLocation] = useWouterLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
   const [booked, setBooked] = useState(false);
 
@@ -358,6 +375,8 @@ export default function ListingDetail() {
     sessionsRemaining,
     currentPeriodEnd,
   } = response.data as any;
+  const creatorProfileId = (user?.creatorProfile as { id?: string } | null | undefined)?.id;
+  const isOwnListing = Boolean(creatorProfileId && listing.creatorId === creatorProfileId);
   const isSubscription = !!subscriptionPlan;
   const priceAmount =
     isSubscription
@@ -372,6 +391,10 @@ export default function ListingDetail() {
       setLocation(`/auth/login?redirect=/listings/${id}`);
       return;
     }
+    if (isOwnListing) {
+      toast({ title: "You can't subscribe to your own listing", variant: 'destructive' });
+      return;
+    }
     subscribeMutation.mutate({ data: { subscriptionPlanId: subscriptionPlan.id } });
   };
 
@@ -380,11 +403,25 @@ export default function ListingDetail() {
       setLocation(`/auth/login?redirect=/listings/${id}`);
       return;
     }
+    if (isOwnListing) {
+      toast({ title: "You can't buy your own listing", variant: 'destructive' });
+      return;
+    }
     checkoutMutation.mutate(
       { data: { listingId: id } },
       {
         onSuccess: (res) => {
           if (res.data?.checkoutUrl) window.location.href = res.data.checkoutUrl;
+        },
+        onError: (err: unknown) => {
+          const code = (err as { data?: { code?: string } })?.data?.code;
+          toast({
+            title:
+              code === 'CANNOT_PURCHASE_OWN_LISTING'
+                ? "You can't buy your own listing"
+                : 'Could not start checkout',
+            variant: 'destructive',
+          });
         },
       }
     );
@@ -507,6 +544,7 @@ export default function ListingDetail() {
                             serviceOffer={serviceOffer as any}
                             price={null}
                             onBooked={() => setBooked(true)}
+                            isOwnListing={isOwnListing}
                           />
                         ) : (
                           <div className="rounded-xl bg-muted/40 border border-border/50 p-4 text-center space-y-2">
@@ -536,6 +574,17 @@ export default function ListingDetail() {
                         <p className="text-xs text-muted-foreground">
                           The creator has temporarily paused new subscriptions. Check back later.
                         </p>
+                      </div>
+                    ) : isOwnListing ? (
+                      <div className="rounded-2xl border border-border/50 bg-muted/30 p-6 text-center space-y-3">
+                        <AlertCircle className="h-10 w-10 text-muted-foreground mx-auto opacity-60" />
+                        <h3 className="text-base font-bold">This is your listing</h3>
+                        <p className="text-sm text-muted-foreground font-medium">
+                          You can&apos;t subscribe to your own plan. Manage it from Tutor Studio.
+                        </p>
+                        <Button asChild variant="outline" className="w-full font-bold">
+                          <Link href="/studio/listings">Go to my listings</Link>
+                        </Button>
                       </div>
                     ) : (
                       /* Not yet subscribed — show Subscribe CTA */
@@ -623,6 +672,7 @@ export default function ListingDetail() {
                       serviceOffer={serviceOffer as any}
                       price={price as any}
                       onBooked={() => setBooked(true)}
+                      isOwnListing={isOwnListing}
                     />
                   </CardContent>
                 </Card>
@@ -643,23 +693,38 @@ export default function ListingDetail() {
                         <span>Lifetime access</span>
                       </div>
                     </div>
-                    <Button
-                      size="lg"
-                      className="w-full h-16 text-lg font-bold rounded-xl shadow-none bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-                      onClick={handlePurchase}
-                      disabled={checkoutMutation.isPending}
-                    >
-                      {checkoutMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing…
-                        </>
-                      ) : (
-                        'Buy Now'
-                      )}
-                    </Button>
-                    <p className="text-sm font-medium text-center text-background/50 mt-6">
-                      Secure payment powered by Stripe
-                    </p>
+                    {isOwnListing ? (
+                      <div className="rounded-2xl border border-background/20 bg-background/10 p-6 text-center space-y-3">
+                        <AlertCircle className="h-10 w-10 text-background/60 mx-auto" />
+                        <h3 className="text-base font-bold text-background">This is your listing</h3>
+                        <p className="text-sm font-medium text-background/60">
+                          You can&apos;t buy your own digital product. Manage it from Tutor Studio.
+                        </p>
+                        <Button asChild variant="secondary" className="w-full font-bold">
+                          <Link href="/studio/listings">Go to my listings</Link>
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        size="lg"
+                        className="w-full h-16 text-lg font-bold rounded-xl shadow-none bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                        onClick={handlePurchase}
+                        disabled={checkoutMutation.isPending}
+                      >
+                        {checkoutMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing…
+                          </>
+                        ) : (
+                          'Buy Now'
+                        )}
+                      </Button>
+                    )}
+                    {!isOwnListing && (
+                      <p className="text-sm font-medium text-center text-background/50 mt-6">
+                        Secure payment powered by Stripe
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               )}

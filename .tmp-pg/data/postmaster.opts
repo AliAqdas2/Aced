@@ -1,0 +1,1 @@
+/Library/PostgreSQL/18/bin/postgres "-D" ".tmp-pg/data" "-p" "55432" "-k" "/Users/Ali/Downloads/Aced-Portal/.tmp-pg/sock" "-c" "listen_addresses=127.0.0.1"

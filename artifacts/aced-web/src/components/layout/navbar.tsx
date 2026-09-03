@@ -62,7 +62,11 @@ export function Navbar() {
             <Link href="/search" className="text-sm font-bold tracking-tight hover:text-primary transition-colors">
               Explore
             </Link>
-            {!isCreator && (
+            {isCreator ? (
+              <Link href="/studio" className="text-sm font-bold tracking-tight hover:text-primary transition-colors">
+                Tutor Studio
+              </Link>
+            ) : (
               <Link href="/become-a-tutor" className="text-sm font-bold tracking-tight hover:text-primary transition-colors">
                 Join as an Ace
               </Link>
@@ -86,7 +90,8 @@ export function Navbar() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="my-1" />
                 
-                {/* Learner Links */}
+                {/* Learner Links — always available; tutoring is additive */}
+                <DropdownMenuLabel className="text-xs tracking-widest uppercase text-muted-foreground p-2">My learning</DropdownMenuLabel>
                 <DropdownMenuItem asChild className="rounded-lg cursor-pointer">
                   <Link href="/dashboard" className="w-full flex items-center py-2 font-medium">
                     Dashboard

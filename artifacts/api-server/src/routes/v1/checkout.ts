@@ -107,6 +107,19 @@ router.post("/checkout/sessions", requireAuth, async (req, res): Promise<void> =
     .where(eq(creatorProfilesTable.id, listing.creatorId))
     .limit(1);
 
+  if (!creator) {
+    res.status(404).json({ error: "Creator not found" });
+    return;
+  }
+
+  if (creator.userId === buyerId) {
+    res.status(403).json({
+      error: "You cannot purchase or book your own listing",
+      code: "CANNOT_PURCHASE_OWN_LISTING",
+    });
+    return;
+  }
+
   if (!creator.stripeAccountId || creator.stripeAccountStatus !== "active") {
     res.status(400).json({ error: "Creator payment setup incomplete", code: "CREATOR_NOT_READY" });
     return;

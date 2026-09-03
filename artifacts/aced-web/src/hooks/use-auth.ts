@@ -9,11 +9,13 @@ export function useAuth() {
   });
 
   const isAuthenticated = !!data?.data;
-  
+
   return {
     user: data?.data,
     isAuthenticated,
     isLoading,
+    /** Every signed-in account can learn (book, buy, library). Tutoring is additive. */
+    isLearner: isAuthenticated,
     isCreator: data?.data?.role === 'creator',
     isAdmin: data?.data?.role === 'admin',
   };

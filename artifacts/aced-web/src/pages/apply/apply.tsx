@@ -19,8 +19,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Card, CardContent } from '@/components/ui/card';
-import { Upload, FileText, X, Loader2 } from 'lucide-react';
+import { Upload, FileText, X, Loader2, Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const applySchema = z.object({
   universityId: z.string().min(1, "Please select your university"),
@@ -155,6 +158,73 @@ async function uploadVerificationDoc(file: File, claimType: string): Promise<voi
   }
 }
 
+interface UniversityOption {
+  id: string;
+  name: string;
+}
+
+interface UniversityComboboxProps {
+  universities: UniversityOption[];
+  value: string;
+  onChange: (id: string) => void;
+  isLoading: boolean;
+  isError: boolean;
+}
+
+/** Searchable university picker — the full UK list is far too long for a plain select. */
+function UniversityCombobox({ universities, value, onChange, isLoading, isError }: UniversityComboboxProps) {
+  const [open, setOpen] = useState(false);
+  const selected = universities.find(u => u.id === value);
+
+  const placeholder = isLoading
+    ? 'Loading universities…'
+    : isError
+    ? 'Could not load universities'
+    : 'Select your university';
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          disabled={isLoading || isError}
+          className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <span className={cn('truncate', !selected && 'text-muted-foreground')}>
+            {selected?.name ?? placeholder}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search universities…" />
+          <CommandList>
+            <CommandEmpty>No university found.</CommandEmpty>
+            <CommandGroup>
+              {universities.map(uni => (
+                <CommandItem
+                  key={uni.id}
+                  value={uni.name}
+                  onSelect={() => {
+                    onChange(uni.id);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={cn('h-4 w-4', uni.id === value ? 'opacity-100' : 'opacity-0')} />
+                  {uni.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 interface ExistingVerification {
   claimType: string;
   evidenceFileName: string;
@@ -174,7 +244,12 @@ interface ApplicationInitialValues {
 export function CreatorApplicationForm({ initialValues }: { initialValues?: ApplicationInitialValues }) {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
-  const { data: universities } = useListUniversities();
+  const {
+    data: universitiesData,
+    isLoading: universitiesLoading,
+    isError: universitiesError,
+  } = useListUniversities();
+  const universities = (universitiesData?.data ?? []) as UniversityOption[];
   const { data: configData } = useGetApplicationConfig({
     query: { queryKey: getGetApplicationConfigQueryKey() },
   });
@@ -288,25 +363,27 @@ export function CreatorApplicationForm({ initialValues }: { initialValues?: Appl
             <div className="space-y-4">
               <h3 className="text-lg font-bold border-b pb-2">Academic Background</h3>
 
-              {/* #15 — University dropdown (searchable via existing API filtering) */}
+              {/* #15 — Searchable university picker over the full UK list */}
               <FormField
                 control={form.control}
                 name="universityId"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>University</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select your university" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {universities?.data?.map(uni => (
-                          <SelectItem key={uni.id} value={uni.id}>{uni.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <UniversityCombobox
+                        universities={universities}
+                        value={field.value}
+                        onChange={field.onChange}
+                        isLoading={universitiesLoading}
+                        isError={universitiesError}
+                      />
+                    </FormControl>
+                    {universitiesError && (
+                      <p className="text-xs text-destructive">
+                        We couldn't load the university list. Please refresh and try again.
+                      </p>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -569,7 +646,9 @@ export default function Apply() {
           ) : (
             <>
               <h1 className="font-serif text-4xl font-bold mb-4">Join as an Ace</h1>
-              <p className="text-xl text-muted-foreground">Share your expertise and start earning on Aced.</p>
+              <p className="text-xl text-muted-foreground">
+                Share your expertise and start earning. You'll still be able to learn on Aced — tutoring is an extra hat, not a switch.
+              </p>
             </>
           )}
         </div>

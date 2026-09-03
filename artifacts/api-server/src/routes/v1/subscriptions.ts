@@ -26,6 +26,7 @@ import {
 } from "@workspace/db";
 import { eq, and, count } from "drizzle-orm";
 import { requireAuth, requireRole } from "../../middlewares/auth";
+import { rejectIfOwnListing } from "../../lib/ownListing";
 import Stripe from "stripe";
 
 const router: IRouter = Router();
@@ -196,6 +197,10 @@ router.post(
 
     if (!listing) {
       res.status(404).json({ error: "Listing not found or not published" });
+      return;
+    }
+
+    if (await rejectIfOwnListing(res, listing.creatorId, learnerId)) {
       return;
     }
 

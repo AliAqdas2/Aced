@@ -38,7 +38,7 @@ router.get("/taxonomy/universities", async (req, res): Promise<void> => {
     query = query.where(eq(universitiesTable.countryId, countryId));
   }
 
-  const universities = await query.orderBy(universitiesTable.name).limit(100);
+  const universities = await query.orderBy(universitiesTable.name);
   res.json({ data: universities });
 });
 

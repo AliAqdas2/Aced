@@ -112,15 +112,12 @@ export default function Register() {
                 <FormLabel className="font-bold">Email</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder="name@university.ac.uk"
+                    placeholder="you@example.com"
                     type="email"
                     className={inputClass}
                     {...field}
                   />
                 </FormControl>
-                <p className="text-xs font-medium text-muted-foreground mt-2">
-                  Use your university email if applying to be a creator.
-                </p>
                 <FormMessage />
               </FormItem>
             )}

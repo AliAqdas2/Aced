@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { syncBookingCreated } from "../../lib/calendar-sync";
+import { rejectIfOwnListing } from "../../lib/ownListing";
 import { db } from "@workspace/db";
 import {
   availabilityRulesTable,
@@ -198,6 +199,21 @@ router.post("/bookings/holds", requireAuth, async (req, res): Promise<void> => {
   const { listingId, serviceOfferId, startAt, timezone } = parsed.data;
   const learnerId = req.session.userId!;
 
+  const [listingForHold] = await db
+    .select({ creatorId: listingsTable.creatorId })
+    .from(listingsTable)
+    .where(eq(listingsTable.id, listingId))
+    .limit(1);
+
+  if (!listingForHold) {
+    res.status(404).json({ error: "Listing not found" });
+    return;
+  }
+
+  if (await rejectIfOwnListing(res, listingForHold.creatorId, learnerId)) {
+    return;
+  }
+
   const [offer] = await db
     .select()
     .from(serviceOffersTable)
@@ -299,6 +315,10 @@ router.post("/bookings/confirm", requireAuth, async (req, res): Promise<void> =>
 
   if (!listing) {
     res.status(404).json({ error: "Listing not found" });
+    return;
+  }
+
+  if (await rejectIfOwnListing(res, listing.creatorId, learnerId)) {
     return;
   }
 

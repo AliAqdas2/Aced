@@ -15,7 +15,7 @@ import { useEffect } from 'react';
 
 const sidebarNavItems = [
   {
-    title: 'Dashboard',
+    title: 'My learning',
     href: '/dashboard',
     icon: LayoutDashboard,
   },

@@ -20,7 +20,6 @@ import {
   entitlementsTable,
   reviewsTable,
   commissionRulesTable,
-  countriesTable,
   universitiesTable,
   coursesTable,
   modulesTable,
@@ -28,51 +27,22 @@ import {
   paymentsTable,
   ledgerEntriesTable,
 } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { seedTaxonomy } from "./seed-taxonomy";
 
 async function main() {
   console.log("🌱 Seeding Aced database...");
 
-  // --- Countries ---
-  const [uk] = await db
-    .insert(countriesTable)
-    .values({ name: "United Kingdom", code: "GB" })
-    .onConflictDoNothing()
-    .returning();
-
-  // --- Universities ---
-  const uniData = [
-    { name: "University of Warwick", slug: "warwick" },
-    { name: "University of Oxford", slug: "oxford" },
-    { name: "University of Cambridge", slug: "cambridge" },
-    { name: "London School of Economics", slug: "lse" },
-    { name: "University College London", slug: "ucl" },
-    { name: "Durham University", slug: "durham" },
-    { name: "University of Bristol", slug: "bristol" },
-    { name: "University of Nottingham", slug: "nottingham" },
-  ];
-
-  const ukId = uk?.id ?? (await db.select().from(countriesTable).limit(1))[0].id;
+  // --- Countries, universities and common degree subjects ---
+  const taxonomy = await seedTaxonomy();
+  console.log(
+    `  Taxonomy: +${taxonomy.universitiesCreated} universities, +${taxonomy.coursesCreated} courses`
+  );
 
   const universities: Record<string, string> = {};
-  for (const u of uniData) {
-    const [uni] = await db
-      .insert(universitiesTable)
-      .values({ countryId: ukId, name: u.name, slug: u.slug, status: "active" })
-      .onConflictDoNothing()
-      .returning();
-    if (uni) universities[u.slug] = uni.id;
-  }
-
-  // Get existing universities if insert returned nothing (conflict)
-  if (Object.keys(universities).length === 0) {
-    const existing = await db.select().from(universitiesTable);
-    for (const u of existing) universities[u.slug] = u.id;
-  } else {
-    const existing = await db.select().from(universitiesTable);
-    for (const u of existing) {
-      if (!universities[u.slug]) universities[u.slug] = u.id;
-    }
+  for (const u of await db.select().from(universitiesTable)) {
+    universities[u.slug] = u.id;
   }
 
   // --- Courses ---
@@ -88,22 +58,22 @@ async function main() {
     { universityId: lseId, name: "Law LLB", slug: "law-llb", faculty: "Law Department", level: "undergraduate", durationYears: 3 },
   ];
 
+  // Courses have no unique constraint, so match on (universityId, slug) by hand
+  // to keep repeat runs from duplicating the demo data.
   const courseMap: Record<string, string> = {};
-  for (const c of coursesData) {
-    if (!c.universityId) continue;
-    const [course] = await db
-      .insert(coursesTable)
-      .values(c)
-      .onConflictDoNothing()
-      .returning();
-    if (course) courseMap[`${c.universityId}-${c.slug}`] = course.id;
+  for (const c of await db.select().from(coursesTable)) {
+    courseMap[`${c.universityId}-${c.slug}`] = c.id;
   }
 
-  // Fill gaps
-  const existingCourses = await db.select().from(coursesTable);
-  for (const c of existingCourses) courseMap[`${c.universityId}-${c.slug}`] = c.id;
+  for (const c of coursesData) {
+    if (!c.universityId) continue;
+    const key = `${c.universityId}-${c.slug}`;
+    if (courseMap[key]) continue;
+    const [course] = await db.insert(coursesTable).values(c).returning();
+    if (course) courseMap[key] = course.id;
+  }
 
-  const warwickLawId = Object.values(courseMap)[0];
+  const warwickLawId = warwickId ? courseMap[`${warwickId}-law-llb`] : undefined;
 
   // --- Modules for Warwick Law ---
   const modulesData = [
@@ -118,11 +88,17 @@ async function main() {
   ];
 
   if (warwickLawId) {
+    const existingModuleSlugs = new Set(
+      (
+        await db
+          .select({ slug: modulesTable.slug })
+          .from(modulesTable)
+          .where(eq(modulesTable.courseId, warwickLawId))
+      ).map((m) => m.slug)
+    );
     for (const m of modulesData) {
-      await db
-        .insert(modulesTable)
-        .values({ courseId: warwickLawId, ...m })
-        .onConflictDoNothing();
+      if (existingModuleSlugs.has(m.slug)) continue;
+      await db.insert(modulesTable).values({ courseId: warwickLawId, ...m });
     }
   }
 
