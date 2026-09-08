@@ -5,14 +5,11 @@ import {
   useUpdateListing,
   useGetListing,
   useCreateSubscriptionPlan,
-  usePauseSubscriptionPlan,
-  useResumeSubscriptionPlan,
-  useGetSubscriptionPlanImpact,
   getGetCreatorListingsQueryKey,
   getGetListingQueryKey,
   getGetCreatorStorefrontQueryKey,
 } from '@workspace/api-client-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -186,10 +183,16 @@ function EditSubscriptionPlanModal({
   const plan = (listingDetail?.data as any)?.subscriptionPlan ?? null;
   const serviceOffer = (listingDetail?.data as any)?.serviceOffer ?? null;
 
-  const { data: impactData } = useGetSubscriptionPlanImpact(plan?.id ?? '', {
-    query: { enabled: !!plan?.id, queryKey: ['getSubscriptionPlanImpact', plan?.id ?? ''] },
+  const { data: impactData } = useQuery({
+    queryKey: ['getSubscriptionPlanImpact', plan?.id ?? ''],
+    enabled: !!plan?.id,
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/creator/subscription-plans/${plan!.id}/impact`);
+      if (!res.ok) throw new Error('Failed to load plan impact');
+      return res.json() as Promise<{ data: { activeSubscriberCount: number } }>;
+    },
   });
-  const activeSubscriberCount = (impactData?.data as any)?.activeSubscriberCount ?? null;
+  const activeSubscriberCount = impactData?.data?.activeSubscriberCount ?? null;
 
   const form = useForm<EditPlanFormValues>({
     resolver: zodResolver(editPlanSchema),
@@ -619,23 +622,33 @@ export default function StudioListings() {
   }
 
   // Task #48 — pause / resume subscription plans
-  const pauseMutation = usePauseSubscriptionPlan({
-    mutation: {
-      onSuccess: () => {
-        invalidateListingCaches();
-        toast({ title: 'Plan paused. New subscribers cannot sign up until you resume.' });
-      },
-      onError: () => { toast({ title: 'Failed to pause plan', variant: 'destructive' }); },
+  const pauseMutation = useMutation({
+    mutationFn: async ({ planId }: { planId: string }) => {
+      const res = await fetch(`/api/v1/creator/subscription-plans/${planId}/pause`, {
+        method: 'PATCH',
+      });
+      if (!res.ok) throw new Error('Failed to pause plan');
+      return res.json();
     },
+    onSuccess: () => {
+      invalidateListingCaches();
+      toast({ title: 'Plan paused. New subscribers cannot sign up until you resume.' });
+    },
+    onError: () => { toast({ title: 'Failed to pause plan', variant: 'destructive' }); },
   });
-  const resumeMutation = useResumeSubscriptionPlan({
-    mutation: {
-      onSuccess: () => {
-        invalidateListingCaches();
-        toast({ title: 'Plan resumed.' });
-      },
-      onError: () => { toast({ title: 'Failed to resume plan', variant: 'destructive' }); },
+  const resumeMutation = useMutation({
+    mutationFn: async ({ planId }: { planId: string }) => {
+      const res = await fetch(`/api/v1/creator/subscription-plans/${planId}/resume`, {
+        method: 'PATCH',
+      });
+      if (!res.ok) throw new Error('Failed to resume plan');
+      return res.json();
     },
+    onSuccess: () => {
+      invalidateListingCaches();
+      toast({ title: 'Plan resumed.' });
+    },
+    onError: () => { toast({ title: 'Failed to resume plan', variant: 'destructive' }); },
   });
 
   const createMutation = useCreateListing({
