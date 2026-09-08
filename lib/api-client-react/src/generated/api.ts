@@ -106,7 +106,6 @@ import type {
   SubscribeRequest,
   SubscribeResponse,
   SubscribersResponse,
-  SubscriptionPlan,
   SubscriptionPlanResponse,
   SuccessResponse,
   UnauthorizedResponse,
@@ -116,6 +115,7 @@ import type {
   UpdateAdminConfigRequest,
   UpdateCreatorProfileRequest,
   UpdateCreatorProfileResponse,
+  UpdateListingRequest,
   UpdateProfileRequest,
   UpdateProfileResponse,
   UpdateStorefrontRequest,
@@ -2916,6 +2916,78 @@ export const useCreateListing = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateListingMutationOptions(options));
+    }
+
+export const getUpdateListingUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/creator/listings/${id}`
+}
+
+/**
+ * @summary Update a creator's listing
+ */
+export const updateListing = async (id: string,
+    updateListingRequest: UpdateListingRequest, options?: RequestInit): Promise<ListingResponse> => {
+
+  return customFetch<ListingResponse>(getUpdateListingUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateListingRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateListingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateListing>>, TError,{id: string;data: BodyType<UpdateListingRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateListing>>, TError,{id: string;data: BodyType<UpdateListingRequest>}, TContext> => {
+
+const mutationKey = ['updateListing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateListing>>, {id: string;data: BodyType<UpdateListingRequest>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateListing(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateListingMutationResult = NonNullable<Awaited<ReturnType<typeof updateListing>>>
+    export type UpdateListingMutationBody = BodyType<UpdateListingRequest>
+    export type UpdateListingMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a creator's listing
+ */
+export const useUpdateListing = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateListing>>, TError,{id: string;data: BodyType<UpdateListingRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateListing>>,
+        TError,
+        {id: string;data: BodyType<UpdateListingRequest>},
+        TContext
+      > => {
+      return useMutation(getUpdateListingMutationOptions(options));
     }
 
 export const getGetCreatorStorefrontUrl = () => {
@@ -5892,81 +5964,4 @@ export const useCancelMySubscription = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getCancelMySubscriptionMutationOptions(options));
     }
-
-// ---------------------------------------------------------------------------
-// Subscription plan pause / resume / impact — hand-written additions
-// ---------------------------------------------------------------------------
-
-export type PauseResumeSubscriptionPlanResponse = { data: SubscriptionPlan };
-export type SubscriptionPlanImpactResponse = { data: { activeSubscriberCount: number } };
-
-export const pauseSubscriptionPlan = async (planId: string, options?: RequestInit): Promise<PauseResumeSubscriptionPlanResponse> =>
-  customFetch<PauseResumeSubscriptionPlanResponse>(`/api/v1/creator/subscription-plans/${planId}/pause`, { ...options, method: 'PATCH' });
-
-export const resumeSubscriptionPlan = async (planId: string, options?: RequestInit): Promise<PauseResumeSubscriptionPlanResponse> =>
-  customFetch<PauseResumeSubscriptionPlanResponse>(`/api/v1/creator/subscription-plans/${planId}/resume`, { ...options, method: 'PATCH' });
-
-export const getSubscriptionPlanImpact = async (planId: string, options?: RequestInit): Promise<SubscriptionPlanImpactResponse> =>
-  customFetch<SubscriptionPlanImpactResponse>(`/api/v1/creator/subscription-plans/${planId}/impact`, { ...options, method: 'GET' });
-
-export const getPauseSubscriptionPlanMutationOptions = <TError = ErrorType<unknown>, TContext = unknown>(
-  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof pauseSubscriptionPlan>>, TError, { planId: string }, TContext>; request?: SecondParameter<typeof customFetch> }
-): UseMutationOptions<Awaited<ReturnType<typeof pauseSubscriptionPlan>>, TError, { planId: string }, TContext> => {
-  const mutationKey = ['pauseSubscriptionPlan'];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-  const mutationFn: MutationFunction<Awaited<ReturnType<typeof pauseSubscriptionPlan>>, { planId: string }> = ({ planId }) =>
-    pauseSubscriptionPlan(planId, requestOptions);
-  return { mutationFn, ...mutationOptions };
-};
-
-export const usePauseSubscriptionPlan = <TError = ErrorType<unknown>, TContext = unknown>(
-  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof pauseSubscriptionPlan>>, TError, { planId: string }, TContext>; request?: SecondParameter<typeof customFetch> }
-): UseMutationResult<Awaited<ReturnType<typeof pauseSubscriptionPlan>>, TError, { planId: string }, TContext> =>
-  useMutation(getPauseSubscriptionPlanMutationOptions(options));
-
-export const getResumeSubscriptionPlanMutationOptions = <TError = ErrorType<unknown>, TContext = unknown>(
-  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof resumeSubscriptionPlan>>, TError, { planId: string }, TContext>; request?: SecondParameter<typeof customFetch> }
-): UseMutationOptions<Awaited<ReturnType<typeof resumeSubscriptionPlan>>, TError, { planId: string }, TContext> => {
-  const mutationKey = ['resumeSubscriptionPlan'];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-  const mutationFn: MutationFunction<Awaited<ReturnType<typeof resumeSubscriptionPlan>>, { planId: string }> = ({ planId }) =>
-    resumeSubscriptionPlan(planId, requestOptions);
-  return { mutationFn, ...mutationOptions };
-};
-
-export const useResumeSubscriptionPlan = <TError = ErrorType<unknown>, TContext = unknown>(
-  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof resumeSubscriptionPlan>>, TError, { planId: string }, TContext>; request?: SecondParameter<typeof customFetch> }
-): UseMutationResult<Awaited<ReturnType<typeof resumeSubscriptionPlan>>, TError, { planId: string }, TContext> =>
-  useMutation(getResumeSubscriptionPlanMutationOptions(options));
-
-export const getGetSubscriptionPlanImpactQueryKey = (planId: string) =>
-  [`/api/v1/creator/subscription-plans/${planId}/impact`] as const;
-
-export const getGetSubscriptionPlanImpactQueryOptions = <TData = Awaited<ReturnType<typeof getSubscriptionPlanImpact>>, TError = ErrorType<unknown>>(
-  planId: string,
-  options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSubscriptionPlanImpact>>, TError, TData>; request?: SecondParameter<typeof customFetch> }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-  const queryKey = queryOptions?.queryKey ?? getGetSubscriptionPlanImpactQueryKey(planId);
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSubscriptionPlanImpact>>> = ({ signal }) =>
-    getSubscriptionPlanImpact(planId, { signal, ...requestOptions });
-  return { queryKey, queryFn, enabled: !!planId, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getSubscriptionPlanImpact>>, TError, TData> & { queryKey: QueryKey };
-};
-
-export function useGetSubscriptionPlanImpact<TData = Awaited<ReturnType<typeof getSubscriptionPlanImpact>>, TError = ErrorType<unknown>>(
-  planId: string,
-  options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSubscriptionPlanImpact>>, TError, TData>; request?: SecondParameter<typeof customFetch> }
-): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetSubscriptionPlanImpactQueryOptions(planId, options);
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
-  return withQueryKey(query, queryOptions.queryKey);
-}
 

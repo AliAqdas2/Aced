@@ -8,4 +8,6 @@
 
 export type GetAdminOrdersParams = {
 status?: string;
+creatorId?: string;
+buyerEmail?: string;
 };

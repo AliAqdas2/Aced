@@ -187,6 +187,7 @@ export * from './updateCreatorProfileRequestVideoCallProvider';
 export * from './updateCreatorProfileResponse';
 export * from './updateCreatorProfileResponseData';
 export * from './updateCreatorProfileResponseDataVideoCallProvider';
+export * from './updateListingRequest';
 export * from './updateProfileRequest';
 export * from './updateProfileResponse';
 export * from './updateProfileResponseData';

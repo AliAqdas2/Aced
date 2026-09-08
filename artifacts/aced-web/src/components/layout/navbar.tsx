@@ -21,11 +21,12 @@ export function Navbar() {
   const queryClient = useQueryClient();
   const logout = useLogout({
     mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      onSettled: () => {
+        // removeQueries (not invalidate) so stale me data cannot keep the UI logged in
+        queryClient.removeQueries({ queryKey: getGetMeQueryKey() });
         setLocation('/');
-      }
-    }
+      },
+    },
   });
 
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {

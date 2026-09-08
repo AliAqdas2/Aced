@@ -323,6 +323,7 @@ export default function ListingDetail() {
   const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
   const [booked, setBooked] = useState(false);
+  const [freeDigitalPending, setFreeDigitalPending] = useState(false);
 
   const { data: response, isLoading, error } = useGetListing(id, {
     query: { enabled: !!id, queryKey: ['listing', id] },
@@ -407,6 +408,41 @@ export default function ListingDetail() {
       toast({ title: "You can't buy your own listing", variant: 'destructive' });
       return;
     }
+
+    const isFreeDigital = !price || (price as any).amountMinorUnits === 0;
+    if (isFreeDigital) {
+      setFreeDigitalPending(true);
+      fetch('/api/v1/checkout/confirm-free', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listingId: id }),
+      })
+        .then(async (res) => {
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const code = body.code;
+            throw Object.assign(new Error(body.error || 'Failed'), { code });
+          }
+          toast({
+            title: body.data?.alreadyOwned ? 'Already in your library' : 'Added to your library ✓',
+          });
+          setLocation('/library');
+        })
+        .catch((err: { code?: string; message?: string }) => {
+          toast({
+            title:
+              err.code === 'CANNOT_PURCHASE_OWN_LISTING'
+                ? "You can't buy your own listing"
+                : err.code === 'NO_ASSET'
+                  ? 'This product has no file uploaded yet'
+                  : err.message || 'Could not claim free product',
+            variant: 'destructive',
+          });
+        })
+        .finally(() => setFreeDigitalPending(false));
+      return;
+    }
+
     checkoutMutation.mutate(
       { data: { listingId: id } },
       {
@@ -709,20 +745,27 @@ export default function ListingDetail() {
                         size="lg"
                         className="w-full h-16 text-lg font-bold rounded-xl shadow-none bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
                         onClick={handlePurchase}
-                        disabled={checkoutMutation.isPending}
+                        disabled={checkoutMutation.isPending || freeDigitalPending}
                       >
-                        {checkoutMutation.isPending ? (
+                        {checkoutMutation.isPending || freeDigitalPending ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing…
                           </>
+                        ) : priceAmount === 'Free' ? (
+                          'Get for free'
                         ) : (
                           'Buy Now'
                         )}
                       </Button>
                     )}
-                    {!isOwnListing && (
+                    {!isOwnListing && priceAmount !== 'Free' && (
                       <p className="text-sm font-medium text-center text-background/50 mt-6">
                         Secure payment powered by Stripe
+                      </p>
+                    )}
+                    {!isOwnListing && priceAmount === 'Free' && (
+                      <p className="text-sm font-medium text-center text-background/50 mt-6">
+                        Instant access — no payment required
                       </p>
                     )}
                   </CardContent>

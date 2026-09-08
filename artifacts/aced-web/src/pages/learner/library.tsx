@@ -13,9 +13,18 @@ export default function Library() {
   const downloadUrlMutation = useGetAssetDownloadUrl();
   const { toast } = useToast();
 
-  const handleDownload = (itemId: string, fileName: string) => {
+  const handleDownload = (item: { id: string; assetId?: string | null; product?: { paidAssetId?: string | null } | null }, fileName: string) => {
+    const assetId = item.assetId ?? item.product?.paidAssetId ?? null;
+    if (!assetId) {
+      toast({
+        title: 'Download unavailable',
+        description: 'No file is linked to this purchase yet.',
+        variant: 'destructive',
+      });
+      return;
+    }
     downloadUrlMutation.mutate(
-      { id: itemId },
+      { id: assetId },
       {
         onSuccess: (data) => {
           if (data.data.url) {
@@ -106,11 +115,11 @@ export default function Library() {
                 <Button 
                   className="w-full mt-4" 
                   variant="default"
-                  onClick={() => handleDownload(item.id, item.listing?.title || 'download')}
-                  disabled={downloadUrlMutation.isPending}
+                  onClick={() => handleDownload(item, item.listing?.title || 'download')}
+                  disabled={downloadUrlMutation.isPending || !(item.assetId ?? item.product?.paidAssetId)}
                 >
                   <Download className="mr-2 h-4 w-4" /> 
-                  Download Asset
+                  {(item.assetId ?? item.product?.paidAssetId) ? 'Download Asset' : 'File unavailable'}
                 </Button>
               </CardFooter>
             </Card>

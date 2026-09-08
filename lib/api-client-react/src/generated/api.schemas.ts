@@ -539,6 +539,22 @@ export interface CreateListingRequest {
   serviceOffer?: CreateListingRequestServiceOffer;
 }
 
+export interface UpdateListingRequest {
+  /**
+     * @minLength 5
+     * @maxLength 200
+     */
+  title?: string;
+  /**
+     * @minLength 20
+     * @maxLength 5000
+     */
+  description?: string;
+  tags?: string[];
+  primaryUniversityId?: string | null;
+  primaryCourseId?: string | null;
+}
+
 export type AvailabilityRulesResponseDataItem = {
   id?: string;
   dayOfWeek?: number;
@@ -1067,8 +1083,6 @@ export type GetAdminOrdersParams = {
 status?: string;
 creatorId?: string;
 buyerEmail?: string;
-limit?: number;
-offset?: number;
 };
 
 export type GetAdminListingsParams = {

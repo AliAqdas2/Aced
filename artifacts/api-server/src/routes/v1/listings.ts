@@ -394,6 +394,55 @@ router.post(
   }
 );
 
+// POST /api/v1/creator/listings/:id/pause — published → paused (hide from public)
+router.post(
+  "/creator/listings/:id/pause",
+  requireRole("creator"),
+  async (req, res): Promise<void> => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    const [cp] = await db
+      .select()
+      .from(creatorProfilesTable)
+      .where(eq(creatorProfilesTable.userId, req.session.userId!))
+      .limit(1);
+
+    if (!cp) {
+      res.status(404).json({ error: "Creator profile not found" });
+      return;
+    }
+
+    const [listing] = await db
+      .select()
+      .from(listingsTable)
+      .where(
+        and(
+          eq(listingsTable.id, id),
+          eq(listingsTable.creatorId, cp.id)
+        )
+      )
+      .limit(1);
+
+    if (!listing) {
+      res.status(404).json({ error: "Listing not found or access denied" });
+      return;
+    }
+
+    if (listing.status !== "published") {
+      res.status(400).json({ error: "Only published listings can be paused", code: "NOT_PUBLISHED" });
+      return;
+    }
+
+    const [updated] = await db
+      .update(listingsTable)
+      .set({ status: "paused" })
+      .where(eq(listingsTable.id, id))
+      .returning();
+
+    res.json({ data: updated });
+  }
+);
+
 // GET /api/v1/creator/listings
 router.get(
   "/creator/listings",

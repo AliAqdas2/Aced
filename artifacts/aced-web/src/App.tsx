@@ -42,6 +42,7 @@ import Subscriptions from '@/pages/learner/subscriptions';
 import Messages from '@/pages/learner/messages';
 import Orders from '@/pages/learner/orders';
 import Profile from '@/pages/learner/profile';
+import SubmitReview from '@/pages/learner/submit-review';
 
 // Creator Studio Pages
 import StudioOverview from '@/pages/creator/studio-overview';
@@ -190,6 +191,9 @@ function Router() {
       </Route>
       <Route path="/library">
         <DashboardLayout><Library /></DashboardLayout>
+      </Route>
+      <Route path="/reviews/submit">
+        <PublicLayout><SubmitReview /></PublicLayout>
       </Route>
       <Route path="/messages">
         <DashboardLayout><Messages /></DashboardLayout>

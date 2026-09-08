@@ -2,12 +2,15 @@ import { useState, useRef } from 'react';
 import {
   useGetCreatorListings,
   useCreateListing,
+  useUpdateListing,
   useGetListing,
   useCreateSubscriptionPlan,
   usePauseSubscriptionPlan,
   useResumeSubscriptionPlan,
   useGetSubscriptionPlanImpact,
   getGetCreatorListingsQueryKey,
+  getGetListingQueryKey,
+  getGetCreatorStorefrontQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,7 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, MoreHorizontal, Edit, Trash, FileText, Video, Users, User, Calendar, Clock, RefreshCw, AlertTriangle, Upload, CheckCircle2, Loader2 } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Edit, Trash, FileText, Video, Users, User, Calendar, Clock, RefreshCw, AlertTriangle, Upload, CheckCircle2, Loader2, PauseCircle, PlayCircle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import {
@@ -53,6 +56,7 @@ function DigitalFileUploadDialog({
   onClose: () => void;
 }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [phase, setPhase] = useState<'pick' | 'uploading' | 'done'>('pick');
   const [fileName, setFileName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -84,6 +88,15 @@ function DigitalFileUploadDialog({
 
       setPhase('done');
       toast({ title: 'File uploaded successfully ✓' });
+      queryClient.invalidateQueries({ queryKey: getGetCreatorListingsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetListingQueryKey(listingId) });
+      queryClient.invalidateQueries({ queryKey: getGetCreatorStorefrontQueryKey() });
+      queryClient.invalidateQueries({
+        predicate: (q) =>
+          Array.isArray(q.queryKey) &&
+          typeof q.queryKey[0] === 'string' &&
+          (q.queryKey[0] as string).startsWith('/api/v1/storefronts/'),
+      });
     } catch (err: any) {
       toast({ title: err.message ?? 'Upload failed', variant: 'destructive' });
       setPhase('pick');
@@ -352,6 +365,157 @@ function EditSubscriptionPlanModal({
 }
 
 // ---------------------------------------------------------------------------
+// Edit listing dialog (title / description / tags)
+// ---------------------------------------------------------------------------
+
+const editListingSchema = z.object({
+  title: z.string().min(5, 'Title must be at least 5 characters').max(200),
+  description: z.string().min(20, 'Description is too short').max(5000),
+  tags: z.string().optional(),
+});
+
+type EditListingFormValues = z.infer<typeof editListingSchema>;
+
+interface EditableListing {
+  id: string;
+  title: string;
+  description: string;
+  tags?: string[] | null;
+}
+
+function EditListingDialog({
+  listing,
+  onClose,
+}: {
+  listing: EditableListing;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const form = useForm<EditListingFormValues>({
+    resolver: zodResolver(editListingSchema),
+    defaultValues: {
+      title: listing.title,
+      description: listing.description,
+      tags: (listing.tags ?? []).join(', '),
+    },
+  });
+
+  const updateMutation = useUpdateListing({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetCreatorListingsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetListingQueryKey(listing.id) });
+        queryClient.invalidateQueries({ queryKey: getGetCreatorStorefrontQueryKey() });
+        queryClient.invalidateQueries({
+          predicate: (q) =>
+            Array.isArray(q.queryKey) &&
+            typeof q.queryKey[0] === 'string' &&
+            (q.queryKey[0] as string).startsWith('/api/v1/storefronts/'),
+        });
+        toast({ title: 'Listing updated' });
+        onClose();
+      },
+      onError: () => {
+        toast({ title: 'Failed to update listing', variant: 'destructive' });
+      },
+    },
+  });
+
+  function onSubmit(values: EditListingFormValues) {
+    const tags = (values.tags ?? '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    updateMutation.mutate({
+      id: listing.id,
+      data: {
+        title: values.title,
+        description: values.description,
+        tags,
+      },
+    });
+  }
+
+  return (
+    <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogHeader>
+        <DialogTitle className="font-serif text-2xl">Edit listing</DialogTitle>
+        <DialogDescription>Update the title, description, and tags for this listing.</DialogDescription>
+      </DialogHeader>
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 mt-2">
+          <FormField
+            control={form.control}
+            name="title"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Title</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g. 1:1 Econometrics Tutoring" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="description"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Description</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="Describe what students will get…"
+                    rows={4}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="tags"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Tags</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g. law, contract, revision" {...field} />
+                </FormControl>
+                <FormDescription>Comma-separated keywords.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
+                </>
+              ) : (
+                'Save changes'
+              )}
+            </Button>
+          </div>
+        </form>
+      </Form>
+    </DialogContent>
+  );
+}
+
+// ---------------------------------------------------------------------------
 
 const LISTING_TYPE_LABELS: Record<string, string> = {
   service_offer: 'Tutoring Session',
@@ -411,14 +575,54 @@ export default function StudioListings() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editPlanListingId, setEditPlanListingId] = useState<string | null>(null);
   const [uploadListingId, setUploadListingId] = useState<string | null>(null);
+  const [editingListing, setEditingListing] = useState<EditableListing | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [listingVisibilityBusyId, setListingVisibilityBusyId] = useState<string | null>(null);
+
+  function invalidateListingCaches(listingId?: string) {
+    queryClient.invalidateQueries({ queryKey: getGetCreatorListingsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetCreatorStorefrontQueryKey() });
+    queryClient.invalidateQueries({
+      predicate: (q) =>
+        Array.isArray(q.queryKey) &&
+        typeof q.queryKey[0] === 'string' &&
+        (q.queryKey[0] as string).startsWith('/api/v1/storefronts/'),
+    });
+    if (listingId) {
+      queryClient.invalidateQueries({ queryKey: getGetListingQueryKey(listingId) });
+    }
+  }
+
+  async function setListingEnabled(listingId: string, enable: boolean) {
+    setListingVisibilityBusyId(listingId);
+    try {
+      const res = await fetch(
+        `/api/v1/creator/listings/${listingId}/${enable ? 'publish' : 'pause'}`,
+        { method: 'POST' },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Request failed');
+      }
+      toast({ title: enable ? 'Listing enabled ✓' : 'Listing disabled' });
+      invalidateListingCaches(listingId);
+    } catch (e) {
+      toast({
+        title: enable ? 'Failed to enable listing' : 'Failed to disable listing',
+        description: e instanceof Error ? e.message : undefined,
+        variant: 'destructive',
+      });
+    } finally {
+      setListingVisibilityBusyId(null);
+    }
+  }
 
   // Task #48 — pause / resume subscription plans
   const pauseMutation = usePauseSubscriptionPlan({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetCreatorListingsQueryKey() });
+        invalidateListingCaches();
         toast({ title: 'Plan paused. New subscribers cannot sign up until you resume.' });
       },
       onError: () => { toast({ title: 'Failed to pause plan', variant: 'destructive' }); },
@@ -427,7 +631,7 @@ export default function StudioListings() {
   const resumeMutation = useResumeSubscriptionPlan({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetCreatorListingsQueryKey() });
+        invalidateListingCaches();
         toast({ title: 'Plan resumed.' });
       },
       onError: () => { toast({ title: 'Failed to resume plan', variant: 'destructive' }); },
@@ -437,7 +641,7 @@ export default function StudioListings() {
   const createMutation = useCreateListing({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetCreatorListingsQueryKey() });
+        invalidateListingCaches();
         setIsDialogOpen(false);
         form.reset();
         toast({ title: 'Listing created!' });
@@ -512,7 +716,8 @@ export default function StudioListings() {
   }
 
   const listings = (response?.data ?? []) as Array<{
-    id: string; title: string; type: string; status: string; pricingMode: string;
+    id: string; title: string; description: string; type: string; status: string; pricingMode: string;
+    tags?: string[] | null;
     createdAt: string; purchaseCount: number; activePrice?: { amountMinorUnits: number } | null;
     subscriptionPlan?: { id: string; isActive: boolean; pausedAt?: string | null } | null;
   }>;
@@ -986,6 +1191,30 @@ export default function StudioListings() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          {listing.status === 'published' && (
+                            <DropdownMenuItem
+                              disabled={listingVisibilityBusyId === listing.id}
+                              onSelect={() => setListingEnabled(listing.id, false)}
+                            >
+                              <PauseCircle className="mr-2 h-4 w-4" /> Disable
+                            </DropdownMenuItem>
+                          )}
+                          {listing.status === 'paused' && (
+                            <DropdownMenuItem
+                              disabled={listingVisibilityBusyId === listing.id}
+                              onSelect={() => setListingEnabled(listing.id, true)}
+                            >
+                              <PlayCircle className="mr-2 h-4 w-4" /> Enable
+                            </DropdownMenuItem>
+                          )}
+                          {listing.status === 'approved' && (
+                            <DropdownMenuItem
+                              disabled={listingVisibilityBusyId === listing.id}
+                              onSelect={() => setListingEnabled(listing.id, true)}
+                            >
+                              <PlayCircle className="mr-2 h-4 w-4" /> Enable
+                            </DropdownMenuItem>
+                          )}
                           {listing.status === 'published' &&
                             listing.pricingMode === 'subscription' &&
                             listing.type === 'service_offer' && (
@@ -1018,7 +1247,16 @@ export default function StudioListings() {
                               <Upload className="mr-2 h-4 w-4" /> Upload file
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              setEditingListing({
+                                id: listing.id,
+                                title: listing.title,
+                                description: listing.description ?? '',
+                                tags: listing.tags ?? [],
+                              })
+                            }
+                          >
                             <Edit className="mr-2 h-4 w-4" /> Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem className="text-destructive focus:text-destructive">
@@ -1049,6 +1287,20 @@ export default function StudioListings() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit listing modal */}
+      <Dialog
+        open={editingListing !== null}
+        onOpenChange={(open) => { if (!open) setEditingListing(null); }}
+      >
+        {editingListing && (
+          <EditListingDialog
+            key={editingListing.id}
+            listing={editingListing}
+            onClose={() => setEditingListing(null)}
+          />
+        )}
+      </Dialog>
 
       {/* Edit subscription plan modal */}
       <Dialog

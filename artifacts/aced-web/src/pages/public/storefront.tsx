@@ -13,12 +13,55 @@ import {
   Clock,
   Calendar,
   ArrowUpRight,
+  ChevronDown,
+  Quote,
 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useState } from 'react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+
+interface FaqItem { q: string; a: string }
+interface TestimonialItem { name: string; quote: string }
+interface FaqJson {
+  faqs: FaqItem[];
+  funFacts: string[];
+  experience: string[];
+  testimonials: TestimonialItem[];
+}
+
+function parseFaqJson(raw: unknown): FaqJson {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const obj = raw as Record<string, unknown>;
+    return {
+      faqs: Array.isArray(obj.faqs) ? (obj.faqs as FaqItem[]) : [],
+      funFacts: Array.isArray(obj.funFacts) ? (obj.funFacts as string[]) : [],
+      experience: Array.isArray(obj.experience) ? (obj.experience as string[]) : [],
+      testimonials: Array.isArray(obj.testimonials) ? (obj.testimonials as TestimonialItem[]) : [],
+    };
+  }
+  if (Array.isArray(raw)) {
+    return { faqs: raw as FaqItem[], funFacts: [], experience: [], testimonials: [] };
+  }
+  return { faqs: [], funFacts: [], experience: [], testimonials: [] };
+}
+
+function listingTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    service_offer: '1:1 coaching',
+    group_session: 'Group session',
+    digital_product: 'Digital product',
+    recorded_course: 'Recorded course',
+  };
+  return labels[type] ?? type.replace(/_/g, ' ');
+}
 
 export default function Storefront() {
   const params = useParams();
   const slug = params.slug as string;
+  const [experienceOpen, setExperienceOpen] = useState(true);
 
   const { data: response, isLoading, error } = useGetStorefront(slug, {
     query: { enabled: !!slug, queryKey: getGetStorefrontQueryKey(slug) },
@@ -45,7 +88,6 @@ export default function Storefront() {
 
   const { storefront, creator, listings, reviews } = response.data as any;
 
-  // Derived display values
   const avatarUrl: string | undefined = creator.profile?.avatarUrl ?? undefined;
   const displayName: string = storefront.displayName || creator.profile?.displayName || 'Tutor';
   const initials: string = displayName.trim().split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
@@ -57,15 +99,22 @@ export default function Storefront() {
   const headline: string | null = creator.headline ?? null;
   const hasEducation = universityName || courseName;
 
+  const faqData = parseFaqJson(storefront.faqJson);
+  const experienceLines = faqData.experience.filter((e) => e.trim());
+  const funFacts = faqData.funFacts.filter((f) => f.trim());
+  const faqs = faqData.faqs.filter((f) => f.q?.trim() && f.a?.trim());
+  const testimonials = faqData.testimonials.filter((t) => t.name?.trim() && t.quote?.trim());
+
   const reviewCount: number = reviews?.length ?? 0;
   const avgRating: string | null =
     reviewCount > 0
-      ? (reviews.reduce((sum: number, r: any) => sum + (r.rating ?? 0), 0) / reviewCount).toFixed(1)
+      ? (
+          reviews.reduce(
+            (sum: number, r: any) => sum + (r.overallRating ?? r.rating ?? 0),
+            0,
+          ) / reviewCount
+        ).toFixed(1)
       : null;
-
-  const joinDate: string | null = creator.createdAt
-    ? new Date(creator.createdAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
-    : null;
 
   const publishedListings = listings ?? [];
   const hasSessionListings = publishedListings.some(
@@ -74,7 +123,6 @@ export default function Storefront() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Cover image */}
       <div className="h-44 md:h-64 w-full bg-foreground relative overflow-hidden">
         {storefront.coverImageUrl ? (
           <img
@@ -88,7 +136,6 @@ export default function Storefront() {
       </div>
 
       <div className="container mx-auto px-4 pb-24">
-        {/* Profile header — avatar overlaps the cover bottom */}
         <div className="relative -mt-12 sm:-mt-16 mb-10 flex flex-col sm:flex-row sm:items-end gap-5 sm:gap-8">
           <Avatar className="h-24 w-24 sm:h-36 sm:w-36 border-4 border-background shadow-xl bg-background rounded-2xl shrink-0">
             <AvatarImage src={avatarUrl} className="rounded-2xl object-cover" />
@@ -135,7 +182,7 @@ export default function Storefront() {
                 className="h-12 px-7 rounded-xl font-bold text-base shadow-none"
                 asChild
               >
-                <Link href="#listings">
+                <Link href="#services">
                   Book a Session
                   <ArrowUpRight className="h-4 w-4 ml-1.5" />
                 </Link>
@@ -145,33 +192,24 @@ export default function Storefront() {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-10 xl:gap-12">
-          {/* Main content */}
-          <div id="listings" className="xl:col-span-2 space-y-8">
-            <Tabs defaultValue="listings" className="w-full">
-              <TabsList className="w-full justify-start border-b border-border/60 rounded-none h-auto p-0 bg-transparent mb-8 gap-6">
-                <TabsTrigger
-                  value="listings"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 py-3.5 font-bold text-base text-muted-foreground data-[state=active]:text-foreground"
-                >
-                  Listings ({publishedListings.length})
-                </TabsTrigger>
-                <TabsTrigger
-                  value="about"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 py-3.5 font-bold text-base text-muted-foreground data-[state=active]:text-foreground"
-                >
-                  About
-                </TabsTrigger>
-                <TabsTrigger
-                  value="reviews"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 py-3.5 font-bold text-base text-muted-foreground data-[state=active]:text-foreground"
-                >
-                  Reviews ({reviewCount})
-                </TabsTrigger>
-              </TabsList>
+          <div className="xl:col-span-2 space-y-10">
+            {/* Bio */}
+            <section>
+              <h2 className="font-serif text-2xl mb-4">About me</h2>
+              {storefront.bio ? (
+                <p className="whitespace-pre-wrap leading-relaxed text-foreground/90 font-medium">
+                  {storefront.bio}
+                </p>
+              ) : (
+                <p className="italic text-muted-foreground">No biography provided.</p>
+              )}
+            </section>
 
-              {/* Listings tab */}
-              <TabsContent value="listings" className="mt-0">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Services & products under bio */}
+            <section id="services">
+              <h2 className="font-serif text-2xl mb-4">Services & products</h2>
+              {publishedListings.length > 0 ? (
+                <ul className="divide-y divide-border/60 border border-border/50 rounded-2xl overflow-hidden bg-background">
                   {publishedListings.map((listing: any) => {
                     const isSession =
                       listing.type === 'service_offer' || listing.type === 'group_session';
@@ -179,102 +217,170 @@ export default function Storefront() {
                       listing.price ?? listing.activePrice?.amountMinorUnits;
                     const isFree = !priceMinorUnits || priceMinorUnits === 0;
                     return (
-                      <Card
+                      <li
                         key={listing.id}
-                        className="h-full flex flex-col group overflow-hidden border-border/50 hover:border-primary/40 transition-all duration-300 hover:-translate-y-0.5 rounded-2xl bg-background shadow-sm hover:shadow-lg"
+                        className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 sm:p-5 hover:bg-muted/30 transition-colors"
                       >
-                        <Link href={`/listings/${listing.id}`} className="block flex-1">
-                          <div className="aspect-[4/3] bg-muted relative border-b border-border/50 overflow-hidden">
-                            <div className="absolute inset-0 flex items-center justify-center bg-primary/5 group-hover:bg-primary/10 transition-colors">
-                              {isSession ? (
-                                <User className="h-12 w-12 text-primary/30 group-hover:scale-110 transition-transform duration-500" />
-                              ) : (
-                                <BookOpen className="h-12 w-12 text-primary/30 group-hover:scale-110 transition-transform duration-500" />
-                              )}
-                            </div>
-                            {isSession && listing.serviceOffer?.durationMinutes && (
-                              <div className="absolute top-3 right-3 bg-background/90 backdrop-blur-sm text-foreground text-xs font-bold px-2.5 py-1 rounded-full border border-border/50 flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {listing.serviceOffer.durationMinutes} min
-                              </div>
-                            )}
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 text-primary">
+                            {isSession ? <User className="h-5 w-5" /> : <BookOpen className="h-5 w-5" />}
                           </div>
-                          <CardContent className="p-5 flex flex-col flex-1">
-                            <div className="text-xs font-bold text-primary tracking-widest uppercase mb-2">
-                              {listing.type.replace(/_/g, ' ')}
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-primary tracking-widest uppercase mb-0.5">
+                              {listingTypeLabel(listing.type)}
+                              {isSession && listing.serviceOffer?.durationMinutes
+                                ? ` · ${listing.serviceOffer.durationMinutes} min`
+                                : ''}
                             </div>
-                            <h3 className="font-bold text-lg mb-4 line-clamp-2 group-hover:text-primary transition-colors leading-snug">
-                              {listing.title}
-                            </h3>
-                            <div className="mt-auto pt-4 flex justify-between items-center text-sm border-t border-border/50">
-                              <div className="font-bold text-lg text-foreground">
-                                {isFree ? 'Free' : `£${(priceMinorUnits / 100).toFixed(2)}`}
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Link>
-                        {isSession && (
-                          <div className="px-5 pb-5">
+                            <h3 className="font-bold text-base leading-snug truncate">{listing.title}</h3>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 sm:shrink-0 pl-[52px] sm:pl-0">
+                          <span className="font-bold text-sm">
+                            {isFree ? 'Free' : `£${(priceMinorUnits / 100).toFixed(2)}`}
+                          </span>
+                          <Button asChild size="sm" className="rounded-xl gap-1.5">
                             <Link href={`/listings/${listing.id}`}>
-                              <Button className="w-full gap-2 rounded-xl" size="sm">
-                                <Calendar className="h-4 w-4" />
-                                Book a session
-                              </Button>
+                              {isSession ? (
+                                <>
+                                  <Calendar className="h-3.5 w-3.5" /> Book
+                                </>
+                              ) : (
+                                'View'
+                              )}
                             </Link>
-                          </div>
-                        )}
-                      </Card>
+                          </Button>
+                        </div>
+                      </li>
                     );
                   })}
-                  {publishedListings.length === 0 && (
-                    <div className="col-span-full text-center py-20 border border-dashed rounded-2xl bg-muted/20">
-                      <p className="text-muted-foreground font-medium">No listings available right now.</p>
-                    </div>
-                  )}
+                </ul>
+              ) : (
+                <div className="text-center py-12 border border-dashed rounded-2xl bg-muted/20">
+                  <p className="text-muted-foreground font-medium">No listings available right now.</p>
                 </div>
-              </TabsContent>
+              )}
+            </section>
 
-              {/* About tab */}
-              <TabsContent value="about" className="mt-0">
-                <Card className="rounded-2xl shadow-none border-border/50 bg-background">
-                  <CardContent className="p-6 sm:p-8">
-                    {storefront.bio ? (
-                      <p className="whitespace-pre-wrap leading-relaxed text-foreground/90 font-medium">
-                        {storefront.bio}
-                      </p>
-                    ) : (
-                      <p className="italic text-muted-foreground">No biography provided.</p>
-                    )}
-                    {storefront.policies && (
-                      <>
-                        <hr className="my-8 border-border/50" />
-                        <h3 className="font-serif text-2xl mb-4">Policies</h3>
-                        <p className="whitespace-pre-wrap leading-relaxed text-foreground/90 font-medium">
-                          {storefront.policies}
+            {/* Experience, fun facts, FAQs */}
+            <section className="space-y-6">
+              {(experienceLines.length > 0 || funFacts.length > 0 || faqs.length > 0) && (
+                <h2 className="font-serif text-2xl">More about me</h2>
+              )}
+
+              {experienceLines.length > 0 && (
+                <Collapsible open={experienceOpen} onOpenChange={setExperienceOpen}>
+                  <Card className="rounded-2xl shadow-none border-border/50 bg-background">
+                    <CollapsibleTrigger asChild>
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-between p-5 sm:p-6 text-left"
+                      >
+                        <span className="font-serif text-xl">Experience & qualifications</span>
+                        <ChevronDown
+                          className={`h-5 w-5 text-muted-foreground transition-transform ${experienceOpen ? 'rotate-180' : ''}`}
+                        />
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <CardContent className="pt-0 px-5 sm:px-6 pb-5 sm:pb-6">
+                        <ul className="space-y-2.5">
+                          {experienceLines.map((line, i) => (
+                            <li key={i} className="flex gap-2.5 text-sm font-medium text-foreground/90 leading-snug">
+                              <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                              {line}
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Card>
+                </Collapsible>
+              )}
+
+              {funFacts.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-base mb-3">Fun facts</h3>
+                  <ul className="flex flex-wrap gap-2">
+                    {funFacts.map((fact, i) => (
+                      <li
+                        key={i}
+                        className="text-sm font-medium px-3 py-1.5 rounded-xl bg-muted/50 text-foreground/90 border border-border/40"
+                      >
+                        {fact}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {faqs.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-base mb-3">Frequently asked questions</h3>
+                  <div className="space-y-3">
+                    {faqs.map((faq, i) => (
+                      <div key={i} className="rounded-xl border border-border/50 p-4 bg-muted/20">
+                        <p className="font-bold text-sm mb-1.5">{faq.q}</p>
+                        <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">{faq.a}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {storefront.policies && (
+                <div>
+                  <h3 className="font-semibold text-base mb-3">Policies</h3>
+                  <p className="whitespace-pre-wrap leading-relaxed text-sm text-foreground/90 font-medium">
+                    {storefront.policies}
+                  </p>
+                </div>
+              )}
+            </section>
+
+            {/* Testimonials */}
+            {testimonials.length > 0 && (
+              <section>
+                <h2 className="font-serif text-2xl mb-4">Testimonials</h2>
+                <div className="space-y-4">
+                  {testimonials.map((t, i) => (
+                    <Card key={i} className="rounded-2xl shadow-none border-border/50 bg-background">
+                      <CardContent className="p-5 sm:p-6">
+                        <Quote className="h-5 w-5 text-primary/40 mb-3" />
+                        <p className="text-foreground/90 font-medium leading-relaxed mb-3">
+                          &ldquo;{t.quote}&rdquo;
                         </p>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
+                        <p className="text-sm font-bold text-muted-foreground">— {t.name}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </section>
+            )}
 
-              {/* Reviews tab */}
-              <TabsContent value="reviews" className="mt-0">
-                {reviewCount > 0 ? (
-                  <div className="space-y-4">
-                    {reviews.map((review: any) => (
+            {/* Verified reviews */}
+            <section id="reviews">
+              <h2 className="font-serif text-2xl mb-4">
+                Verified reviews{reviewCount > 0 ? ` (${reviewCount})` : ''}
+              </h2>
+              {reviewCount > 0 ? (
+                <div className="space-y-4">
+                  {reviews.map((review: any) => {
+                    const rating = review.overallRating ?? review.rating ?? 0;
+                    const body = review.body ?? review.comment ?? '';
+                    return (
                       <Card key={review.id} className="rounded-2xl shadow-none border-border/50 bg-background">
                         <CardContent className="p-6">
                           <div className="flex items-center gap-1.5 mb-3">
                             {Array.from({ length: 5 }).map((_, i) => (
                               <Star
                                 key={i}
-                                className={`h-4 w-4 ${i < (review.rating ?? 0) ? 'text-primary fill-primary' : 'text-muted-foreground/30'}`}
+                                className={`h-4 w-4 ${i < rating ? 'text-primary fill-primary' : 'text-muted-foreground/30'}`}
                               />
                             ))}
                           </div>
-                          {review.comment && (
-                            <p className="text-foreground/90 font-medium leading-relaxed">{review.comment}</p>
+                          {body && (
+                            <p className="text-foreground/90 font-medium leading-relaxed">{body}</p>
                           )}
                           <p className="text-xs text-muted-foreground mt-3 font-medium">
                             {new Date(review.createdAt).toLocaleDateString('en-GB', {
@@ -284,26 +390,25 @@ export default function Storefront() {
                           </p>
                         </CardContent>
                       </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <Card className="rounded-2xl shadow-none border-border/50 bg-background">
-                    <CardContent className="p-10 text-center">
-                      <Star className="h-12 w-12 text-primary fill-primary mx-auto mb-4 opacity-20" />
-                      <h3 className="text-xl font-serif tracking-tight mb-2">No reviews yet</h3>
-                      <p className="text-muted-foreground font-medium">
-                        This tutor hasn't received any reviews yet.
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
-              </TabsContent>
-            </Tabs>
+                    );
+                  })}
+                </div>
+              ) : (
+                <Card className="rounded-2xl shadow-none border-border/50 bg-background">
+                  <CardContent className="p-10 text-center">
+                    <Star className="h-12 w-12 text-primary fill-primary mx-auto mb-4 opacity-20" />
+                    <h3 className="text-xl font-serif tracking-tight mb-2">No reviews yet</h3>
+                    <p className="text-muted-foreground font-medium">
+                      This tutor hasn&apos;t received any reviews yet.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </section>
           </div>
 
-          {/* Sidebar */}
+          {/* Sidebar — slim background only */}
           <div className="space-y-6">
-            {/* Education background — only if data exists */}
             {hasEducation && (
               <Card className="rounded-2xl shadow-none border-border/50 bg-background">
                 <CardContent className="p-6">
@@ -337,39 +442,15 @@ export default function Storefront() {
               </Card>
             )}
 
-            {/* Stats — only meaningful real data */}
-            {(publishedListings.length > 0 || reviewCount > 0 || joinDate) && (
+            {avgRating && (
               <Card className="rounded-2xl shadow-none border-border/50 bg-muted/30">
-                <CardContent className="p-6">
-                  <h3 className="font-serif text-xl mb-5">Quick Stats</h3>
-                  <div className="space-y-4">
-                    {publishedListings.length > 0 && (
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-muted-foreground font-medium">Listings</span>
-                        <span className="font-bold text-foreground">{publishedListings.length}</span>
-                      </div>
-                    )}
-                    {reviewCount > 0 && (
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-muted-foreground font-medium">Reviews</span>
-                        <span className="font-bold text-foreground">{reviewCount}</span>
-                      </div>
-                    )}
-                    {avgRating && (
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-muted-foreground font-medium">Rating</span>
-                        <span className="font-bold text-foreground flex items-center gap-1">
-                          <Star className="h-3.5 w-3.5 text-primary fill-primary" />
-                          {avgRating}
-                        </span>
-                      </div>
-                    )}
-                    {joinDate && (
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-muted-foreground font-medium">Joined</span>
-                        <span className="font-bold text-foreground">{joinDate}</span>
-                      </div>
-                    )}
+                <CardContent className="p-6 flex items-center gap-3">
+                  <Star className="h-5 w-5 text-primary fill-primary" />
+                  <div>
+                    <div className="font-bold text-lg">{avgRating}</div>
+                    <div className="text-xs text-muted-foreground font-medium">
+                      {reviewCount} verified review{reviewCount !== 1 ? 's' : ''}
+                    </div>
                   </div>
                 </CardContent>
               </Card>

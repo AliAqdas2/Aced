@@ -21,10 +21,12 @@ import {
   usersTable,
   subscriptionPlansTable,
   learnerSubscriptionsTable,
+  productsTable,
 } from "@workspace/db";
 import { eq, and, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { requireAuth } from "../../middlewares/auth";
+import { rejectIfOwnListing } from "../../lib/ownListing";
 import Stripe from "stripe";
 import { createHash } from "crypto";
 
@@ -215,6 +217,191 @@ router.post("/checkout/sessions", requireAuth, async (req, res): Promise<void> =
   });
 });
 
+// POST /api/v1/checkout/confirm-free — grant free digital product without Stripe
+router.post("/checkout/confirm-free", requireAuth, async (req, res): Promise<void> => {
+  const Body = z.object({
+    listingId: z.string().uuid(),
+  });
+  const parsed = Body.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+    return;
+  }
+
+  const buyerId = req.session.userId!;
+  const { listingId } = parsed.data;
+
+  const [listing] = await db
+    .select()
+    .from(listingsTable)
+    .where(and(eq(listingsTable.id, listingId), eq(listingsTable.status, "published")))
+    .limit(1);
+
+  if (!listing) {
+    res.status(404).json({ error: "Listing not found" });
+    return;
+  }
+
+  if (!["digital_product", "recorded_course"].includes(listing.type)) {
+    res.status(400).json({ error: "Only digital products can be confirmed free this way", code: "NOT_DIGITAL" });
+    return;
+  }
+
+  if (await rejectIfOwnListing(res, listing.creatorId, buyerId)) {
+    return;
+  }
+
+  const [priceRecord] = await db
+    .select()
+    .from(priceRecordsTable)
+    .where(and(eq(priceRecordsTable.listingId, listingId), eq(priceRecordsTable.isActive, true)))
+    .limit(1);
+
+  if (!priceRecord || priceRecord.amountMinorUnits > 0) {
+    res.status(400).json({ error: "Listing is not free", code: "PAID_LISTING" });
+    return;
+  }
+
+  const [product] = await db
+    .select()
+    .from(productsTable)
+    .where(eq(productsTable.listingId, listingId))
+    .limit(1);
+
+  const assetId = product?.paidAssetId ?? null;
+  if (!assetId) {
+    res.status(400).json({ error: "No downloadable file on this listing yet", code: "NO_ASSET" });
+    return;
+  }
+
+  const [existingEntitlement] = await db
+    .select()
+    .from(entitlementsTable)
+    .where(
+      and(
+        eq(entitlementsTable.userId, buyerId),
+        eq(entitlementsTable.listingId, listingId),
+        eq(entitlementsTable.status, "active")
+      )
+    )
+    .limit(1);
+
+  if (existingEntitlement) {
+    res.json({
+      data: {
+        orderId: null,
+        entitlementId: existingEntitlement.id,
+        alreadyOwned: true,
+      },
+    });
+    return;
+  }
+
+  const [creator] = await db
+    .select()
+    .from(creatorProfilesTable)
+    .where(eq(creatorProfilesTable.id, listing.creatorId))
+    .limit(1);
+
+  if (!creator) {
+    res.status(404).json({ error: "Creator not found" });
+    return;
+  }
+
+  const [creatorProfile] = await db
+    .select({ displayName: profilesTable.displayName })
+    .from(profilesTable)
+    .where(eq(profilesTable.userId, creator.userId))
+    .limit(1);
+
+  const idempotencyKey = `free:${buyerId}:${listingId}`;
+  const [existingOrder] = await db
+    .select()
+    .from(ordersTable)
+    .where(eq(ordersTable.idempotencyKey, idempotencyKey))
+    .limit(1);
+
+  if (existingOrder) {
+    const [existingItem] = await db
+      .select()
+      .from(orderItemsTable)
+      .where(eq(orderItemsTable.orderId, existingOrder.id))
+      .limit(1);
+    const [ent] = await db
+      .select()
+      .from(entitlementsTable)
+      .where(
+        and(
+          eq(entitlementsTable.userId, buyerId),
+          eq(entitlementsTable.listingId, listingId),
+          eq(entitlementsTable.status, "active")
+        )
+      )
+      .limit(1);
+    res.json({
+      data: {
+        orderId: existingOrder.id,
+        orderItemId: existingItem?.id ?? null,
+        entitlementId: ent?.id ?? null,
+        alreadyOwned: true,
+      },
+    });
+    return;
+  }
+
+  const [order] = await db
+    .insert(ordersTable)
+    .values({
+      buyerId,
+      status: "paid",
+      currency: priceRecord.currency,
+      subtotalMinorUnits: 0,
+      platformFeeMinorUnits: 0,
+      totalMinorUnits: 0,
+      idempotencyKey,
+    })
+    .returning();
+
+  const [orderItem] = await db
+    .insert(orderItemsTable)
+    .values({
+      orderId: order.id,
+      listingId,
+      priceRecordId: priceRecord.id,
+      listingTitleSnapshot: listing.title,
+      creatorIdSnapshot: creator.id,
+      creatorNameSnapshot: creatorProfile?.displayName ?? null,
+      quantity: 1,
+      unitAmountMinorUnits: 0,
+      platformFeeMinorUnits: 0,
+      creatorProceedsMinorUnits: 0,
+      commissionRateBasisPoints: 0,
+      fulfilmentStatus: "fulfilled",
+    })
+    .returning();
+
+  const [entitlement] = await db
+    .insert(entitlementsTable)
+    .values({
+      userId: buyerId,
+      orderItemId: orderItem.id,
+      listingId,
+      assetId,
+      status: "active",
+      grantReason: `free_order:${order.id}`,
+    })
+    .returning();
+
+  res.status(201).json({
+    data: {
+      orderId: order.id,
+      orderItemId: orderItem.id,
+      entitlementId: entitlement.id,
+      alreadyOwned: false,
+    },
+  });
+});
+
 // POST /api/v1/webhooks/stripe — handle Stripe events
 // Note: app.ts mounts express.raw() for this path before express.json(),
 // so req.body is a Buffer here containing the raw request body.
@@ -379,11 +566,18 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
         },
       ]);
 
-      // Grant entitlement
+      // Grant entitlement (include digital asset when present)
+      const [product] = await db
+        .select()
+        .from(productsTable)
+        .where(eq(productsTable.listingId, orderItem.listingId))
+        .limit(1);
+
       await db.insert(entitlementsTable).values({
         userId: order.buyerId,
         orderItemId,
         listingId: orderItem.listingId,
+        assetId: product?.paidAssetId ?? null,
         status: "active",
         grantReason: `order:${orderId}`,
       });

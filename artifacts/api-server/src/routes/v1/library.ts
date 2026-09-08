@@ -13,11 +13,15 @@ import {
   creatorProfilesTable,
   learnerSubscriptionsTable,
   ordersTable,
+  orderItemsTable,
+  priceRecordsTable,
   platformConfigTable,
+  usersTable,
 } from "@workspace/db";
 import { eq, and, or, desc } from "drizzle-orm";
 import { requireAuth } from "../../middlewares/auth";
 import { generateDownloadUrl } from "../../lib/storage";
+import { sendEmailResilient, buildReviewRequestEmail } from "../../lib/email";
 import Stripe from "stripe";
 
 function getStripe(): Stripe {
@@ -82,7 +86,7 @@ router.get("/me/library", requireAuth, async (req, res): Promise<void> => {
         .limit(1);
 
       let product = null;
-      if (listing?.type === "digital_product") {
+      if (listing?.type === "digital_product" || listing?.type === "recorded_course") {
         const [p] = await db
           .select()
           .from(productsTable)
@@ -335,6 +339,133 @@ router.post("/bookings/:id/complete", requireAuth, async (req, res): Promise<voi
     .update(creatorProfilesTable)
     .set({ completedSessions: cp.completedSessions + 1 })
     .where(eq(creatorProfilesTable.id, cp.id));
+
+  // Ensure a paid order item exists so the learner can leave a verified review,
+  // then email them a deep link.
+  try {
+    let orderId = booking.orderId;
+    let orderItemId: string | null = null;
+
+    if (orderId) {
+      const [existingItem] = await db
+        .select()
+        .from(orderItemsTable)
+        .where(eq(orderItemsTable.orderId, orderId))
+        .limit(1);
+      orderItemId = existingItem?.id ?? null;
+    }
+
+    if (!orderItemId) {
+      const [listing] = await db
+        .select()
+        .from(listingsTable)
+        .where(eq(listingsTable.id, booking.listingId))
+        .limit(1);
+
+      const [priceRecord] = await db
+        .select()
+        .from(priceRecordsTable)
+        .where(
+          and(
+            eq(priceRecordsTable.listingId, booking.listingId),
+            eq(priceRecordsTable.isActive, true)
+          )
+        )
+        .limit(1);
+
+      if (!priceRecord) {
+        throw new Error("No active price record for listing — cannot create review order");
+      }
+
+      const [creatorProfile] = await db
+        .select({ displayName: profilesTable.displayName })
+        .from(profilesTable)
+        .where(eq(profilesTable.userId, cp.userId))
+        .limit(1);
+
+      const idempotencyKey = `session_review:${booking.id}`;
+      const [order] = await db
+        .insert(ordersTable)
+        .values({
+          buyerId: booking.learnerId,
+          status: "paid",
+          currency: priceRecord.currency,
+          subtotalMinorUnits: priceRecord.amountMinorUnits,
+          platformFeeMinorUnits: 0,
+          totalMinorUnits: priceRecord.amountMinorUnits,
+          idempotencyKey,
+        })
+        .returning();
+
+      orderId = order.id;
+      const [orderItem] = await db
+        .insert(orderItemsTable)
+        .values({
+          orderId: order.id,
+          listingId: booking.listingId,
+          priceRecordId: priceRecord.id,
+          listingTitleSnapshot: listing?.title ?? "Session",
+          creatorIdSnapshot: booking.creatorId,
+          creatorNameSnapshot: creatorProfile?.displayName ?? null,
+          quantity: 1,
+          unitAmountMinorUnits: priceRecord.amountMinorUnits,
+          platformFeeMinorUnits: 0,
+          creatorProceedsMinorUnits: priceRecord.amountMinorUnits,
+          commissionRateBasisPoints: 0,
+          fulfilmentStatus: "fulfilled",
+        })
+        .returning();
+      orderItemId = orderItem.id;
+
+      await db
+        .update(bookingsTable)
+        .set({ orderId: order.id })
+        .where(eq(bookingsTable.id, booking.id));
+    }
+
+    if (orderItemId) {
+      const [learner] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, booking.learnerId))
+        .limit(1);
+      const [learnerProfile] = await db
+        .select({ displayName: profilesTable.displayName })
+        .from(profilesTable)
+        .where(eq(profilesTable.userId, booking.learnerId))
+        .limit(1);
+      const [tutorProfile] = await db
+        .select({ displayName: profilesTable.displayName })
+        .from(profilesTable)
+        .where(eq(profilesTable.userId, cp.userId))
+        .limit(1);
+      const [listing] = await db
+        .select()
+        .from(listingsTable)
+        .where(eq(listingsTable.id, booking.listingId))
+        .limit(1);
+
+      if (learner?.email) {
+        const appUrl = process.env.APP_URL ?? "http://localhost:5000";
+        const reviewUrl = `${appUrl}/reviews/submit?orderItemId=${orderItemId}`;
+        await sendEmailResilient(
+          {
+            to: learner.email,
+            subject: "How was your Aced session?",
+            html: buildReviewRequestEmail({
+              learnerName: learnerProfile?.displayName ?? "there",
+              tutorName: tutorProfile?.displayName ?? "your tutor",
+              listingTitle: listing?.title ?? "your session",
+              reviewUrl,
+            }),
+          },
+          "session_review_request"
+        );
+      }
+    }
+  } catch (err) {
+    req.log?.error?.({ err, bookingId: id }, "Failed to send review-request email");
+  }
 
   res.json({ data: updated });
 });

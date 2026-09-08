@@ -251,22 +251,20 @@ export function buildApprovalEmail(opts: {
   `;
 }
 
-export function buildRejectionEmail(opts: {
-  applicantName: string;
-  notes?: string;
+export function buildReviewRequestEmail(opts: {
+  learnerName: string;
+  tutorName: string;
+  listingTitle: string;
+  reviewUrl: string;
 }): EmailPayload["html"] {
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #7B2FF7;">Your Aced Application Update</h2>
-      <p>Hi ${opts.applicantName},</p>
-      <p>Thank you for taking the time to apply to become a creator on Aced. After reviewing your application, we are unable to approve it at this time.</p>
-      ${opts.notes ? `
-      <div style="background:#f9fafb;border-left:4px solid #6b7280;padding:12px 16px;margin:16px 0;border-radius:4px;">
-        <p style="margin:0;font-weight:bold;">Reviewer note:</p>
-        <p style="margin:8px 0 0;">${opts.notes}</p>
-      </div>` : ""}
-      <p>This is usually due to academic credential requirements not being met. You may re-apply once you have additional supporting credentials.</p>
-      <p style="color:#666;font-size:12px;margin-top:24px;">If you have questions, reply to this email and our team will be happy to help.</p>
+      <h2 style="color: #7B2FF7;">How was your session?</h2>
+      <p>Hi ${opts.learnerName},</p>
+      <p>Your session with <strong>${opts.tutorName}</strong> on <strong>${opts.listingTitle}</strong> is complete. We'd love to hear how it went.</p>
+      <p>Leaving a short review helps other students choose the right tutor — and means a lot to ${opts.tutorName}.</p>
+      <a href="${opts.reviewUrl}" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#7B2FF7,#00D4FF);color:white;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:8px;">Leave a review</a>
+      <p style="color:#666;font-size:12px;margin-top:24px;">If you didn't take this session, you can ignore this email.</p>
     </div>
   `;
 }

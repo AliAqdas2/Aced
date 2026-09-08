@@ -765,6 +765,47 @@ export const CreateListingResponse = zod.object({
 
 
 /**
+ * @summary Update a creator's listing
+ */
+export const UpdateListingParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const updateListingBodyTitleMin = 5;
+export const updateListingBodyTitleMax = 200;
+
+export const updateListingBodyDescriptionMin = 20;
+export const updateListingBodyDescriptionMax = 5000;
+
+
+
+export const UpdateListingBody = zod.object({
+  "title": zod.string().min(updateListingBodyTitleMin).max(updateListingBodyTitleMax).optional(),
+  "description": zod.string().min(updateListingBodyDescriptionMin).max(updateListingBodyDescriptionMax).optional(),
+  "tags": zod.array(zod.string()).optional(),
+  "primaryUniversityId": zod.uuid().nullish(),
+  "primaryCourseId": zod.uuid().nullish()
+})
+
+export const UpdateListingResponse = zod.object({
+  "data": zod.object({
+  "id": zod.uuid(),
+  "title": zod.string(),
+  "description": zod.string().optional(),
+  "type": zod.string(),
+  "status": zod.string(),
+  "tags": zod.array(zod.string()).optional(),
+  "viewCount": zod.number().optional(),
+  "purchaseCount": zod.number().optional(),
+  "averageRating": zod.number().nullish(),
+  "reviewCount": zod.number().optional(),
+  "publishedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional()
+})
+})
+
+
+/**
  * @summary Get creator's own storefront
  */
 export const GetCreatorStorefrontResponse = zod.object({
@@ -1193,7 +1234,9 @@ export const GetAdminUsersResponse = zod.object({
  * @summary Get all orders
  */
 export const GetAdminOrdersQueryParams = zod.object({
-  "status": zod.coerce.string().optional()
+  "status": zod.coerce.string().optional(),
+  "creatorId": zod.coerce.string().optional(),
+  "buyerEmail": zod.coerce.string().optional()
 })
 
 export const GetAdminOrdersResponse = zod.object({

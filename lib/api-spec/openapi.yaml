@@ -492,6 +492,50 @@ paths:
               schema:
                 $ref: "#/components/schemas/CheckoutSessionResponse"
 
+  /v1/checkout/confirm-free:
+    post:
+      operationId: confirmFreePurchase
+      tags: [checkout]
+      summary: Confirm a free digital product purchase without Stripe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [listingId]
+              properties:
+                listingId:
+                  type: string
+                  format: uuid
+      responses:
+        "201":
+          description: Free purchase confirmed and entitlement granted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      orderId:
+                        type: string
+                        format: uuid
+                        nullable: true
+                      orderItemId:
+                        type: string
+                        format: uuid
+                        nullable: true
+                      entitlementId:
+                        type: string
+                        format: uuid
+                        nullable: true
+                      alreadyOwned:
+                        type: boolean
+        "400":
+          description: Listing not free or missing asset
+
   /v1/webhooks/stripe:
     post:
       operationId: stripeWebhook
@@ -756,6 +800,82 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ListingResponse"
+
+  /v1/creator/listings/{id}:
+    patch:
+      operationId: updateListing
+      tags: [listings]
+      summary: Update a creator's listing
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateListingRequest"
+      responses:
+        "200":
+          description: Listing updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListingResponse"
+        "404":
+          description: Listing not found or access denied
+
+  /v1/creator/listings/{id}/publish:
+    post:
+      operationId: publishListing
+      tags: [listings]
+      summary: Publish an approved or paused listing
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Listing published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListingResponse"
+        "400":
+          description: Listing not approved
+        "404":
+          description: Listing not found or access denied
+
+  /v1/creator/listings/{id}/pause:
+    post:
+      operationId: pauseListing
+      tags: [listings]
+      summary: Pause a published listing (hide from public storefront)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Listing paused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListingResponse"
+        "400":
+          description: Listing not published
+        "404":
+          description: Listing not found or access denied
 
   /v1/creator/storefront:
     get:
@@ -2263,6 +2383,30 @@ components:
               type: integer
             bufferMinutesAfter:
               type: integer
+
+    UpdateListingRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 5
+          maxLength: 200
+        description:
+          type: string
+          minLength: 20
+          maxLength: 5000
+        tags:
+          type: array
+          items:
+            type: string
+        primaryUniversityId:
+          type: string
+          format: uuid
+          nullable: true
+        primaryCourseId:
+          type: string
+          format: uuid
+          nullable: true
 
     AvailabilityRulesResponse:
       type: object

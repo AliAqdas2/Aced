@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useGetCreatorStorefront, useUpdateCreatorStorefront } from '@workspace/api-client-react';
+import { useGetCreatorStorefront, useUpdateCreatorStorefront, getGetCreatorStorefrontQueryKey, getGetStorefrontQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,8 @@ import {
   ExternalLink,
   Camera,
   ImagePlus,
+  Briefcase,
+  Quote,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUpload } from '@workspace/object-storage-web';
@@ -40,7 +42,13 @@ import { useUpload } from '@workspace/object-storage-web';
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface FaqItem { q: string; a: string }
-interface FaqJson { faqs: FaqItem[]; funFacts: string[] }
+interface TestimonialItem { name: string; quote: string }
+interface FaqJson {
+  faqs: FaqItem[];
+  funFacts: string[];
+  experience: string[];
+  testimonials: TestimonialItem[];
+}
 
 interface CreatorProfileData {
   headline: string | null;
@@ -64,10 +72,12 @@ function parseFaqJson(raw: unknown): FaqJson {
     return {
       faqs: Array.isArray(obj.faqs) ? obj.faqs as FaqItem[] : [],
       funFacts: Array.isArray(obj.funFacts) ? obj.funFacts as string[] : [],
+      experience: Array.isArray(obj.experience) ? obj.experience as string[] : [],
+      testimonials: Array.isArray(obj.testimonials) ? obj.testimonials as TestimonialItem[] : [],
     };
   }
-  if (Array.isArray(raw)) return { faqs: raw as FaqItem[], funFacts: [] };
-  return { faqs: [], funFacts: [] };
+  if (Array.isArray(raw)) return { faqs: raw as FaqItem[], funFacts: [], experience: [], testimonials: [] };
+  return { faqs: [], funFacts: [], experience: [], testimonials: [] };
 }
 
 /** Convert an objectPath like /objects/uploads/xyz to the serving URL */
@@ -244,6 +254,8 @@ export default function StudioStorefront() {
   // Form state — story
   const [bio, setBio] = useState('');
   const [funFacts, setFunFacts] = useState<string[]>(['']);
+  const [experience, setExperience] = useState<string[]>(['']);
+  const [testimonials, setTestimonials] = useState<TestimonialItem[]>([{ name: '', quote: '' }]);
 
   // Form state — FAQ
   const [faqs, setFaqs] = useState<FaqItem[]>([{ q: '', a: '' }]);
@@ -263,6 +275,8 @@ export default function StudioStorefront() {
   const [savingIdentity, setSavingIdentity] = useState(false);
   const [savingStory, setSavingStory] = useState(false);
   const [savingFaq, setSavingFaq] = useState(false);
+  const [savingExperience, setSavingExperience] = useState(false);
+  const [savingTestimonials, setSavingTestimonials] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
 
   // Seed form from remote data
@@ -295,6 +309,8 @@ export default function StudioStorefront() {
     const faqData = parseFaqJson(sf.faqJson);
     setFunFacts(faqData.funFacts.length > 0 ? faqData.funFacts : ['']);
     setFaqs(faqData.faqs.length > 0 ? faqData.faqs : [{ q: '', a: '' }]);
+    setExperience(faqData.experience.length > 0 ? faqData.experience : ['']);
+    setTestimonials(faqData.testimonials.length > 0 ? faqData.testimonials : [{ name: '', quote: '' }]);
   }, [sfResponse]);
 
   // Fetch avatar from /profile
@@ -308,6 +324,13 @@ export default function StudioStorefront() {
   }, []);
 
   const sf = sfResponse?.data as any;
+
+  function invalidateStorefrontCaches() {
+    queryClient.invalidateQueries({ queryKey: getGetCreatorStorefrontQueryKey() });
+    if (slug) {
+      queryClient.invalidateQueries({ queryKey: getGetStorefrontQueryKey(slug) });
+    }
+  }
 
   // ── Save handlers ────────────────────────────────────────────────────────
 
@@ -330,7 +353,7 @@ export default function StudioStorefront() {
           : Promise.resolve(),
       ]);
       toast({ title: 'Profile identity saved ✓' });
-      queryClient.invalidateQueries({ queryKey: ['creator-storefront'] });
+      invalidateStorefrontCaches();
     } catch {
       toast({ title: 'Failed to save identity', variant: 'destructive' });
     } finally {
@@ -346,10 +369,15 @@ export default function StudioStorefront() {
       await updateStorefront.mutateAsync({
         data: {
           bio,
-          faqJson: { faqs: currentFaqJson.faqs, funFacts: funFacts.filter((f) => f.trim()) },
+          faqJson: {
+            ...currentFaqJson,
+            faqs: currentFaqJson.faqs,
+            funFacts: funFacts.filter((f) => f.trim()),
+          },
         },
       } as any);
       toast({ title: 'Your story saved ✓' });
+      invalidateStorefrontCaches();
     } catch {
       toast({ title: 'Failed to save story', variant: 'destructive' });
     } finally {
@@ -365,16 +393,62 @@ export default function StudioStorefront() {
       await updateStorefront.mutateAsync({
         data: {
           faqJson: {
+            ...currentFaqJson,
             faqs: faqs.filter((f) => f.q.trim() && f.a.trim()),
             funFacts: currentFaqJson.funFacts,
           },
         },
       } as any);
       toast({ title: 'FAQs saved ✓' });
+      invalidateStorefrontCaches();
     } catch {
       toast({ title: 'Failed to save FAQs', variant: 'destructive' });
     } finally {
       setSavingFaq(false);
+    }
+  }
+
+  async function saveExperience() {
+    setSavingExperience(true);
+    try {
+      const sf = sfResponse?.data as any;
+      const currentFaqJson = parseFaqJson(sf?.faqJson);
+      await updateStorefront.mutateAsync({
+        data: {
+          faqJson: {
+            ...currentFaqJson,
+            experience: experience.filter((e) => e.trim()),
+          },
+        },
+      } as any);
+      toast({ title: 'Experience saved ✓' });
+      invalidateStorefrontCaches();
+    } catch {
+      toast({ title: 'Failed to save experience', variant: 'destructive' });
+    } finally {
+      setSavingExperience(false);
+    }
+  }
+
+  async function saveTestimonials() {
+    setSavingTestimonials(true);
+    try {
+      const sf = sfResponse?.data as any;
+      const currentFaqJson = parseFaqJson(sf?.faqJson);
+      await updateStorefront.mutateAsync({
+        data: {
+          faqJson: {
+            ...currentFaqJson,
+            testimonials: testimonials.filter((t) => t.name.trim() && t.quote.trim()),
+          },
+        },
+      } as any);
+      toast({ title: 'Testimonials saved ✓' });
+      invalidateStorefrontCaches();
+    } catch {
+      toast({ title: 'Failed to save testimonials', variant: 'destructive' });
+    } finally {
+      setSavingTestimonials(false);
     }
   }
 
@@ -399,6 +473,7 @@ export default function StudioStorefront() {
         }),
       ]);
       toast({ title: 'Settings saved ✓' });
+      invalidateStorefrontCaches();
     } catch {
       toast({ title: 'Failed to save settings', variant: 'destructive' });
     } finally {
@@ -416,7 +491,7 @@ export default function StudioStorefront() {
       });
       setIsPublished(val);
       toast({ title: val ? 'Showcase published ✓' : 'Showcase unpublished' });
-      queryClient.invalidateQueries({ queryKey: ['creator-storefront'] });
+      invalidateStorefrontCaches();
     } catch {
       toast({ title: 'Failed to update visibility', variant: 'destructive' });
     } finally {
@@ -432,6 +507,26 @@ export default function StudioStorefront() {
 
   function removeFunFact(i: number) {
     setFunFacts((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  // ── Experience helpers ───────────────────────────────────────────────────
+
+  function updateExperience(i: number, val: string) {
+    setExperience((prev) => prev.map((e, idx) => (idx === i ? val : e)));
+  }
+
+  function removeExperience(i: number) {
+    setExperience((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  // ── Testimonial helpers ──────────────────────────────────────────────────
+
+  function updateTestimonial(i: number, field: 'name' | 'quote', val: string) {
+    setTestimonials((prev) => prev.map((t, idx) => (idx === i ? { ...t, [field]: val } : t)));
+  }
+
+  function removeTestimonial(i: number) {
+    setTestimonials((prev) => prev.filter((_, idx) => idx !== i));
   }
 
   // ── FAQ helpers ──────────────────────────────────────────────────────────
@@ -564,7 +659,7 @@ export default function StudioStorefront() {
           </div>
 
           <Button onClick={saveIdentity} disabled={savingIdentity} className="w-full sm:w-auto">
-            {savingIdentity ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : 'Save identity'}
+            {savingIdentity ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : 'Save'}
           </Button>
         </div>
       </SectionCard>
@@ -587,7 +682,7 @@ export default function StudioStorefront() {
           <Separator />
 
           <div className="space-y-2">
-            <Label>Fun facts <span className="text-muted-foreground font-normal text-xs ml-1">— 3–5 quick facts that show your personality</span></Label>
+            <Label>Fun facts <span className="text-muted-foreground font-normal text-xs ml-1">— optional; a few quick facts that show your personality</span></Label>
             {funFacts.map((fact, i) => (
               <div key={i} className="flex gap-2">
                 <Input
@@ -621,13 +716,101 @@ export default function StudioStorefront() {
           </div>
 
           <Button onClick={saveStory} disabled={savingStory} className="w-full sm:w-auto">
-            {savingStory ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : 'Save story'}
+            {savingStory ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : 'Save'}
+          </Button>
+        </div>
+      </SectionCard>
+
+      {/* ── Experience ────────────────────────────────────────────────── */}
+      <SectionCard icon={Briefcase} title="Experience & qualifications" description="Short bullet points shown on your public showcase (optional)">
+        <div className="space-y-4">
+          {experience.map((line, i) => (
+            <div key={i} className="flex gap-2">
+              <Input
+                placeholder="e.g. LLB Law, University of Cambridge — First Class"
+                value={line}
+                onChange={(e) => updateExperience(i, e.target.value)}
+                maxLength={200}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => removeExperience(i)}
+                disabled={experience.length <= 1}
+                className="shrink-0"
+              >
+                <Trash2 className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            onClick={() => setExperience((prev) => [...prev, ''])}
+            disabled={experience.length >= 12}
+          >
+            <Plus className="h-3.5 w-3.5" /> Add line
+          </Button>
+          <Button onClick={saveExperience} disabled={savingExperience} className="w-full sm:w-auto">
+            {savingExperience ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : 'Save'}
+          </Button>
+        </div>
+      </SectionCard>
+
+      {/* ── Testimonials ──────────────────────────────────────────────── */}
+      <SectionCard icon={Quote} title="Testimonials" description="Curated quotes from students (optional)">
+        <div className="space-y-4">
+          {testimonials.map((t, i) => (
+            <div key={i} className="space-y-2 rounded-xl border border-border/60 p-4 bg-muted/20">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Quote {i + 1}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => removeTestimonial(i)}
+                  disabled={testimonials.length <= 1}
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+              </div>
+              <Input
+                placeholder="Student name"
+                value={t.name}
+                onChange={(e) => updateTestimonial(i, 'name', e.target.value)}
+                maxLength={80}
+              />
+              <Textarea
+                rows={2}
+                placeholder="What they said…"
+                value={t.quote}
+                onChange={(e) => updateTestimonial(i, 'quote', e.target.value)}
+                maxLength={500}
+              />
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            onClick={() => setTestimonials((prev) => [...prev, { name: '', quote: '' }])}
+            disabled={testimonials.length >= 10}
+          >
+            <Plus className="h-3.5 w-3.5" /> Add testimonial
+          </Button>
+          <Button onClick={saveTestimonials} disabled={savingTestimonials} className="w-full sm:w-auto">
+            {savingTestimonials ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : 'Save'}
           </Button>
         </div>
       </SectionCard>
 
       {/* ── FAQ ───────────────────────────────────────────────────────── */}
-      <SectionCard icon={MessageCircleQuestion} title="Frequently asked questions" description="Help students know what to expect">
+      <SectionCard icon={MessageCircleQuestion} title="Frequently asked questions" description="Optional — help students know what to expect">
         <div className="space-y-4">
           {faqs.map((faq, i) => (
             <div key={i} className="space-y-2 rounded-xl border border-border/60 p-4 bg-muted/20">
@@ -670,7 +853,7 @@ export default function StudioStorefront() {
           </Button>
 
           <Button onClick={saveFaq} disabled={savingFaq} className="w-full sm:w-auto">
-            {savingFaq ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : 'Save FAQs'}
+            {savingFaq ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : 'Save'}
           </Button>
         </div>
       </SectionCard>
