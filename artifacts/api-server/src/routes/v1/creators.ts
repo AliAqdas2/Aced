@@ -20,7 +20,7 @@ import {
   sendEmailResilient,
   buildCreatorApplicationEmail,
   buildApprovalEmail,
-  buildRejectionEmail,
+  buildRejectedEmail,
   buildChangesRequestedEmail,
   buildApplicationReceivedEmail,
 } from "../../lib/email";
@@ -678,7 +678,7 @@ router.post(
             {
               to: userInfo.email,
               subject: "Update on your Aced creator application",
-              html: buildRejectionEmail({
+              html: buildRejectedEmail({
                 applicantName: userInfo.displayName ?? "Applicant",
                 notes: parsed.data.notes,
               }),
