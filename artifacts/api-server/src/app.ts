@@ -125,6 +125,7 @@ app.use("/api/v1/auth/password-reset", authLimiter);
 // Body parsing — raw Buffer for Stripe webhook and local file uploads
 // (must come before express.json), then JSON for all other routes.
 app.use("/api/v1/webhooks/stripe", express.raw({ type: "*/*" }));
+app.use("/api/webhook/stripe", express.raw({ type: "*/*" }));
 app.use(
   "/api/storage/uploads",
   (req, res, next) => {

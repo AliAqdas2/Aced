@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
 import { syncBookingCreated } from "../../lib/calendar-sync";
 import { db } from "@workspace/db";
@@ -402,88 +402,87 @@ router.post("/checkout/confirm-free", requireAuth, async (req, res): Promise<voi
   });
 });
 
-// POST /api/v1/webhooks/stripe — handle Stripe events
-// Note: app.ts mounts express.raw() for this path before express.json(),
+// POST /api/v1/webhooks/stripe (and alias /api/webhook/stripe) — handle Stripe events
+// Note: app.ts mounts express.raw() for these paths before express.json(),
 // so req.body is a Buffer here containing the raw request body.
-router.post(
-  "/webhooks/stripe",
-  async (req, res): Promise<void> => {
-    const sig = req.headers["stripe-signature"] as string;
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+export async function stripeWebhookHandler(req: Request, res: Response): Promise<void> {
+  const sig = req.headers["stripe-signature"] as string;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-    if (!webhookSecret) {
-      req.log.error("STRIPE_WEBHOOK_SECRET not configured");
-      res.status(500).json({ error: "Webhook not configured" });
-      return;
-    }
-
-    let event: Stripe.Event;
-    try {
-      const stripe = getStripe();
-      // req.body is a Buffer from express.raw() mounted in app.ts
-      event = stripe.webhooks.constructEvent(
-        req.body as Buffer,
-        sig,
-        webhookSecret
-      );
-    } catch (err) {
-      req.log.warn({ err }, "Stripe webhook signature verification failed");
-      res.status(400).json({ error: "Invalid signature" });
-      return;
-    }
-
-    const payloadHash = createHash("sha256")
-      .update(JSON.stringify(event))
-      .digest("hex");
-
-    // Idempotency check
-    const [existing] = await db
-      .select()
-      .from(webhookEventsTable)
-      .where(eq(webhookEventsTable.eventId, event.id))
-      .limit(1);
-
-    if (existing) {
-      if (existing.processingStatus === "processed") {
-        res.json({ received: true });
-        return;
-      }
-    } else {
-      await db.insert(webhookEventsTable).values({
-        provider: "stripe",
-        eventId: event.id,
-        eventType: event.type,
-        payloadHash,
-        processingStatus: "pending",
-        attempts: 1,
-      });
-    }
-
-    try {
-      await handleStripeEvent(event);
-
-      await db
-        .update(webhookEventsTable)
-        .set({ processingStatus: "processed", processedAt: new Date() })
-        .where(eq(webhookEventsTable.eventId, event.id));
-    } catch (err: any) {
-      await db
-        .update(webhookEventsTable)
-        .set({
-          processingStatus: "failed",
-          errorMessage: err?.message ?? "Unknown error",
-          attempts: (existing?.attempts ?? 0) + 1,
-        })
-        .where(eq(webhookEventsTable.eventId, event.id));
-
-      req.log.error({ err, eventId: event.id }, "Stripe webhook processing failed");
-      res.status(500).json({ error: "Processing failed" });
-      return;
-    }
-
-    res.json({ received: true });
+  if (!webhookSecret) {
+    req.log.error("STRIPE_WEBHOOK_SECRET not configured");
+    res.status(500).json({ error: "Webhook not configured" });
+    return;
   }
-);
+
+  let event: Stripe.Event;
+  try {
+    const stripe = getStripe();
+    // req.body is a Buffer from express.raw() mounted in app.ts
+    event = stripe.webhooks.constructEvent(
+      req.body as Buffer,
+      sig,
+      webhookSecret
+    );
+  } catch (err) {
+    req.log.warn({ err }, "Stripe webhook signature verification failed");
+    res.status(400).json({ error: "Invalid signature" });
+    return;
+  }
+
+  const payloadHash = createHash("sha256")
+    .update(JSON.stringify(event))
+    .digest("hex");
+
+  // Idempotency check
+  const [existing] = await db
+    .select()
+    .from(webhookEventsTable)
+    .where(eq(webhookEventsTable.eventId, event.id))
+    .limit(1);
+
+  if (existing) {
+    if (existing.processingStatus === "processed") {
+      res.json({ received: true });
+      return;
+    }
+  } else {
+    await db.insert(webhookEventsTable).values({
+      provider: "stripe",
+      eventId: event.id,
+      eventType: event.type,
+      payloadHash,
+      processingStatus: "pending",
+      attempts: 1,
+    });
+  }
+
+  try {
+    await handleStripeEvent(event);
+
+    await db
+      .update(webhookEventsTable)
+      .set({ processingStatus: "processed", processedAt: new Date() })
+      .where(eq(webhookEventsTable.eventId, event.id));
+  } catch (err: any) {
+    await db
+      .update(webhookEventsTable)
+      .set({
+        processingStatus: "failed",
+        errorMessage: err?.message ?? "Unknown error",
+        attempts: (existing?.attempts ?? 0) + 1,
+      })
+      .where(eq(webhookEventsTable.eventId, event.id));
+
+    req.log.error({ err, eventId: event.id }, "Stripe webhook processing failed");
+    res.status(500).json({ error: "Processing failed" });
+    return;
+  }
+
+  res.json({ received: true });
+}
+
+router.post("/webhooks/stripe", stripeWebhookHandler);
 
 async function handleStripeEvent(event: Stripe.Event): Promise<void> {
   switch (event.type) {

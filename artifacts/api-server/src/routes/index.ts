@@ -7,7 +7,7 @@ import creatorsRouter from "./v1/creators";
 import storefrontsRouter from "./v1/storefronts";
 import listingsRouter from "./v1/listings";
 import availabilityRouter from "./v1/availability";
-import checkoutRouter from "./v1/checkout";
+import checkoutRouter, { stripeWebhookHandler } from "./v1/checkout";
 import libraryRouter from "./v1/library";
 import reviewsRouter from "./v1/reviews";
 import searchRouter from "./v1/search";
@@ -25,6 +25,9 @@ router.use(healthRouter);
 
 // Object storage (upload presigned URLs + object serving)
 router.use(storageRouter);
+
+// Stripe webhook alias (same handler as /api/v1/webhooks/stripe)
+router.post("/webhook/stripe", stripeWebhookHandler);
 
 // Versioned API routes
 const v1 = Router();
