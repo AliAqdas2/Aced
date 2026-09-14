@@ -161,12 +161,16 @@ router.post(
         },
       });
 
-    // Update user role to creator_applicant
-    await db
-      .update(usersTable)
-      .set({ role: "creator_applicant" })
-      .where(eq(usersTable.id, userId));
-    req.session.role = "creator_applicant";
+    // Update user role to creator_applicant — never demote staff roles
+    const STAFF_ROLES = new Set(["admin", "super_admin", "moderator", "finance"]);
+    const currentRole = req.session.role as string | undefined;
+    if (!currentRole || !STAFF_ROLES.has(currentRole)) {
+      await db
+        .update(usersTable)
+        .set({ role: "creator_applicant" })
+        .where(eq(usersTable.id, userId));
+      req.session.role = "creator_applicant";
+    }
 
     await logAuditEvent({
       actorId: userId,
@@ -613,10 +617,20 @@ router.post(
       .returning();
 
     if (parsed.data.decision === "approved") {
-      await db
-        .update(usersTable)
-        .set({ role: "creator" })
-        .where(eq(usersTable.id, cp.userId));
+      // Never overwrite staff roles — admins keep admin while gaining creator access
+      const STAFF_ROLES = new Set(["admin", "super_admin", "moderator", "finance"]);
+      const [applicant] = await db
+        .select({ role: usersTable.role })
+        .from(usersTable)
+        .where(eq(usersTable.id, cp.userId))
+        .limit(1);
+
+      if (!applicant || !STAFF_ROLES.has(applicant.role)) {
+        await db
+          .update(usersTable)
+          .set({ role: "creator" })
+          .where(eq(usersTable.id, cp.userId));
+      }
 
       // Create storefront if it doesn't exist
       const [existingStorefront] = await db

@@ -1,11 +1,17 @@
 /**
  * One-shot admin bootstrap — create or promote fixed admin accounts.
+ * Also provisions approved creator profiles + storefronts so admins can use Studio.
  * Run: pnpm --filter @workspace/scripts run bootstrap-admins
  * Docker: docker compose --profile tools run --rm bootstrap-admins
  */
 import "@workspace/db/load-env";
 import { db } from "@workspace/db";
-import { usersTable, profilesTable } from "@workspace/db";
+import {
+  usersTable,
+  profilesTable,
+  creatorProfilesTable,
+  storefrontsTable,
+} from "@workspace/db";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
@@ -40,6 +46,53 @@ function displayNameFromEmail(email: string): string {
     .join(" ");
 }
 
+async function ensureCreatorAccess(userId: string, displayName: string): Promise<void> {
+  const [existingCp] = await db
+    .select()
+    .from(creatorProfilesTable)
+    .where(eq(creatorProfilesTable.userId, userId))
+    .limit(1);
+
+  let creatorId = existingCp?.id;
+
+  if (existingCp) {
+    if (existingCp.status !== "approved") {
+      await db
+        .update(creatorProfilesTable)
+        .set({ status: "approved", verifiedAt: new Date() })
+        .where(eq(creatorProfilesTable.id, existingCp.id));
+    }
+  } else {
+    const [cp] = await db
+      .insert(creatorProfilesTable)
+      .values({
+        userId,
+        status: "approved",
+        headline: "Platform admin",
+        verifiedAt: new Date(),
+      })
+      .returning({ id: creatorProfilesTable.id });
+    creatorId = cp.id;
+  }
+
+  if (!creatorId) return;
+
+  const [existingStorefront] = await db
+    .select({ id: storefrontsTable.id })
+    .from(storefrontsTable)
+    .where(eq(storefrontsTable.creatorId, creatorId))
+    .limit(1);
+
+  if (!existingStorefront) {
+    const slug = `creator-${creatorId.slice(0, 8)}`;
+    await db.insert(storefrontsTable).values({
+      creatorId,
+      slug,
+      displayName,
+    });
+  }
+}
+
 async function upsertAdmin(account: (typeof ADMIN_ACCOUNTS)[number]): Promise<"created" | "updated"> {
   const email = account.email.toLowerCase().trim();
   const password = resolvePassword(account.passwordEnvKey);
@@ -68,6 +121,8 @@ async function upsertAdmin(account: (typeof ADMIN_ACCOUNTS)[number]): Promise<"c
       .values({ userId: existing.id, displayName })
       .onConflictDoNothing();
 
+    await ensureCreatorAccess(existing.id, displayName);
+
     return "updated";
   }
 
@@ -87,6 +142,8 @@ async function upsertAdmin(account: (typeof ADMIN_ACCOUNTS)[number]): Promise<"c
     .values({ userId: user.id, displayName })
     .onConflictDoNothing();
 
+  await ensureCreatorAccess(user.id, displayName);
+
   return "created";
 }
 
@@ -96,7 +153,7 @@ async function main() {
   for (const account of ADMIN_ACCOUNTS) {
     const action = await upsertAdmin(account);
     const password = resolvePassword(account.passwordEnvKey);
-    console.log(`  ${action === "created" ? "Created" : "Updated"}: ${account.email} (role: admin)`);
+    console.log(`  ${action === "created" ? "Created" : "Updated"}: ${account.email} (role: admin + creator profile)`);
     console.log(`    Password: ${password}`);
   }
 

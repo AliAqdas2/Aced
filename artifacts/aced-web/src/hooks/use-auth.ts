@@ -9,6 +9,8 @@ export function useAuth() {
   });
 
   const isAuthenticated = !isError && !!data?.data;
+  const role = data?.data?.role;
+  const isAdmin = role === 'admin' || role === 'super_admin';
 
   return {
     user: data?.data,
@@ -16,7 +18,8 @@ export function useAuth() {
     isLoading,
     /** Every signed-in account can learn (book, buy, library). Tutoring is additive. */
     isLearner: isAuthenticated,
-    isCreator: data?.data?.role === 'creator',
-    isAdmin: data?.data?.role === 'admin',
+    /** Admins/super_admins also have full creator capabilities. */
+    isCreator: role === 'creator' || isAdmin,
+    isAdmin,
   };
 }

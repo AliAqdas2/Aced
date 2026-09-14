@@ -71,7 +71,8 @@ export default function StudioScreen() {
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
-  const isCreator = user?.role === 'creator' || user?.role === 'admin';
+  const isCreator =
+    user?.role === 'creator' || user?.role === 'admin' || user?.role === 'super_admin';
 
   const { data: dashData, refetch: refetchDash } = useGetCreatorDashboard();
   const { data: earningsData, refetch: refetchEarnings } = useGetCreatorEarnings();

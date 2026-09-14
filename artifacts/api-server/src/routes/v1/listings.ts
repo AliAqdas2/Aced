@@ -14,7 +14,7 @@ import {
   assetsTable,
 } from "@workspace/db";
 import { generateUploadUrl } from "../../lib/storage";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { requireRole } from "../../middlewares/auth";
 import { logAuditEvent } from "../../lib/auth";
 
@@ -504,15 +504,21 @@ router.get(
 // --- Admin listing moderation ---
 
 // GET /api/v1/admin/listings — moderation queue
+// status=pending → draft + submitted; otherwise exact status match
 router.get(
   "/admin/listings",
   requireRole("moderator"),
   async (req, res): Promise<void> => {
-    const status = (req.query["status"] as string) ?? "submitted";
+    const status = (req.query["status"] as string) ?? "pending";
+    const where =
+      status === "pending"
+        ? inArray(listingsTable.status, ["draft", "submitted"])
+        : eq(listingsTable.status, status as any);
+
     const listings = await db
       .select()
       .from(listingsTable)
-      .where(eq(listingsTable.status, status as any))
+      .where(where)
       .orderBy(listingsTable.createdAt)
       .limit(50);
 

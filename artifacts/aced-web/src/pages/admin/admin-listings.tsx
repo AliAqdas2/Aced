@@ -13,8 +13,10 @@ import {
 } from '@/components/ui/dialog';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 type DecisionType = 'approved' | 'rejected';
+type StatusFilter = 'pending' | 'draft' | 'submitted';
 
 interface PendingDecision {
   listingId: string;
@@ -23,16 +25,21 @@ interface PendingDecision {
   notes: string;
 }
 
+const STATUS_TABS: { value: StatusFilter; label: string }[] = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'submitted', label: 'Submitted' },
+];
+
 export default function AdminListings() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { data: response, isLoading } = useGetAdminListings({ status: 'submitted' });
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending');
+  const { data: response, isLoading } = useGetAdminListings({ status: statusFilter });
 
   const [pending, setPending] = useState<PendingDecision | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  if (isLoading) return <div className="p-8 text-center text-muted-foreground">Loading listings...</div>;
 
   const listings = (response?.data ?? []) as Array<any>;
 
@@ -64,8 +71,16 @@ export default function AdminListings() {
         throw new Error(body?.error ?? `Request failed (${res.status})`);
       }
       await queryClient.invalidateQueries({
-        queryKey: getGetAdminListingsQueryKey({ status: 'submitted' }),
+        queryKey: getGetAdminListingsQueryKey({ status: statusFilter }),
       });
+      // Also refresh other queue tabs so counts stay consistent if user switches
+      for (const tab of STATUS_TABS) {
+        if (tab.value !== statusFilter) {
+          await queryClient.invalidateQueries({
+            queryKey: getGetAdminListingsQueryKey({ status: tab.value }),
+          });
+        }
+      }
       const action = pending.decision === 'approved' ? 'approved' : 'rejected';
       toast({
         title: `Listing ${action}`,
@@ -88,9 +103,29 @@ export default function AdminListings() {
         <p className="text-muted-foreground">Review and moderate marketplace listings pending approval.</p>
       </div>
 
+      <div className="flex gap-2 border-b border-border pb-0">
+        {STATUS_TABS.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            onClick={() => setStatusFilter(tab.value)}
+            className={cn(
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              statusFilter === tab.value
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <Card>
         <CardContent className="p-0">
-          {listings.length > 0 ? (
+          {isLoading ? (
+            <div className="p-8 text-center text-muted-foreground">Loading listings...</div>
+          ) : listings.length > 0 ? (
             <div className="divide-y">
               {listings.map((listing: any) => (
                 <div key={listing.id} className="p-6 flex flex-col lg:flex-row justify-between gap-4 items-start lg:items-center">
@@ -126,7 +161,7 @@ export default function AdminListings() {
             <div className="p-12 text-center text-muted-foreground">
               <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500 opacity-50" />
               <p className="text-lg font-medium text-foreground">Queue is clear!</p>
-              <p>No listings are pending moderation.</p>
+              <p>No listings match this filter.</p>
             </div>
           )}
         </CardContent>

@@ -137,7 +137,7 @@ export default function ProfileScreen() {
     : 'AC';
 
   const roleBadgeColor =
-    user.role === 'admin'
+    user.role === 'admin' || user.role === 'super_admin'
       ? colors.destructive
       : user.role === 'creator'
       ? colors.primary
@@ -189,7 +189,7 @@ export default function ProfileScreen() {
           </Section>
 
           {/* Tutor */}
-          {(user.role === 'creator' || user.role === 'admin') && (
+          {(user.role === 'creator' || user.role === 'admin' || user.role === 'super_admin') && (
             <Section title="TUTOR">
               <SettingRow
                 icon="storefront-outline"
