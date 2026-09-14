@@ -93,12 +93,30 @@ router.get("/storefronts/:slug", async (req, res): Promise<void> => {
     .from(creatorExpertiseTable)
     .where(eq(creatorExpertiseTable.creatorId, cp.id));
 
-  const reviews = await db
-    .select()
+  const reviewsRaw = await db
+    .select({
+      id: reviewsTable.id,
+      overallRating: reviewsTable.overallRating,
+      body: reviewsTable.body,
+      creatorResponse: reviewsTable.creatorResponse,
+      creatorRespondedAt: reviewsTable.creatorRespondedAt,
+      createdAt: reviewsTable.createdAt,
+      reviewerDisplayName: profilesTable.displayName,
+    })
     .from(reviewsTable)
+    .leftJoin(profilesTable, eq(profilesTable.userId, reviewsTable.reviewerId))
     .where(and(eq(reviewsTable.creatorId, cp.id), eq(reviewsTable.status, "published")))
     .orderBy(desc(reviewsTable.createdAt))
     .limit(10);
+
+  const reviews = reviewsRaw.map((r) => {
+    const full = (r.reviewerDisplayName ?? "").trim();
+    const firstName = full.split(/\s+/)[0] || "Student";
+    return {
+      ...r,
+      reviewerDisplayName: firstName,
+    };
+  });
 
   res.json({
     data: {

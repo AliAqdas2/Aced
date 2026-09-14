@@ -17,6 +17,7 @@ import {
   priceRecordsTable,
   platformConfigTable,
   usersTable,
+  reviewsTable,
 } from "@workspace/db";
 import { eq, and, or, desc } from "drizzle-orm";
 import { requireAuth } from "../../middlewares/auth";
@@ -229,11 +230,32 @@ router.get("/me/bookings", requireAuth, async (req, res): Promise<void> => {
         creatorDisplayName = profile?.displayName ?? null;
       }
 
+      let orderItemId: string | null = null;
+      let hasReviewed = false;
+      if (b.orderId) {
+        const [item] = await db
+          .select({ id: orderItemsTable.id })
+          .from(orderItemsTable)
+          .where(eq(orderItemsTable.orderId, b.orderId))
+          .limit(1);
+        orderItemId = item?.id ?? null;
+        if (orderItemId) {
+          const [existingReview] = await db
+            .select({ id: reviewsTable.id })
+            .from(reviewsTable)
+            .where(eq(reviewsTable.orderItemId, orderItemId))
+            .limit(1);
+          hasReviewed = !!existingReview;
+        }
+      }
+
       return {
         ...b,
         listingTitle: listing?.title ?? null,
         durationMinutes: offer?.durationMinutes ?? null,
         creatorDisplayName,
+        orderItemId,
+        hasReviewed,
       };
     })
   );
