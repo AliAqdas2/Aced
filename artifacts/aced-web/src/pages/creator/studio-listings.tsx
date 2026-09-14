@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, MoreHorizontal, Edit, Trash, FileText, Video, Users, User, Calendar, Clock, RefreshCw, AlertTriangle, Upload, CheckCircle2, Loader2, PauseCircle, PlayCircle, Send } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Edit, Trash, FileText, Video, Users, User, Calendar, Clock, RefreshCw, AlertTriangle, Upload, CheckCircle2, Loader2, PauseCircle, PlayCircle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import {
@@ -621,32 +621,6 @@ export default function StudioListings() {
     }
   }
 
-  async function submitListingForReview(listingId: string) {
-    setListingVisibilityBusyId(listingId);
-    try {
-      const res = await fetch(`/api/v1/creator/listings/${listingId}/submit`, {
-        method: 'POST',
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || 'Request failed');
-      }
-      toast({
-        title: 'Submitted for review',
-        description: 'An admin will review your listing shortly.',
-      });
-      invalidateListingCaches(listingId);
-    } catch (e) {
-      toast({
-        title: 'Failed to submit listing',
-        description: e instanceof Error ? e.message : undefined,
-        variant: 'destructive',
-      });
-    } finally {
-      setListingVisibilityBusyId(null);
-    }
-  }
-
   // Task #48 — pause / resume subscription plans
   const pauseMutation = useMutation({
     mutationFn: async ({ planId }: { planId: string }) => {
@@ -683,7 +657,10 @@ export default function StudioListings() {
         invalidateListingCaches();
         setIsDialogOpen(false);
         form.reset();
-        toast({ title: 'Listing created!' });
+        toast({
+          title: 'Listing submitted for review',
+          description: 'An admin will review it shortly. Once approved it goes live automatically.',
+        });
       },
       onError: () => {
         toast({ title: 'Failed to create listing', variant: 'destructive' });
@@ -1230,14 +1207,6 @@ export default function StudioListings() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {(listing.status === 'draft' || listing.status === 'rejected') && (
-                            <DropdownMenuItem
-                              disabled={listingVisibilityBusyId === listing.id}
-                              onSelect={() => submitListingForReview(listing.id)}
-                            >
-                              <Send className="mr-2 h-4 w-4" /> Submit for review
-                            </DropdownMenuItem>
-                          )}
                           {listing.status === 'published' && (
                             <DropdownMenuItem
                               disabled={listingVisibilityBusyId === listing.id}
@@ -1247,14 +1216,6 @@ export default function StudioListings() {
                             </DropdownMenuItem>
                           )}
                           {listing.status === 'paused' && (
-                            <DropdownMenuItem
-                              disabled={listingVisibilityBusyId === listing.id}
-                              onSelect={() => setListingEnabled(listing.id, true)}
-                            >
-                              <PlayCircle className="mr-2 h-4 w-4" /> Enable
-                            </DropdownMenuItem>
-                          )}
-                          {listing.status === 'approved' && (
                             <DropdownMenuItem
                               disabled={listingVisibilityBusyId === listing.id}
                               onSelect={() => setListingEnabled(listing.id, true)}

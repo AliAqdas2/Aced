@@ -215,7 +215,8 @@ router.post(
         tags: parsed.data.tags,
         primaryUniversityId: parsed.data.primaryUniversityId ?? null,
         primaryCourseId: parsed.data.primaryCourseId ?? null,
-        status: "draft",
+        // Auto-submit for moderation on create — no separate Submit step
+        status: "submitted",
       })
       .returning();
 
@@ -306,9 +307,16 @@ router.patch(
       return;
     }
 
+    // Saving a draft/rejected listing re-enters the moderation queue
+    const shouldResubmit =
+      listing.status === "draft" || listing.status === "rejected";
+
     const [updated] = await db
       .update(listingsTable)
-      .set(parsed.data)
+      .set({
+        ...parsed.data,
+        ...(shouldResubmit ? { status: "submitted" as const } : {}),
+      })
       .where(eq(listingsTable.id, id))
       .returning();
 

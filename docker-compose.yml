@@ -24,6 +24,7 @@ services:
   #   docker compose --profile tools run --rm db-push
   #   docker compose --profile tools run --rm seed
   #   docker compose --profile tools run --rm bootstrap-admins
+  #   docker compose --profile tools run --rm fix-listing-statuses
   db-baseline:
     profiles: [tools]
     image: ghcr.io/aliaqdas2/aced-portal:tools
@@ -74,6 +75,17 @@ services:
       - aced_portal_storage:/app/storage
     restart: "no"
     entrypoint: ["pnpm", "--filter", "@workspace/scripts", "run", "bootstrap-admins"]
+
+  fix-listing-statuses:
+    profiles: [tools]
+    image: ghcr.io/aliaqdas2/aced-portal:tools
+    env_file: .env
+    networks:
+      - infra_internal
+    volumes:
+      - aced_portal_storage:/app/storage
+    restart: "no"
+    entrypoint: ["pnpm", "--filter", "@workspace/scripts", "run", "fix-listing-statuses"]
 
 networks:
   infra_internal:

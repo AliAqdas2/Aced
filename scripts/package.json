@@ -8,6 +8,7 @@
     "seed": "tsx ./src/seed.ts",
     "seed:taxonomy": "tsx ./src/seed-taxonomy.ts",
     "bootstrap-admins": "tsx ./src/bootstrap-admins.ts",
+    "fix-listing-statuses": "tsx ./src/fix-listing-statuses.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
