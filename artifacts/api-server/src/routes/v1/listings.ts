@@ -542,14 +542,26 @@ router.post(
       return;
     }
 
+    // Approve → publish immediately so listings appear on the public showcase
+    const isApproved = parsed.data.decision === "approved";
     const [updated] = await db
       .update(listingsTable)
-      .set({
-        status: parsed.data.decision,
-        moderationNotes: parsed.data.notes ?? null,
-        moderatedBy: req.session.userId,
-        moderatedAt: new Date(),
-      })
+      .set(
+        isApproved
+          ? {
+              status: "published" as const,
+              publishedAt: new Date(),
+              moderationNotes: parsed.data.notes ?? null,
+              moderatedBy: req.session.userId,
+              moderatedAt: new Date(),
+            }
+          : {
+              status: "rejected" as const,
+              moderationNotes: parsed.data.notes ?? null,
+              moderatedBy: req.session.userId,
+              moderatedAt: new Date(),
+            }
+      )
       .where(eq(listingsTable.id, id))
       .returning();
 

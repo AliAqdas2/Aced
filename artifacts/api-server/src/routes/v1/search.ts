@@ -7,15 +7,14 @@ import {
   profilesTable,
   universitiesTable,
   priceRecordsTable,
-  usersTable,
 } from "@workspace/db";
-import { eq, and, gte, lte, ilike, or, sql, desc, asc } from "drizzle-orm";
+import { eq, and, ilike, or, desc, inArray } from "drizzle-orm";
 
 const router: IRouter = Router();
 
 // GET /api/v1/marketplace/search
 router.get("/marketplace/search", async (req, res): Promise<void> => {
-  const q = (req.query["q"] as string) ?? "";
+  const q = ((req.query["q"] as string) ?? "").trim();
   const type = req.query["type"] as string | undefined;
   const universityId = req.query["universityId"] as string | undefined;
   const courseId = req.query["courseId"] as string | undefined;
@@ -23,19 +22,48 @@ router.get("/marketplace/search", async (req, res): Promise<void> => {
   const maxPrice = req.query["maxPrice"] ? Number(req.query["maxPrice"]) : undefined;
   const minRating = req.query["minRating"] ? Number(req.query["minRating"]) : undefined;
   const sort = (req.query["sort"] as string) ?? "recommended";
-  const cursor = req.query["cursor"] as string | undefined;
   const limit = Math.min(Number(req.query["limit"] ?? 20), 50);
 
   // Build conditions
   const conditions: any[] = [eq(listingsTable.status, "published")];
 
   if (q) {
-    conditions.push(
-      or(
-        ilike(listingsTable.title, `%${q}%`),
-        ilike(listingsTable.description, `%${q}%`)
-      )
+    const pattern = `%${q}%`;
+
+    // Match tutors by profile display name or storefront name/slug
+    const [byProfile, byStorefront] = await Promise.all([
+      db
+        .select({ id: creatorProfilesTable.id })
+        .from(creatorProfilesTable)
+        .innerJoin(profilesTable, eq(profilesTable.userId, creatorProfilesTable.userId))
+        .where(ilike(profilesTable.displayName, pattern)),
+      db
+        .select({ id: creatorProfilesTable.id })
+        .from(creatorProfilesTable)
+        .innerJoin(storefrontsTable, eq(storefrontsTable.creatorId, creatorProfilesTable.id))
+        .where(
+          or(
+            ilike(storefrontsTable.displayName, pattern),
+            ilike(storefrontsTable.slug, pattern)
+          )
+        ),
+    ]);
+
+    const matchingCreatorIds = [
+      ...new Set([...byProfile, ...byStorefront].map((r) => r.id)),
+    ];
+
+    const textMatch = or(
+      ilike(listingsTable.title, pattern),
+      ilike(listingsTable.description, pattern),
+      ...(matchingCreatorIds.length > 0
+        ? [inArray(listingsTable.creatorId, matchingCreatorIds)]
+        : [])
     );
+
+    if (textMatch) {
+      conditions.push(textMatch);
+    }
   }
 
   if (type) {
@@ -50,7 +78,7 @@ router.get("/marketplace/search", async (req, res): Promise<void> => {
     conditions.push(eq(listingsTable.primaryCourseId, courseId));
   }
 
-  let listings = await db
+  const listings = await db
     .select()
     .from(listingsTable)
     .where(and(...conditions))
