@@ -24,6 +24,7 @@ import {
   ChevronRight,
   MapPin,
   RefreshCw,
+  FileText,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
@@ -500,33 +501,60 @@ export default function ListingDetail() {
                           In your library — download below
                         </p>
                         {productFiles.length > 0 ? (
-                          productFiles.map((f) => (
-                            <Button
-                              key={f.id}
-                              size="lg"
-                              className="w-full h-14 text-base font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
-                              onClick={() => handleDownloadAsset(f.assetId, f.fileName)}
-                              disabled={downloadingAssetId === f.assetId}
-                            >
-                              {downloadingAssetId === f.assetId ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              ) : (
-                                <Download className="mr-2 h-4 w-4" />
-                              )}
-                              Download {f.fileName}
-                            </Button>
-                          ))
+                          <ul className="space-y-2">
+                            {productFiles.map((f) => (
+                              <li
+                                key={f.id}
+                                className="flex items-center gap-3 rounded-xl border border-background/20 bg-background/10 px-3 py-2.5"
+                              >
+                                <FileText className="h-4 w-4 shrink-0 text-primary" />
+                                <span
+                                  className="min-w-0 flex-1 truncate text-sm font-medium text-background"
+                                  title={f.fileName}
+                                >
+                                  {f.fileName}
+                                </span>
+                                <Button
+                                  size="sm"
+                                  className="shrink-0 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
+                                  onClick={() => handleDownloadAsset(f.assetId, f.fileName)}
+                                  disabled={downloadingAssetId === f.assetId}
+                                >
+                                  {downloadingAssetId === f.assetId ? (
+                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                                  )}
+                                  Download
+                                </Button>
+                              </li>
+                            ))}
+                          </ul>
                         ) : product?.paidAssetId ? (
-                          <Button
-                            size="lg"
-                            className="w-full h-14 text-base font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
-                            onClick={() =>
-                              handleDownloadAsset(product.paidAssetId, listing.title)
-                            }
-                            disabled={!!downloadingAssetId}
-                          >
-                            <Download className="mr-2 h-4 w-4" /> Download
-                          </Button>
+                          <div className="flex items-center gap-3 rounded-xl border border-background/20 bg-background/10 px-3 py-2.5">
+                            <FileText className="h-4 w-4 shrink-0 text-primary" />
+                            <span
+                              className="min-w-0 flex-1 truncate text-sm font-medium text-background"
+                              title={listing.title}
+                            >
+                              {listing.title}
+                            </span>
+                            <Button
+                              size="sm"
+                              className="shrink-0 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
+                              onClick={() =>
+                                handleDownloadAsset(product.paidAssetId, listing.title)
+                              }
+                              disabled={!!downloadingAssetId}
+                            >
+                              {downloadingAssetId === product.paidAssetId ? (
+                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Download className="mr-1.5 h-3.5 w-3.5" />
+                              )}
+                              Download
+                            </Button>
+                          </div>
                         ) : (
                           <p className="text-sm text-center text-background/50">
                             No files available yet.
