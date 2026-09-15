@@ -2,34 +2,22 @@ import { useState } from 'react';
 import { useParams, Link, useLocation as useWouterLocation } from 'wouter';
 import {
   useGetListing,
-  useGetServiceAvailability,
-  useCreateBookingHold,
   useCreateCheckoutSession,
-  useConfirmFreeBooking,
   useSubscribeToListing,
-  getGetMyBookingsQueryKey,
-  getGetServiceAvailabilityQueryKey,
+  useGetAssetDownloadUrl,
+  getGetListingQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Calendar } from '@/components/ui/calendar';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import {
   Star,
   ShieldCheck,
   CheckCircle2,
   Clock,
-  CalendarDays,
   Download,
   AlertCircle,
   Loader2,
@@ -38,283 +26,9 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import { format, isBefore, startOfDay, addDays, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-
-function formatSlotTime(iso: string) {
-  return format(parseISO(iso), 'HH:mm');
-}
-
-function SlotPicker({
-  listingId,
-  serviceOffer,
-  price,
-  onBooked,
-  isOwnListing = false,
-}: {
-  listingId: string;
-  serviceOffer: { id: string; durationMinutes: number; bookingHorizonDays: number };
-  price: { amountMinorUnits: number } | null;
-  onBooked: () => void;
-  isOwnListing?: boolean;
-}) {
-  const { isAuthenticated } = useAuth();
-  const [, setLocation] = useWouterLocation();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  const today = startOfDay(new Date());
-  const maxDate = addDays(today, serviceOffer.bookingHorizonDays ?? 60);
-
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  const [selectedSlot, setSelectedSlot] = useState<{ startAt: string; endAt: string } | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [success, setSuccess] = useState(false);
-
-  const dateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
-
-  const availParams = { from: dateStr ?? undefined, to: dateStr ?? undefined, timezone: 'Europe/London' };
-  const { data: availData, isLoading: slotsLoading } = useGetServiceAvailability(
-    listingId,
-    availParams,
-    { query: { enabled: !!dateStr && !isOwnListing, queryKey: getGetServiceAvailabilityQueryKey(listingId, availParams) } }
-  );
-
-  const availableSlots = (availData?.data?.slots ?? []).filter(
-    (s: { startAt: string; endAt: string; available: boolean }) => s.available
-  );
-
-  const isFree = !price || price.amountMinorUnits === 0;
-
-  const holdMutation = useCreateBookingHold();
-  const checkoutMutation = useCreateCheckoutSession();
-  const confirmFreeMutation = useConfirmFreeBooking({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetMyBookingsQueryKey() });
-        setSuccess(true);
-        setConfirmOpen(false);
-        onBooked();
-      },
-      onError: () => {
-        toast({ title: 'Could not confirm booking', variant: 'destructive' });
-      },
-    },
-  });
-
-  function handleSlotClick(slot: { startAt: string; endAt: string }) {
-    if (!isAuthenticated) {
-      setLocation(`/auth/login?redirect=/listings/${listingId}`);
-      return;
-    }
-    setSelectedSlot(slot);
-    setConfirmOpen(true);
-  }
-
-  async function handleConfirm() {
-    if (!selectedSlot) return;
-    if (isFree) {
-      confirmFreeMutation.mutate({
-        data: {
-          listingId,
-          serviceOfferId: serviceOffer.id,
-          startAt: selectedSlot.startAt,
-          timezone: 'Europe/London',
-        },
-      });
-    } else {
-      // Create hold first, then checkout
-      holdMutation.mutate(
-        {
-          data: {
-            listingId,
-            serviceOfferId: serviceOffer.id,
-            startAt: selectedSlot.startAt,
-            timezone: 'Europe/London',
-          },
-        },
-        {
-          onSuccess: (holdRes) => {
-            const holdId = holdRes.data?.id;
-            checkoutMutation.mutate(
-              { data: { listingId, holdId } },
-              {
-                onSuccess: (res) => {
-                  if (res.data?.checkoutUrl) {
-                    window.location.href = res.data.checkoutUrl;
-                  }
-                },
-                onError: () => {
-                  toast({ title: 'Could not start checkout', variant: 'destructive' });
-                },
-              }
-            );
-          },
-          onError: () => {
-            toast({ title: 'Slot is no longer available', variant: 'destructive' });
-            setConfirmOpen(false);
-          },
-        }
-      );
-    }
-  }
-
-  const isPending =
-    holdMutation.isPending || checkoutMutation.isPending || confirmFreeMutation.isPending;
-
-  if (isOwnListing) {
-    return (
-      <div className="rounded-2xl border border-border/50 bg-muted/30 p-6 text-center space-y-3">
-        <AlertCircle className="h-10 w-10 text-muted-foreground mx-auto opacity-60" />
-        <h3 className="text-base font-bold">This is your listing</h3>
-        <p className="text-sm text-muted-foreground font-medium">
-          You can&apos;t book your own sessions. Manage bookings from Tutor Studio.
-        </p>
-        <Button asChild variant="outline" className="w-full font-bold">
-          <Link href="/studio/listings">Go to my listings</Link>
-        </Button>
-      </div>
-    );
-  }
-
-  if (success) {
-    return (
-      <div className="rounded-2xl border border-green-200 bg-green-50 p-8 text-center space-y-4">
-        <CheckCircle2 className="h-14 w-14 text-green-600 mx-auto" />
-        <h3 className="text-xl font-bold font-serif text-green-900">Session booked!</h3>
-        <p className="text-green-700 font-medium">
-          Your session on{' '}
-          {selectedSlot ? format(parseISO(selectedSlot.startAt), 'EEE, MMM d') : ''} at{' '}
-          {selectedSlot ? formatSlotTime(selectedSlot.startAt) : ''} is confirmed.
-        </p>
-        <Button asChild className="mt-2">
-          <Link href="/bookings">View my bookings</Link>
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-bold">Choose a date</h3>
-
-      <Calendar
-        mode="single"
-        selected={selectedDate}
-        onSelect={(d) => {
-          setSelectedDate(d);
-          setSelectedSlot(null);
-        }}
-        disabled={(date) => isBefore(startOfDay(date), today) || date > maxDate}
-        className="rounded-xl border border-border/50 bg-muted/20 p-3"
-      />
-
-      {dateStr && (
-        <div className="space-y-3">
-          <h3 className="text-base font-bold">
-            Available times — {selectedDate ? format(selectedDate, 'EEE, MMM d') : ''}
-          </h3>
-
-          {slotsLoading ? (
-            <div className="flex items-center justify-center py-8 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              Loading slots…
-            </div>
-          ) : availableSlots.length > 0 ? (
-            <div className="grid grid-cols-3 gap-2">
-              {availableSlots.map(
-                (slot: { startAt: string; endAt: string; available: boolean }) => (
-                  <Button
-                    key={slot.startAt}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleSlotClick(slot)}
-                    className="font-semibold rounded-lg hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors"
-                  >
-                    {formatSlotTime(slot.startAt)}
-                  </Button>
-                )
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground italic py-4">
-              No slots available on this day.
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Confirmation Modal */}
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="font-serif text-2xl">Confirm booking</DialogTitle>
-            <DialogDescription>Review the details before confirming.</DialogDescription>
-          </DialogHeader>
-          {selectedSlot && (
-            <div className="space-y-4">
-              <div className="rounded-xl bg-muted/40 border border-border/50 p-4 space-y-3">
-                <div className="flex items-center gap-2 text-sm">
-                  <CalendarDays className="h-4 w-4 text-primary" />
-                  <span className="font-semibold">
-                    {format(parseISO(selectedSlot.startAt), 'EEE, MMMM d, yyyy')}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Clock className="h-4 w-4 text-primary" />
-                  <span className="font-semibold">
-                    {formatSlotTime(selectedSlot.startAt)} – {formatSlotTime(selectedSlot.endAt)}{' '}
-                    UTC
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-semibold">
-                    {serviceOffer.durationMinutes} min session
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center font-bold text-lg pt-2 border-t border-border/50">
-                <span>Total</span>
-                <span>
-                  {isFree
-                    ? 'Free'
-                    : `£${((price?.amountMinorUnits ?? 0) / 100).toFixed(2)}`}
-                </span>
-              </div>
-
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setConfirmOpen(false)}
-                  disabled={isPending}
-                >
-                  Back
-                </Button>
-                <Button className="flex-1 gap-2" onClick={handleConfirm} disabled={isPending}>
-                  {isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      {isFree ? 'Confirming…' : 'Redirecting…'}
-                    </>
-                  ) : isFree ? (
-                    'Confirm booking'
-                  ) : (
-                    <>
-                      Pay & book
-                      <ChevronRight className="h-4 w-4" />
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
+import { BookingSlotPicker } from '@/components/booking-slot-picker';
+import { format } from 'date-fns';
 
 export default function ListingDetail() {
   const params = useParams();
@@ -324,12 +38,16 @@ export default function ListingDetail() {
   const { toast } = useToast();
   const [booked, setBooked] = useState(false);
   const [freeDigitalPending, setFreeDigitalPending] = useState(false);
+  const [downloadingAssetId, setDownloadingAssetId] = useState<string | null>(null);
+  const [claimedLocal, setClaimedLocal] = useState(false);
+  const queryClient = useQueryClient();
 
-  const { data: response, isLoading, error } = useGetListing(id, {
+  const { data: response, isLoading, error, refetch } = useGetListing(id, {
     query: { enabled: !!id, queryKey: ['listing', id] },
   });
 
   const checkoutMutation = useCreateCheckoutSession();
+  const downloadUrlMutation = useGetAssetDownloadUrl();
 
   // Must be declared before any early returns to satisfy the Rules of Hooks
   const subscribeMutation = useSubscribeToListing({
@@ -375,7 +93,11 @@ export default function ListingDetail() {
     isSubscribed,
     sessionsRemaining,
     currentPeriodEnd,
+    owned: serverOwned,
   } = response.data as any;
+  const productFiles: Array<{ id: string; assetId: string; fileName: string; sizeBytes?: number }> =
+    product?.files ?? [];
+  const owned = claimedLocal || !!serverOwned;
   const creatorProfileId = (user?.creatorProfile as { id?: string } | null | undefined)?.id;
   const isOwnListing = Boolean(creatorProfileId && listing.creatorId === creatorProfileId);
   const isSubscription = !!subscriptionPlan;
@@ -386,6 +108,35 @@ export default function ListingDetail() {
       ? 'Free'
       : `£${((price as any).amountMinorUnits / 100).toFixed(2)}`;
   const isService = listing.type === 'service_offer' || listing.type === 'group_session';
+  const isFreeDigital = !isService && priceAmount === 'Free';
+
+  const handleDownloadAsset = (assetId: string, fileName: string) => {
+    setDownloadingAssetId(assetId);
+    downloadUrlMutation.mutate(
+      { id: assetId },
+      {
+        onSuccess: (data) => {
+          if (data.data.url) {
+            const a = document.createElement('a');
+            a.href = data.data.url;
+            a.download = data.data.fileName || fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            toast({ title: 'Download started', description: fileName });
+          }
+        },
+        onError: () => {
+          toast({
+            title: 'Download failed',
+            description: 'Could not generate download link. Please try again.',
+            variant: 'destructive',
+          });
+        },
+        onSettled: () => setDownloadingAssetId(null),
+      },
+    );
+  };
 
   const handleSubscribe = () => {
     if (!isAuthenticated) {
@@ -409,8 +160,8 @@ export default function ListingDetail() {
       return;
     }
 
-    const isFreeDigital = !price || (price as any).amountMinorUnits === 0;
-    if (isFreeDigital) {
+    const isFree = !price || (price as any).amountMinorUnits === 0;
+    if (isFree) {
       setFreeDigitalPending(true);
       fetch('/api/v1/checkout/confirm-free', {
         method: 'POST',
@@ -423,10 +174,13 @@ export default function ListingDetail() {
             const code = body.code;
             throw Object.assign(new Error(body.error || 'Failed'), { code });
           }
+          setClaimedLocal(true);
           toast({
-            title: body.data?.alreadyOwned ? 'Already in your library' : 'Added to your library ✓',
+            title: body.data?.alreadyOwned ? 'Already in your library' : 'Ready to download ✓',
+            description: 'Your files are available below.',
           });
-          setLocation('/library');
+          void queryClient.invalidateQueries({ queryKey: getGetListingQueryKey(id) });
+          void refetch();
         })
         .catch((err: { code?: string; message?: string }) => {
           toast({
@@ -575,7 +329,7 @@ export default function ListingDetail() {
                         </div>
                         <Separator className="mb-4" />
                         {sessionsRemaining > 0 ? (
-                          <SlotPicker
+                          <BookingSlotPicker
                             listingId={id}
                             serviceOffer={serviceOffer as any}
                             price={null}
@@ -703,7 +457,7 @@ export default function ListingDetail() {
                       </Badge>
                     </div>
                     <Separator className="mb-6" />
-                    <SlotPicker
+                    <BookingSlotPicker
                       listingId={id}
                       serviceOffer={serviceOffer as any}
                       price={price as any}
@@ -740,6 +494,48 @@ export default function ListingDetail() {
                           <Link href="/studio/listings">Go to my listings</Link>
                         </Button>
                       </div>
+                    ) : owned && (isFreeDigital || productFiles.length > 0) ? (
+                      <div className="space-y-3">
+                        <p className="text-sm font-medium text-background/70 text-center">
+                          In your library — download below
+                        </p>
+                        {productFiles.length > 0 ? (
+                          productFiles.map((f) => (
+                            <Button
+                              key={f.id}
+                              size="lg"
+                              className="w-full h-14 text-base font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+                              onClick={() => handleDownloadAsset(f.assetId, f.fileName)}
+                              disabled={downloadingAssetId === f.assetId}
+                            >
+                              {downloadingAssetId === f.assetId ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Download className="mr-2 h-4 w-4" />
+                              )}
+                              Download {f.fileName}
+                            </Button>
+                          ))
+                        ) : product?.paidAssetId ? (
+                          <Button
+                            size="lg"
+                            className="w-full h-14 text-base font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+                            onClick={() =>
+                              handleDownloadAsset(product.paidAssetId, listing.title)
+                            }
+                            disabled={!!downloadingAssetId}
+                          >
+                            <Download className="mr-2 h-4 w-4" /> Download
+                          </Button>
+                        ) : (
+                          <p className="text-sm text-center text-background/50">
+                            No files available yet.
+                          </p>
+                        )}
+                        <Button asChild variant="link" className="w-full text-background/60">
+                          <Link href="/library">Open library</Link>
+                        </Button>
+                      </div>
                     ) : (
                       <Button
                         size="lg"
@@ -758,12 +554,12 @@ export default function ListingDetail() {
                         )}
                       </Button>
                     )}
-                    {!isOwnListing && priceAmount !== 'Free' && (
+                    {!isOwnListing && !owned && priceAmount !== 'Free' && (
                       <p className="text-sm font-medium text-center text-background/50 mt-6">
                         Secure payment powered by Stripe
                       </p>
                     )}
-                    {!isOwnListing && priceAmount === 'Free' && (
+                    {!isOwnListing && !owned && priceAmount === 'Free' && (
                       <p className="text-sm font-medium text-center text-background/50 mt-6">
                         Instant access — no payment required
                       </p>

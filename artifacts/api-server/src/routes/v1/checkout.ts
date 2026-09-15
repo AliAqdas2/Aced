@@ -22,6 +22,7 @@ import {
   subscriptionPlansTable,
   learnerSubscriptionsTable,
   productsTable,
+  productFilesTable,
 } from "@workspace/db";
 import { eq, and, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -268,8 +269,22 @@ router.post("/checkout/confirm-free", requireAuth, async (req, res): Promise<voi
     .where(eq(productsTable.listingId, listingId))
     .limit(1);
 
-  const assetId = product?.paidAssetId ?? null;
-  if (!assetId) {
+  let hasFile = false;
+  let assetId: string | null = product?.paidAssetId ?? null;
+  if (product) {
+    const files = await db
+      .select({ assetId: productFilesTable.assetId })
+      .from(productFilesTable)
+      .where(eq(productFilesTable.productId, product.id))
+      .limit(1);
+    if (files[0]) {
+      hasFile = true;
+      assetId = assetId ?? files[0].assetId;
+    } else if (assetId) {
+      hasFile = true;
+    }
+  }
+  if (!hasFile) {
     res.status(400).json({ error: "No downloadable file on this listing yet", code: "NO_ASSET" });
     return;
   }

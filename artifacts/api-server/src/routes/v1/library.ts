@@ -6,6 +6,7 @@ import {
   entitlementsTable,
   listingsTable,
   productsTable,
+  productFilesTable,
   assetsTable,
   bookingsTable,
   serviceOffersTable,
@@ -19,7 +20,7 @@ import {
   usersTable,
   reviewsTable,
 } from "@workspace/db";
-import { eq, and, or, desc } from "drizzle-orm";
+import { eq, and, or, desc, asc } from "drizzle-orm";
 import { requireAuth } from "../../middlewares/auth";
 import { generateDownloadUrl } from "../../lib/storage";
 import { sendEmailResilient, buildReviewRequestEmail } from "../../lib/email";
@@ -87,6 +88,14 @@ router.get("/me/library", requireAuth, async (req, res): Promise<void> => {
         .limit(1);
 
       let product = null;
+      let files: Array<{
+        id: string;
+        assetId: string;
+        fileName: string;
+        mimeType: string;
+        sizeBytes: number;
+        sortOrder: number;
+      }> = [];
       if (listing?.type === "digital_product" || listing?.type === "recorded_course") {
         const [p] = await db
           .select()
@@ -94,9 +103,42 @@ router.get("/me/library", requireAuth, async (req, res): Promise<void> => {
           .where(eq(productsTable.listingId, listing.id))
           .limit(1);
         product = p ?? null;
+        if (p) {
+          files = await db
+            .select({
+              id: productFilesTable.id,
+              assetId: productFilesTable.assetId,
+              fileName: assetsTable.fileName,
+              mimeType: assetsTable.mimeType,
+              sizeBytes: assetsTable.sizeBytes,
+              sortOrder: productFilesTable.sortOrder,
+            })
+            .from(productFilesTable)
+            .innerJoin(assetsTable, eq(assetsTable.id, productFilesTable.assetId))
+            .where(eq(productFilesTable.productId, p.id))
+            .orderBy(asc(productFilesTable.sortOrder));
+          // Legacy: single paidAssetId with no product_files rows yet
+          if (files.length === 0 && p.paidAssetId) {
+            const [asset] = await db
+              .select()
+              .from(assetsTable)
+              .where(eq(assetsTable.id, p.paidAssetId))
+              .limit(1);
+            if (asset) {
+              files = [{
+                id: asset.id,
+                assetId: asset.id,
+                fileName: asset.fileName,
+                mimeType: asset.mimeType,
+                sizeBytes: asset.sizeBytes,
+                sortOrder: 0,
+              }];
+            }
+          }
+        }
       }
 
-      return { ...e, listing, product };
+      return { ...e, listing, product, files, assetId: e.assetId ?? files[0]?.assetId ?? product?.paidAssetId ?? null };
     })
   );
 
@@ -148,28 +190,58 @@ router.post("/assets/:id/download-url", requireAuth, async (req, res): Promise<v
   let entitlement = directEntitlement ?? null;
 
   if (!entitlement) {
-    // Discover the listingId for this asset from any existing entitlement
-    const [assetLink] = await db
-      .select({ listingId: entitlementsTable.listingId })
-      .from(entitlementsTable)
-      .where(eq(entitlementsTable.assetId, id))
-      .limit(1);
+    // Resolve listing via product_files (multi-file) or legacy entitlement asset link
+    let listingId: string | null = null;
 
-    if (assetLink) {
-      // Check if the requesting user has a listing-level entitlement for the same listing
+    const [viaProductFile] = await db
+      .select({ listingId: productsTable.listingId })
+      .from(productFilesTable)
+      .innerJoin(productsTable, eq(productsTable.id, productFilesTable.productId))
+      .where(eq(productFilesTable.assetId, id))
+      .limit(1);
+    if (viaProductFile) {
+      listingId = viaProductFile.listingId;
+    }
+
+    if (!listingId) {
+      const [viaPaidAsset] = await db
+        .select({ listingId: productsTable.listingId })
+        .from(productsTable)
+        .where(eq(productsTable.paidAssetId, id))
+        .limit(1);
+      if (viaPaidAsset) listingId = viaPaidAsset.listingId;
+    }
+
+    if (!listingId) {
+      const [assetLink] = await db
+        .select({ listingId: entitlementsTable.listingId })
+        .from(entitlementsTable)
+        .where(eq(entitlementsTable.assetId, id))
+        .limit(1);
+      if (assetLink) listingId = assetLink.listingId;
+    }
+
+    if (listingId) {
       const [listingEnt] = await db
         .select()
         .from(entitlementsTable)
         .where(
           and(
             eq(entitlementsTable.userId, userId),
-            eq(entitlementsTable.listingId, assetLink.listingId),
+            eq(entitlementsTable.listingId, listingId),
             eq(entitlementsTable.status, "active")
           )
         )
         .limit(1);
       entitlement = listingEnt ?? null;
     }
+  }
+
+  // Creator who owns the asset can always download (for preview)
+  if (!entitlement && asset.ownerId === userId) {
+    const url = await generateDownloadUrl(asset.storageKey);
+    res.json({ data: { url, expiresInSeconds: 3600, fileName: asset.fileName } });
+    return;
   }
 
   if (!entitlement) {

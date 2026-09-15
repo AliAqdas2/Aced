@@ -15,6 +15,8 @@ export type NotificationType =
   | "application_approved"
   | "application_rejected"
   | "application_changes_requested"
+  | "listing_approved"
+  | "listing_rejected"
   | "dispute_opened"
   | "refund_processed";
 

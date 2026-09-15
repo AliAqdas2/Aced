@@ -6,9 +6,10 @@ import {
   uuid,
   integer,
   boolean,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
-import { listingsTable } from "./listings";
+import { listingsTable, productsTable } from "./listings";
 import { orderItemsTable } from "./orders";
 
 export const entitlementStatusEnum = pgEnum("entitlement_status", [
@@ -80,5 +81,27 @@ export const entitlementsTable = pgTable("entitlements", {
     .$onUpdate(() => new Date()),
 });
 
+/** Multiple downloadable files per digital product. paidAssetId remains the primary (first) file. */
+export const productFilesTable = pgTable(
+  "product_files",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => productsTable.id, { onDelete: "cascade" }),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assetsTable.id, { onDelete: "cascade" }),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("product_files_product_asset_unique").on(table.productId, table.assetId),
+  ]
+);
+
 export type Asset = typeof assetsTable.$inferSelect;
 export type Entitlement = typeof entitlementsTable.$inferSelect;
+export type ProductFile = typeof productFilesTable.$inferSelect;

@@ -335,3 +335,64 @@ export function buildRejectedEmail(opts: {
     </div>
   `;
 }
+
+export function buildListingSubmittedAdminEmail(opts: {
+  title: string;
+  creatorName: string;
+  listingId: string;
+  appUrl?: string;
+}): EmailPayload["html"] {
+  const adminUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://acedtutoring.co.uk"}/admin/listings`;
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #7B2FF7;">New Listing Pending Review — Aced</h2>
+      <p>A listing has been submitted and needs moderation before it goes live.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;background:#f9fafb;">Title</td><td style="padding:8px;border:1px solid #e5e7eb;">${opts.title}</td></tr>
+        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;background:#f9fafb;">Creator</td><td style="padding:8px;border:1px solid #e5e7eb;">${opts.creatorName}</td></tr>
+      </table>
+      <a href="${adminUrl}" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#7B2FF7,#00D4FF);color:white;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:8px;">Review Listings</a>
+      <p style="color:#666;font-size:12px;margin-top:24px;">Listing ID: ${opts.listingId}</p>
+    </div>
+  `;
+}
+
+export function buildListingApprovedEmail(opts: {
+  creatorName: string;
+  title: string;
+  appUrl?: string;
+}): EmailPayload["html"] {
+  const studioUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://acedtutoring.co.uk"}/studio/listings`;
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #7B2FF7;">Your listing is live — Aced</h2>
+      <p>Hi ${opts.creatorName},</p>
+      <p>Good news! Your listing <strong>${opts.title}</strong> has been approved and is now live on Aced.</p>
+      <a href="${studioUrl}" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#7B2FF7,#00D4FF);color:white;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:8px;">View my listings</a>
+      <p style="color:#666;font-size:12px;margin-top:24px;">If you have questions, reply to this email and our team will be happy to help.</p>
+    </div>
+  `;
+}
+
+export function buildListingRejectedEmail(opts: {
+  creatorName: string;
+  title: string;
+  notes: string;
+  appUrl?: string;
+}): EmailPayload["html"] {
+  const studioUrl = `${opts.appUrl ?? process.env.APP_URL ?? "https://acedtutoring.co.uk"}/studio/listings`;
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #7B2FF7;">Update on your listing — Aced</h2>
+      <p>Hi ${opts.creatorName},</p>
+      <p>We've reviewed <strong>${opts.title}</strong> and aren't able to publish it in its current form.</p>
+      <div style="background:#f9fafb;border-left:4px solid #e5e7eb;padding:12px 16px;margin:16px 0;border-radius:4px;">
+        <p style="margin:0;font-weight:bold;">Feedback:</p>
+        <p style="margin:8px 0 0;">${opts.notes}</p>
+      </div>
+      <p>You can edit the listing in your studio and resubmit it for review.</p>
+      <a href="${studioUrl}" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#7B2FF7,#00D4FF);color:white;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:8px;">Edit listing</a>
+      <p style="color:#666;font-size:12px;margin-top:24px;">If you have questions, reply to this email and our team will be happy to help.</p>
+    </div>
+  `;
+}

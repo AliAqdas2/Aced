@@ -55,6 +55,10 @@ export default function AdminListings() {
 
   async function confirmDecision() {
     if (!pending) return;
+    if (pending.decision === 'rejected' && !pending.notes.trim()) {
+      setSubmitError('Please leave feedback explaining why the listing was declined.');
+      return;
+    }
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -63,7 +67,7 @@ export default function AdminListings() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           decision: pending.decision,
-          notes: pending.notes || undefined,
+          notes: pending.notes.trim() || undefined,
         }),
       });
       if (!res.ok) {
@@ -190,14 +194,16 @@ export default function AdminListings() {
 
             <div className="space-y-1.5">
               <label className="font-medium text-sm">
-                Moderation note {pending?.decision === 'rejected' ? '(recommended)' : '(optional)'}
+                {pending?.decision === 'rejected'
+                  ? 'Feedback for the tutor (required)'
+                  : 'Moderation note (optional)'}
               </label>
               <textarea
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
                 rows={3}
                 placeholder={
                   pending?.decision === 'rejected'
-                    ? 'Reason for rejection — visible to the creator…'
+                    ? 'Explain why this listing was declined — the tutor will see this…'
                     : 'Any notes for the moderation log…'
                 }
                 value={pending?.notes ?? ''}
@@ -222,7 +228,10 @@ export default function AdminListings() {
             </DialogClose>
             <Button
               onClick={confirmDecision}
-              disabled={submitting}
+              disabled={
+                submitting ||
+                (pending?.decision === 'rejected' && !pending.notes.trim())
+              }
               className={
                 pending?.decision === 'approved'
                   ? 'bg-green-600 hover:bg-green-700 text-white'

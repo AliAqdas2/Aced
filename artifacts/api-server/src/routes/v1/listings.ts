@@ -5,6 +5,7 @@ import {
   listingsTable,
   serviceOffersTable,
   productsTable,
+  productFilesTable,
   priceRecordsTable,
   storefrontsTable,
   creatorProfilesTable,
@@ -12,13 +13,97 @@ import {
   subscriptionPlansTable,
   learnerSubscriptionsTable,
   assetsTable,
+  entitlementsTable,
+  usersTable,
+  profilesTable,
+  platformConfigTable,
 } from "@workspace/db";
 import { generateUploadUrl } from "../../lib/storage";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, asc } from "drizzle-orm";
 import { requireRole } from "../../middlewares/auth";
 import { logAuditEvent } from "../../lib/auth";
+import {
+  sendEmailResilient,
+  buildListingSubmittedAdminEmail,
+  buildListingApprovedEmail,
+  buildListingRejectedEmail,
+} from "../../lib/email";
+import { sendNotification } from "../../lib/notifications";
+import { logger } from "../../lib/logger";
 
 const router: IRouter = Router();
+
+/** Fire-and-forget admin email when a listing enters the moderation queue. */
+function notifyAdminsListingSubmitted(opts: {
+  listingId: string;
+  title: string;
+  creatorUserId: string;
+}) {
+  (async () => {
+    try {
+      const [approvalCfg] = await db
+        .select()
+        .from(platformConfigTable)
+        .where(eq(platformConfigTable.key, "APPROVAL_EMAIL"))
+        .limit(1);
+      const approvalEmail = approvalCfg?.value ?? "AcedApprovals@creativecloud.ai";
+
+      const [userInfo] = await db
+        .select({ email: usersTable.email, displayName: profilesTable.displayName })
+        .from(usersTable)
+        .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
+        .where(eq(usersTable.id, opts.creatorUserId))
+        .limit(1);
+
+      await sendEmailResilient(
+        {
+          to: approvalEmail,
+          subject: `New listing pending review — ${opts.title}`,
+          html: buildListingSubmittedAdminEmail({
+            title: opts.title,
+            creatorName: userInfo?.displayName ?? userInfo?.email ?? "Creator",
+            listingId: opts.listingId,
+          }),
+        },
+        "listing_submitted_internal",
+      );
+    } catch (err) {
+      logger.error({ err }, "Failed to send listing submitted email to admins");
+    }
+  })();
+}
+
+async function listProductFiles(productId: string) {
+  const rows = await db
+    .select({
+      id: productFilesTable.id,
+      assetId: productFilesTable.assetId,
+      sortOrder: productFilesTable.sortOrder,
+      fileName: assetsTable.fileName,
+      mimeType: assetsTable.mimeType,
+      sizeBytes: assetsTable.sizeBytes,
+      createdAt: productFilesTable.createdAt,
+    })
+    .from(productFilesTable)
+    .innerJoin(assetsTable, eq(assetsTable.id, productFilesTable.assetId))
+    .where(eq(productFilesTable.productId, productId))
+    .orderBy(asc(productFilesTable.sortOrder), asc(productFilesTable.createdAt));
+  return rows;
+}
+
+async function syncPrimaryPaidAsset(productId: string): Promise<void> {
+  const [first] = await db
+    .select({ assetId: productFilesTable.assetId })
+    .from(productFilesTable)
+    .where(eq(productFilesTable.productId, productId))
+    .orderBy(asc(productFilesTable.sortOrder), asc(productFilesTable.createdAt))
+    .limit(1);
+
+  await db
+    .update(productsTable)
+    .set({ paidAssetId: first?.assetId ?? null })
+    .where(eq(productsTable.id, productId));
+}
 
 const CreateListingBody = z.object({
   type: z.enum(["service_offer", "digital_product", "recorded_course", "group_session"]),
@@ -107,13 +192,16 @@ router.get("/listings/:id", async (req, res): Promise<void> => {
         .limit(1);
       subscriptionPlan = sp ?? null;
     }
-  } else if (listing.type === "digital_product") {
+  } else if (listing.type === "digital_product" || listing.type === "recorded_course") {
     const [p] = await db
       .select()
       .from(productsTable)
       .where(eq(productsTable.listingId, id))
       .limit(1);
-    product = p ?? null;
+    if (p) {
+      const files = await listProductFiles(p.id);
+      product = { ...p, files };
+    }
   }
 
   const reviews = await db
@@ -150,6 +238,22 @@ router.get("/listings/:id", async (req, res): Promise<void> => {
     }
   }
 
+  let owned = false;
+  if (req.session?.userId && (listing.type === "digital_product" || listing.type === "recorded_course")) {
+    const [ent] = await db
+      .select({ id: entitlementsTable.id })
+      .from(entitlementsTable)
+      .where(
+        and(
+          eq(entitlementsTable.userId, req.session.userId),
+          eq(entitlementsTable.listingId, id),
+          eq(entitlementsTable.status, "active")
+        )
+      )
+      .limit(1);
+    owned = !!ent;
+  }
+
   // Increment view count (fire and forget)
   db.update(listingsTable)
     .set({ viewCount: listing.viewCount + 1 })
@@ -167,6 +271,7 @@ router.get("/listings/:id", async (req, res): Promise<void> => {
       isSubscribed,
       sessionsRemaining,
       currentPeriodEnd,
+      owned,
     },
   });
 });
@@ -258,12 +363,19 @@ router.post(
           currency: parsed.data.subscription!.currency,
         });
       }
-    } else if (parsed.data.type === "digital_product" && parsed.data.product) {
+    } else if (parsed.data.type === "digital_product" || parsed.data.type === "recorded_course") {
+      // Always create a products row so the Studio files panel works immediately
       await db.insert(productsTable).values({
         listingId: listing.id,
-        ...parsed.data.product,
+        ...(parsed.data.product ?? {}),
       });
     }
+
+    notifyAdminsListingSubmitted({
+      listingId: listing.id,
+      title: listing.title,
+      creatorUserId: req.session.userId!,
+    });
 
     res.status(201).json({ data: listing });
   }
@@ -320,6 +432,14 @@ router.patch(
       .where(eq(listingsTable.id, id))
       .returning();
 
+    if (shouldResubmit && updated) {
+      notifyAdminsListingSubmitted({
+        listingId: updated.id,
+        title: updated.title,
+        creatorUserId: req.session.userId!,
+      });
+    }
+
     res.json({ data: updated });
   }
 );
@@ -353,6 +473,14 @@ router.post(
       .set({ status: "submitted" })
       .where(eq(listingsTable.id, id))
       .returning();
+
+    if (updated) {
+      notifyAdminsListingSubmitted({
+        listingId: updated.id,
+        title: updated.title,
+        creatorUserId: req.session.userId!,
+      });
+    }
 
     res.json({ data: updated });
   }
@@ -501,7 +629,21 @@ router.get(
           }
         }
 
-        return { ...l, activePrice: price ?? null, subscriptionPlan };
+        let files: Awaited<ReturnType<typeof listProductFiles>> = [];
+        let fileCount = 0;
+        if (l.type === "digital_product" || l.type === "recorded_course") {
+          const [p] = await db
+            .select()
+            .from(productsTable)
+            .where(eq(productsTable.listingId, l.id))
+            .limit(1);
+          if (p) {
+            files = await listProductFiles(p.id);
+            fileCount = files.length;
+          }
+        }
+
+        return { ...l, activePrice: price ?? null, subscriptionPlan, files, fileCount };
       })
     );
 
@@ -550,6 +692,12 @@ router.post(
       return;
     }
 
+    const notes = parsed.data.notes?.trim() || null;
+    if (parsed.data.decision === "rejected" && !notes) {
+      res.status(400).json({ error: "Feedback is required when rejecting a listing" });
+      return;
+    }
+
     // Approve → publish immediately so listings appear on the public showcase
     const isApproved = parsed.data.decision === "approved";
     const [updated] = await db
@@ -559,13 +707,13 @@ router.post(
           ? {
               status: "published" as const,
               publishedAt: new Date(),
-              moderationNotes: parsed.data.notes ?? null,
+              moderationNotes: notes,
               moderatedBy: req.session.userId,
               moderatedAt: new Date(),
             }
           : {
               status: "rejected" as const,
-              moderationNotes: parsed.data.notes ?? null,
+              moderationNotes: notes,
               moderatedBy: req.session.userId,
               moderatedAt: new Date(),
             }
@@ -584,8 +732,77 @@ router.post(
       action: `listing.${parsed.data.decision}`,
       targetId: id,
       targetType: "listing",
-      summary: parsed.data.notes,
+      summary: notes ?? undefined,
     });
+
+    // Notify the listing owner (in-app + email) — fire-and-forget
+    (async () => {
+      try {
+        const [owner] = await db
+          .select({
+            userId: creatorProfilesTable.userId,
+            email: usersTable.email,
+            displayName: profilesTable.displayName,
+          })
+          .from(creatorProfilesTable)
+          .innerJoin(usersTable, eq(usersTable.id, creatorProfilesTable.userId))
+          .leftJoin(profilesTable, eq(profilesTable.userId, creatorProfilesTable.userId))
+          .where(eq(creatorProfilesTable.id, updated.creatorId))
+          .limit(1);
+
+        if (!owner) return;
+
+        const creatorName = owner.displayName ?? "there";
+
+        if (isApproved) {
+          await sendNotification({
+            userId: owner.userId,
+            type: "listing_approved",
+            subject: "Your listing is live",
+            body: `“${updated.title}” has been approved and is now live on Aced.`,
+            metadata: { listingId: updated.id },
+          });
+          if (owner.email) {
+            await sendEmailResilient(
+              {
+                to: owner.email,
+                subject: `Your listing is live — ${updated.title}`,
+                html: buildListingApprovedEmail({
+                  creatorName,
+                  title: updated.title,
+                }),
+              },
+              "listing_decision_approved",
+            );
+          }
+        } else {
+          const feedback = notes ?? "Please update your listing and resubmit.";
+          await sendNotification({
+            userId: owner.userId,
+            type: "listing_rejected",
+            subject: "Listing needs changes",
+            body: `“${updated.title}” was not approved. Feedback: ${feedback}`,
+            metadata: { listingId: updated.id },
+          });
+          if (owner.email) {
+            await sendEmailResilient(
+              {
+                to: owner.email,
+                subject: `Update on your listing — ${updated.title}`,
+                html: buildListingRejectedEmail({
+                  creatorName,
+                  title: updated.title,
+                  notes: feedback,
+                }),
+              },
+              "listing_decision_rejected",
+            );
+          }
+        }
+      } catch (err) {
+        logger.error({ err }, "Failed to notify creator of listing decision");
+      }
+    })();
 
     res.json({ data: updated });
   }
@@ -694,28 +911,134 @@ router.post(
       })
       .returning();
 
-    // Upsert product row and link asset
     const ext = parsed.data.mimeType.split("/")[1] ?? parsed.data.fileName.split(".").pop() ?? "bin";
-    const [existingProduct] = await db
+    let [product] = await db
       .select()
       .from(productsTable)
       .where(eq(productsTable.listingId, id))
       .limit(1);
 
-    if (existingProduct) {
-      await db
-        .update(productsTable)
-        .set({ paidAssetId: asset.id, fileFormat: ext })
-        .where(eq(productsTable.id, existingProduct.id));
-    } else {
-      await db.insert(productsTable).values({
-        listingId: id,
-        paidAssetId: asset.id,
-        fileFormat: ext,
-      });
+    if (!product) {
+      const [created] = await db
+        .insert(productsTable)
+        .values({ listingId: id, fileFormat: ext })
+        .returning();
+      product = created;
     }
 
-    res.json({ data: { assetId: asset.id, fileName: asset.fileName } });
+    const existingFiles = await db
+      .select({ sortOrder: productFilesTable.sortOrder })
+      .from(productFilesTable)
+      .where(eq(productFilesTable.productId, product.id))
+      .orderBy(desc(productFilesTable.sortOrder))
+      .limit(1);
+    const nextOrder = (existingFiles[0]?.sortOrder ?? -1) + 1;
+
+    const [fileRow] = await db
+      .insert(productFilesTable)
+      .values({
+        productId: product.id,
+        assetId: asset.id,
+        sortOrder: nextOrder,
+      })
+      .returning();
+
+    await db
+      .update(productsTable)
+      .set({ fileFormat: ext })
+      .where(eq(productsTable.id, product.id));
+
+    await syncPrimaryPaidAsset(product.id);
+
+    res.json({
+      data: {
+        assetId: asset.id,
+        fileId: fileRow.id,
+        fileName: asset.fileName,
+        sizeBytes: asset.sizeBytes,
+        mimeType: asset.mimeType,
+      },
+    });
+  }
+);
+
+// GET /api/v1/creator/listings/:id/files
+router.get(
+  "/creator/listings/:id/files",
+  requireRole("creator"),
+  async (req, res): Promise<void> => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    const [cp] = await db
+      .select()
+      .from(creatorProfilesTable)
+      .where(eq(creatorProfilesTable.userId, req.session.userId!))
+      .limit(1);
+    if (!cp) { res.status(404).json({ error: "Creator profile not found" }); return; }
+
+    const [listing] = await db
+      .select()
+      .from(listingsTable)
+      .where(and(eq(listingsTable.id, id), eq(listingsTable.creatorId, cp.id)))
+      .limit(1);
+    if (!listing) { res.status(404).json({ error: "Listing not found or access denied" }); return; }
+
+    const [product] = await db
+      .select()
+      .from(productsTable)
+      .where(eq(productsTable.listingId, id))
+      .limit(1);
+
+    if (!product) {
+      res.json({ data: [] });
+      return;
+    }
+
+    const files = await listProductFiles(product.id);
+    res.json({ data: files });
+  }
+);
+
+// DELETE /api/v1/creator/listings/:id/files/:fileId
+router.delete(
+  "/creator/listings/:id/files/:fileId",
+  requireRole("creator"),
+  async (req, res): Promise<void> => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const fileId = Array.isArray(req.params.fileId) ? req.params.fileId[0] : req.params.fileId;
+
+    const [cp] = await db
+      .select()
+      .from(creatorProfilesTable)
+      .where(eq(creatorProfilesTable.userId, req.session.userId!))
+      .limit(1);
+    if (!cp) { res.status(404).json({ error: "Creator profile not found" }); return; }
+
+    const [listing] = await db
+      .select()
+      .from(listingsTable)
+      .where(and(eq(listingsTable.id, id), eq(listingsTable.creatorId, cp.id)))
+      .limit(1);
+    if (!listing) { res.status(404).json({ error: "Listing not found or access denied" }); return; }
+
+    const [product] = await db
+      .select()
+      .from(productsTable)
+      .where(eq(productsTable.listingId, id))
+      .limit(1);
+    if (!product) { res.status(404).json({ error: "Product not found" }); return; }
+
+    const [fileRow] = await db
+      .select()
+      .from(productFilesTable)
+      .where(and(eq(productFilesTable.id, fileId!), eq(productFilesTable.productId, product.id)))
+      .limit(1);
+    if (!fileRow) { res.status(404).json({ error: "File not found" }); return; }
+
+    await db.delete(productFilesTable).where(eq(productFilesTable.id, fileRow.id));
+    await syncPrimaryPaidAsset(product.id);
+
+    res.json({ data: { ok: true } });
   }
 );
 

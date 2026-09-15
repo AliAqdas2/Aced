@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, MoreHorizontal, Edit, Trash, FileText, Video, Users, User, Calendar, Clock, RefreshCw, AlertTriangle, Upload, CheckCircle2, Loader2, PauseCircle, PlayCircle } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Edit, Trash, FileText, Video, Users, User, Calendar, Clock, RefreshCw, AlertTriangle, Upload, CheckCircle2, Loader2, PauseCircle, PlayCircle, X } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import {
@@ -28,6 +28,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Select,
   SelectContent,
@@ -42,9 +51,218 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useToast } from '@/hooks/use-toast';
 
 // ---------------------------------------------------------------------------
-// Digital file upload dialog
+// Digital files panel (visible manage UI)
 // ---------------------------------------------------------------------------
 
+interface ProductFileRow {
+  id: string;
+  assetId: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  sortOrder: number;
+}
+
+function formatBytes(n: number) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function uploadListingFile(listingId: string, file: File) {
+  const urlRes = await fetch(`/api/v1/creator/listings/${listingId}/upload-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fileName: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      sizeBytes: file.size,
+    }),
+  });
+  if (!urlRes.ok) throw new Error('Could not get upload URL');
+  const { data: { uploadUrl, storageKey } } = await urlRes.json();
+
+  const putRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    body: file,
+    headers: { 'Content-Type': file.type || 'application/octet-stream' },
+  });
+  if (!putRes.ok) throw new Error('File upload failed');
+
+  const assetRes = await fetch(`/api/v1/creator/listings/${listingId}/paid-asset`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      storageKey,
+      fileName: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      sizeBytes: file.size,
+    }),
+  });
+  if (!assetRes.ok) throw new Error('Failed to register file');
+  return assetRes.json();
+}
+
+function DigitalFilesPanel({
+  listingId,
+  files: initialFiles,
+  highlight,
+}: {
+  listingId: string;
+  files: ProductFileRow[];
+  highlight?: boolean;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const files = initialFiles ?? [];
+
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: getGetCreatorListingsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetListingQueryKey(listingId) });
+    queryClient.invalidateQueries({ queryKey: getGetCreatorStorefrontQueryKey() });
+  }
+
+  async function handleAdd(file: File) {
+    setUploading(true);
+    try {
+      await uploadListingFile(listingId, file);
+      toast({ title: 'File added ✓' });
+      invalidate();
+    } catch (err: any) {
+      toast({ title: err.message ?? 'Upload failed', variant: 'destructive' });
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  }
+
+  async function handleRemove(fileId: string) {
+    setRemovingId(fileId);
+    try {
+      const res = await fetch(`/api/v1/creator/listings/${listingId}/files/${fileId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed to remove file');
+      toast({ title: 'File removed' });
+      invalidate();
+    } catch (err: any) {
+      toast({ title: err.message ?? 'Could not remove file', variant: 'destructive' });
+    } finally {
+      setRemovingId(null);
+    }
+  }
+
+  async function handleReplace(fileId: string, file: File) {
+    setUploading(true);
+    try {
+      const delRes = await fetch(`/api/v1/creator/listings/${listingId}/files/${fileId}`, {
+        method: 'DELETE',
+      });
+      if (!delRes.ok) throw new Error('Failed to remove old file');
+      await uploadListingFile(listingId, file);
+      toast({ title: 'File replaced ✓' });
+      invalidate();
+    } catch (err: any) {
+      toast({ title: err.message ?? 'Replace failed', variant: 'destructive' });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div
+      className={`mt-3 rounded-xl border p-3 space-y-3 ${
+        highlight || files.length === 0
+          ? 'border-amber-300/60 bg-amber-50/50 dark:bg-amber-950/20'
+          : 'border-border/60 bg-muted/20'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <FileText className="h-4 w-4 text-primary" />
+          Downloadable files
+          {files.length === 0 && (
+            <Badge variant="outline" className="text-amber-700 border-amber-300 text-[10px] uppercase">
+              Required
+            </Badge>
+          )}
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 gap-1.5"
+          disabled={uploading}
+          onClick={() => inputRef.current?.click()}
+        >
+          {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+          Add file
+        </Button>
+        <input
+          ref={inputRef}
+          type="file"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void handleAdd(f);
+          }}
+        />
+      </div>
+
+      {files.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Add at least one file so students can download this after purchase (or for free).
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {files.map((f) => (
+            <li
+              key={f.id}
+              className="flex items-center gap-3 rounded-lg bg-background border border-border/50 px-3 py-2"
+            >
+              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate">{f.fileName}</p>
+                <p className="text-[11px] text-muted-foreground">{formatBytes(f.sizeBytes)}</p>
+              </div>
+              <label className="text-xs font-medium text-primary cursor-pointer hover:underline">
+                Replace
+                <input
+                  type="file"
+                  className="hidden"
+                  disabled={uploading || removingId === f.id}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleReplace(f.id, file);
+                  }}
+                />
+              </label>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-destructive"
+                disabled={uploading || removingId === f.id}
+                onClick={() => void handleRemove(f.id)}
+              >
+                {removingId === f.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <X className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// Keep a thin dialog wrapper for any leftover callers
 function DigitalFileUploadDialog({
   listingId,
   onClose,
@@ -52,107 +270,14 @@ function DigitalFileUploadDialog({
   listingId: string;
   onClose: () => void;
 }) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [phase, setPhase] = useState<'pick' | 'uploading' | 'done'>('pick');
-  const [fileName, setFileName] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  async function handleFile(file: File) {
-    setFileName(file.name);
-    setPhase('uploading');
-    try {
-      // 1. Get signed upload URL
-      const urlRes = await fetch(`/api/v1/creator/listings/${listingId}/upload-url`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: file.name, mimeType: file.type || 'application/octet-stream', sizeBytes: file.size }),
-      });
-      if (!urlRes.ok) throw new Error('Could not get upload URL');
-      const { data: { uploadUrl, storageKey } } = await urlRes.json();
-
-      // 2. PUT file to GCS
-      const putRes = await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type || 'application/octet-stream' } });
-      if (!putRes.ok) throw new Error('File upload failed');
-
-      // 3. Register asset
-      const assetRes = await fetch(`/api/v1/creator/listings/${listingId}/paid-asset`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storageKey, fileName: file.name, mimeType: file.type || 'application/octet-stream', sizeBytes: file.size }),
-      });
-      if (!assetRes.ok) throw new Error('Failed to register file');
-
-      setPhase('done');
-      toast({ title: 'File uploaded successfully ✓' });
-      queryClient.invalidateQueries({ queryKey: getGetCreatorListingsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetListingQueryKey(listingId) });
-      queryClient.invalidateQueries({ queryKey: getGetCreatorStorefrontQueryKey() });
-      queryClient.invalidateQueries({
-        predicate: (q) =>
-          Array.isArray(q.queryKey) &&
-          typeof q.queryKey[0] === 'string' &&
-          (q.queryKey[0] as string).startsWith('/api/v1/storefronts/'),
-      });
-    } catch (err: any) {
-      toast({ title: err.message ?? 'Upload failed', variant: 'destructive' });
-      setPhase('pick');
-    }
-  }
-
   return (
     <DialogContent className="max-w-md">
       <DialogHeader>
-        <DialogTitle className="font-serif text-xl">Upload file</DialogTitle>
-        <DialogDescription>
-          This file will be delivered to students after purchase.
-        </DialogDescription>
+        <DialogTitle className="font-serif text-xl">Manage files</DialogTitle>
+        <DialogDescription>Add downloadable files for this listing.</DialogDescription>
       </DialogHeader>
-
-      <div className="space-y-4 py-2">
-        {phase === 'pick' && (
-          <>
-            <div
-              className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-3 text-center cursor-pointer hover:border-primary/40 hover:bg-muted/30 transition-colors"
-              onClick={() => inputRef.current?.click()}
-            >
-              <Upload className="h-8 w-8 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-semibold">Click to choose a file</p>
-                <p className="text-xs text-muted-foreground mt-1">PDFs, videos, ZIPs, or any document</p>
-              </div>
-            </div>
-            <input
-              ref={inputRef}
-              type="file"
-              className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
-            />
-            <Button variant="outline" className="w-full" onClick={onClose}>Cancel</Button>
-          </>
-        )}
-
-        {phase === 'uploading' && (
-          <div className="flex flex-col items-center gap-4 py-6">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <div className="text-center">
-              <p className="font-semibold text-sm">Uploading…</p>
-              <p className="text-xs text-muted-foreground mt-1 truncate max-w-xs">{fileName}</p>
-            </div>
-          </div>
-        )}
-
-        {phase === 'done' && (
-          <div className="flex flex-col items-center gap-4 py-6">
-            <CheckCircle2 className="h-10 w-10 text-green-500" />
-            <div className="text-center">
-              <p className="font-semibold text-sm">Upload complete</p>
-              <p className="text-xs text-muted-foreground mt-1 truncate max-w-xs">{fileName}</p>
-            </div>
-            <Button className="w-full" onClick={onClose}>Done</Button>
-          </div>
-        )}
-      </div>
+      <DigitalFilesPanel listingId={listingId} files={[]} highlight />
+      <Button variant="outline" className="w-full" onClick={onClose}>Close</Button>
     </DialogContent>
   );
 }
@@ -384,17 +509,21 @@ interface EditableListing {
   title: string;
   description: string;
   tags?: string[] | null;
+  status: string;
 }
 
 function EditListingDialog({
   listing,
   onClose,
+  onResubmitted,
 }: {
   listing: EditableListing;
   onClose: () => void;
+  onResubmitted?: () => void;
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const willResubmit = listing.status === 'draft' || listing.status === 'rejected';
 
   const form = useForm<EditListingFormValues>({
     resolver: zodResolver(editListingSchema),
@@ -417,8 +546,12 @@ function EditListingDialog({
             typeof q.queryKey[0] === 'string' &&
             (q.queryKey[0] as string).startsWith('/api/v1/storefronts/'),
         });
-        toast({ title: 'Listing updated' });
         onClose();
+        if (willResubmit) {
+          onResubmitted?.();
+        } else {
+          toast({ title: 'Listing updated' });
+        }
       },
       onError: () => {
         toast({ title: 'Failed to update listing', variant: 'destructive' });
@@ -446,7 +579,11 @@ function EditListingDialog({
     <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle className="font-serif text-2xl">Edit listing</DialogTitle>
-        <DialogDescription>Update the title, description, and tags for this listing.</DialogDescription>
+        <DialogDescription>
+          {willResubmit
+            ? 'Saving will resubmit this listing for admin review.'
+            : 'Update the title, description, and tags for this listing.'}
+        </DialogDescription>
       </DialogHeader>
 
       <Form {...form}>
@@ -507,6 +644,8 @@ function EditListingDialog({
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
                 </>
+              ) : willResubmit ? (
+                'Save & resubmit'
               ) : (
                 'Save changes'
               )}
@@ -577,8 +716,11 @@ export default function StudioListings() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editPlanListingId, setEditPlanListingId] = useState<string | null>(null);
+  const [highlightFilesId, setHighlightFilesId] = useState<string | null>(null);
   const [uploadListingId, setUploadListingId] = useState<string | null>(null);
   const [editingListing, setEditingListing] = useState<EditableListing | null>(null);
+  const [pendingReviewOpen, setPendingReviewOpen] = useState(false);
+  const [pendingReviewNeedsFiles, setPendingReviewNeedsFiles] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [listingVisibilityBusyId, setListingVisibilityBusyId] = useState<string | null>(null);
@@ -653,14 +795,20 @@ export default function StudioListings() {
 
   const createMutation = useCreateListing({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (res) => {
         invalidateListingCaches();
         setIsDialogOpen(false);
+        const createdId = (res as any)?.data?.id as string | undefined;
+        const createdType = form.getValues('type');
         form.reset();
-        toast({
-          title: 'Listing submitted for review',
-          description: 'An admin will review it shortly. Once approved it goes live automatically.',
-        });
+        const needsFiles =
+          !!createdId &&
+          (createdType === 'digital_product' || createdType === 'recorded_course');
+        if (needsFiles && createdId) {
+          setHighlightFilesId(createdId);
+        }
+        setPendingReviewNeedsFiles(needsFiles);
+        setPendingReviewOpen(true);
       },
       onError: () => {
         toast({ title: 'Failed to create listing', variant: 'destructive' });
@@ -1165,11 +1313,12 @@ export default function StudioListings() {
               {filtered.map((listing) => {
                 const price = listing.activePrice;
                 const isFree = !price || price.amountMinorUnits === 0;
+                const isDigital =
+                  listing.type === 'digital_product' || listing.type === 'recorded_course';
+                const listingFiles = ((listing as any).files ?? []) as ProductFileRow[];
                 return (
-                  <div
-                    key={listing.id}
-                    className="p-5 flex flex-col sm:flex-row sm:items-center gap-4"
-                  >
+                  <div key={listing.id} className="p-5 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     <div className="flex items-center gap-4 flex-1 min-w-0">
                       <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                         <TypeIcon type={listing.type} />
@@ -1188,16 +1337,31 @@ export default function StudioListings() {
                           <span className="text-xs text-muted-foreground">
                             {listing.purchaseCount ?? 0} sales
                           </span>
+                          {isDigital && (
+                            <>
+                              <span className="text-xs text-muted-foreground hidden sm:inline">·</span>
+                              <span className="text-xs text-muted-foreground">
+                                {listingFiles.length} file{listingFiles.length === 1 ? '' : 's'}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-4 justify-between sm:justify-end">
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status={listing.status} />
-                        <span className="font-semibold text-sm">
-                          {isFree ? 'Free' : `£${((price?.amountMinorUnits ?? 0) / 100).toFixed(2)}`}
-                        </span>
+                      <div className="flex flex-col items-start sm:items-end gap-1">
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={listing.status} />
+                          <span className="font-semibold text-sm">
+                            {isFree ? 'Free' : `£${((price?.amountMinorUnits ?? 0) / 100).toFixed(2)}`}
+                          </span>
+                        </div>
+                        {listing.status === 'rejected' && listing.moderationNotes && (
+                          <p className="text-xs text-destructive max-w-xs sm:text-right">
+                            Feedback: {listing.moderationNotes}
+                          </p>
+                        )}
                       </div>
 
                       <DropdownMenu>
@@ -1232,7 +1396,6 @@ export default function StudioListings() {
                                 >
                                   <RefreshCw className="mr-2 h-4 w-4" /> Edit plan
                                 </DropdownMenuItem>
-                                {/* Task #48 — pause / resume subscription plan */}
                                 {listing.subscriptionPlan?.id && (
                                   listing.subscriptionPlan.isActive ? (
                                     <DropdownMenuItem
@@ -1250,11 +1413,6 @@ export default function StudioListings() {
                                 )}
                               </>
                             )}
-                          {(listing.type === 'digital_product' || listing.type === 'recorded_course') && (
-                            <DropdownMenuItem onSelect={() => setUploadListingId(listing.id)}>
-                              <Upload className="mr-2 h-4 w-4" /> Upload file
-                            </DropdownMenuItem>
-                          )}
                           <DropdownMenuItem
                             onSelect={() =>
                               setEditingListing({
@@ -1262,6 +1420,7 @@ export default function StudioListings() {
                                 title: listing.title,
                                 description: listing.description ?? '',
                                 tags: listing.tags ?? [],
+                                status: listing.status,
                               })
                             }
                           >
@@ -1273,6 +1432,15 @@ export default function StudioListings() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
+                    </div>
+
+                    {isDigital && (
+                      <DigitalFilesPanel
+                        listingId={listing.id}
+                        files={listingFiles}
+                        highlight={highlightFilesId === listing.id || listingFiles.length === 0}
+                      />
+                    )}
                   </div>
                 );
               })}
@@ -1306,9 +1474,32 @@ export default function StudioListings() {
             key={editingListing.id}
             listing={editingListing}
             onClose={() => setEditingListing(null)}
+            onResubmitted={() => {
+              setPendingReviewNeedsFiles(false);
+              setPendingReviewOpen(true);
+            }}
           />
         )}
       </Dialog>
+
+      <AlertDialog open={pendingReviewOpen} onOpenChange={setPendingReviewOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-serif text-2xl">
+              Your listing will be live pending review
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              An admin will review it shortly. Once approved, it goes live automatically.
+              {pendingReviewNeedsFiles
+                ? ' Add your downloadable file below so students can get it after approval.'
+                : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction>Got it</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Edit subscription plan modal */}
       <Dialog
