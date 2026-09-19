@@ -131,7 +131,7 @@ export default function Storefront() {
   );
   const bookHref =
     sessionListings.length === 1
-      ? `/listings/${sessionListings[0].id}`
+      ? `/listings/${sessionListings[0].id}?book=1`
       : '#services';
 
   const fromPriceMinor =
@@ -289,7 +289,7 @@ export default function Storefront() {
                         <div className="flex items-center gap-3 sm:shrink-0 pl-[52px] sm:pl-0">
                           <span className="font-bold text-sm tabular-nums">{formatPrice(priceMinor)}</span>
                           <Button asChild size="sm" className="rounded-full gap-1.5 px-4">
-                            <Link href={`/listings/${listing.id}`}>
+                            <Link href={`/listings/${listing.id}${isSession ? '?book=1' : ''}`}>
                               {isSession ? (
                                 <>
                                   <Calendar className="h-3.5 w-3.5" /> Book

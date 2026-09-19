@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link, useLocation as useWouterLocation } from 'wouter';
+import { useParams, Link, useLocation as useWouterLocation, useSearch } from 'wouter';
 import {
   useGetListing,
   useCreateCheckoutSession,
@@ -35,6 +35,8 @@ export default function ListingDetail() {
   const params = useParams();
   const id = params.id as string;
   const [, setLocation] = useWouterLocation();
+  const search = useSearch();
+  const fromBook = new URLSearchParams(search).get('book') === '1';
   const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
   const [booked, setBooked] = useState(false);
@@ -277,8 +279,10 @@ export default function ListingDetail() {
               )}
             </div>
 
-            {/* Creator Info */}
-            <Card className="rounded-2xl border-border/50 bg-muted/10 shadow-none">
+            {/* Creator Info — hidden on mobile when arriving from showcase Book */}
+            <Card
+              className={`rounded-2xl border-border/50 bg-muted/10 shadow-none${fromBook ? ' hidden lg:block' : ''}`}
+            >
               <CardContent className="p-8 sm:p-10">
                 <h3 className="font-serif text-3xl mb-8">About the Tutor</h3>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">

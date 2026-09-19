@@ -35,6 +35,20 @@ function formatSlotTime(iso: string) {
   return format(parseISO(iso), 'HH:mm');
 }
 
+function holdErrorInfo(err: unknown): { message: string; code?: string } {
+  if (err && typeof err === 'object' && 'data' in err) {
+    const data = (err as { data?: { error?: string; code?: string } | null }).data;
+    if (data?.error) {
+      return { message: data.error, code: data.code };
+    }
+  }
+  if (err instanceof Error && err.message) {
+    const cleaned = err.message.replace(/^HTTP \d+ [^:]+:\s*/, '');
+    return { message: cleaned || 'Could not reserve this slot' };
+  }
+  return { message: 'Could not reserve this slot' };
+}
+
 interface BookingSlotPickerProps {
   listingId: string;
   serviceOffer: { id: string; durationMinutes: number; bookingHorizonDays: number };
@@ -87,6 +101,14 @@ export function BookingSlotPicker({
 
   const isFree = !price || price.amountMinorUnits === 0;
 
+  function refreshAvailabilityAfterConflict() {
+    queryClient.invalidateQueries({
+      queryKey: getGetServiceAvailabilityQueryKey(listingId, availParams),
+    });
+    setSelectedSlot(null);
+    setConfirmOpen(false);
+  }
+
   const holdMutation = useCreateBookingHold();
   const checkoutMutation = useCreateCheckoutSession();
   const confirmFreeMutation = useConfirmFreeBooking({
@@ -97,8 +119,12 @@ export function BookingSlotPicker({
         setConfirmOpen(false);
         onBooked();
       },
-      onError: () => {
-        toast({ title: 'Could not confirm booking', variant: 'destructive' });
+      onError: (err) => {
+        const { message, code } = holdErrorInfo(err);
+        toast({ title: message, variant: 'destructive' });
+        if (code === 'SLOT_TAKEN' || code === 'SLOT_HELD') {
+          refreshAvailabilityAfterConflict();
+        }
       },
     },
   });
@@ -150,9 +176,14 @@ export function BookingSlotPicker({
               },
             );
           },
-          onError: () => {
-            toast({ title: 'Slot is no longer available', variant: 'destructive' });
-            setConfirmOpen(false);
+          onError: (err) => {
+            const { message, code } = holdErrorInfo(err);
+            toast({ title: message, variant: 'destructive' });
+            if (code === 'SLOT_TAKEN' || code === 'SLOT_HELD') {
+              refreshAvailabilityAfterConflict();
+            } else {
+              setConfirmOpen(false);
+            }
           },
         },
       );
@@ -203,7 +234,7 @@ export function BookingSlotPicker({
         </p>
       </div>
 
-      <div className="rounded-2xl border border-border/60 bg-gradient-to-b from-muted/40 to-background p-3 sm:p-4 shadow-sm">
+      <div className="rounded-2xl border border-border/60 bg-gradient-to-b from-muted/40 to-background p-3 sm:p-4 shadow-sm overflow-hidden">
         <Calendar
           mode="single"
           selected={selectedDate}
@@ -213,17 +244,21 @@ export function BookingSlotPicker({
           }}
           disabled={(date) => isBefore(startOfDay(date), today) || date > maxDate}
           className={cn(
-            'w-full rounded-xl bg-transparent p-0 [--cell-size:2.5rem]',
-            '[&_[data-slot=calendar]]:w-full',
-            '[&_.rdp-months]:w-full [&_.rdp-month]:w-full',
-            '[&_.rdp-caption_label]:font-serif [&_.rdp-caption_label]:text-base [&_.rdp-caption_label]:tracking-tight',
-            '[&_.rdp-weekday]:text-[0.7rem] [&_.rdp-weekday]:uppercase [&_.rdp-weekday]:tracking-widest [&_.rdp-weekday]:font-medium',
-            '[&_.rdp-day_button]:rounded-xl [&_.rdp-day_button]:transition-colors',
-            '[&_[data-selected-single=true]]:shadow-sm',
-            '[&_.rdp-today:not([data-selected-single=true])]:bg-transparent',
-            '[&_.rdp-today:not([data-selected-single=true])_.rdp-day_button]:ring-1 [&_.rdp-today:not([data-selected-single=true])_.rdp-day_button]:ring-primary/40',
-            '[&_.rdp-disabled]:opacity-35',
+            'w-full max-w-full rounded-xl bg-transparent p-0',
+            '[--cell-size:2rem] sm:[--cell-size:2.5rem]',
+            '[&_button[data-day]]:min-w-0 [&_button[data-day]]:w-full [&_button[data-day]]:rounded-xl',
           )}
+          classNames={{
+            root: 'w-full',
+            months: 'relative flex w-full flex-col gap-4',
+            month: 'flex w-full flex-col gap-3',
+            month_caption: 'flex h-[--cell-size] w-full items-center justify-center px-[--cell-size]',
+            weekdays: 'flex w-full',
+            weekday:
+              'text-muted-foreground flex-1 basis-0 select-none rounded-md text-[0.65rem] sm:text-[0.7rem] font-medium uppercase tracking-wide sm:tracking-widest',
+            week: 'mt-1.5 flex w-full',
+            day: 'group/day relative flex flex-1 basis-0 aspect-square h-auto select-none p-0 text-center',
+          }}
         />
       </div>
 

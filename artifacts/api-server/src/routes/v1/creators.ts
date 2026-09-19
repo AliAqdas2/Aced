@@ -366,60 +366,118 @@ router.post(
   }
 );
 
-// POST /api/v1/creator/stripe/onboard — create Stripe Connect account
+// POST /api/v1/creator/stripe/onboard — create Stripe Connect account (Accounts v2)
 router.post(
   "/creator/stripe/onboard",
   requireRole("creator"),
   async (req, res): Promise<void> => {
     const userId = req.session.userId!;
 
-    const [cp] = await db
-      .select()
-      .from(creatorProfilesTable)
-      .where(eq(creatorProfilesTable.userId, userId))
-      .limit(1);
+    try {
+      const [cp] = await db
+        .select()
+        .from(creatorProfilesTable)
+        .where(eq(creatorProfilesTable.userId, userId))
+        .limit(1);
 
-    if (!cp) {
-      res.status(404).json({ error: "Creator profile not found" });
-      return;
-    }
+      if (!cp) {
+        res.status(404).json({ error: "Creator profile not found" });
+        return;
+      }
 
-    const [user] = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.id, userId))
-      .limit(1);
+      const [user] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, userId))
+        .limit(1);
 
-    const stripe = getStripe();
+      if (!user?.email) {
+        res.status(400).json({ error: "User email required for Stripe onboarding", code: "EMAIL_REQUIRED" });
+        return;
+      }
 
-    let accountId = cp.stripeAccountId;
-    if (!accountId) {
-      const account = await stripe.accounts.create({
-        type: "express",
-        email: user.email,
-        capabilities: {
-          card_payments: { requested: true },
-          transfers: { requested: true },
+      const [profile] = await db
+        .select({ displayName: profilesTable.displayName })
+        .from(profilesTable)
+        .where(eq(profilesTable.userId, userId))
+        .limit(1);
+
+      const stripe = getStripe();
+      const appUrl = process.env.APP_URL ?? "http://localhost:5000";
+      const earningsUrl = `${appUrl}/studio/earnings`;
+
+      let accountId = cp.stripeAccountId;
+      if (!accountId) {
+        const account = await stripe.v2.core.accounts.create({
+          contact_email: user.email,
+          display_name: profile?.displayName || user.email,
+          dashboard: "express",
+          identity: {
+            country: "gb",
+            entity_type: "individual",
+          },
+          defaults: {
+            currency: "gbp",
+            responsibilities: {
+              fees_collector: "application",
+              losses_collector: "application",
+            },
+          },
+          configuration: {
+            merchant: {
+              capabilities: {
+                card_payments: { requested: true },
+              },
+            },
+            recipient: {
+              capabilities: {
+                stripe_balance: {
+                  stripe_transfers: { requested: true },
+                },
+              },
+            },
+          },
+          include: [
+            "configuration.merchant",
+            "configuration.recipient",
+            "identity",
+            "defaults",
+          ],
+        });
+
+        accountId = account.id;
+        await db
+          .update(creatorProfilesTable)
+          .set({ stripeAccountId: accountId, stripeAccountStatus: "pending" })
+          .where(eq(creatorProfilesTable.id, cp.id));
+      }
+
+      const accountLink = await stripe.v2.core.accountLinks.create({
+        account: accountId,
+        use_case: {
+          type: "account_onboarding",
+          account_onboarding: {
+            configurations: ["merchant", "recipient"],
+            refresh_url: earningsUrl,
+            return_url: earningsUrl,
+          },
         },
-        business_type: "individual",
-        metadata: { creatorProfileId: cp.id, userId },
       });
-      accountId = account.id;
-      await db
-        .update(creatorProfilesTable)
-        .set({ stripeAccountId: accountId, stripeAccountStatus: "pending" })
-        .where(eq(creatorProfilesTable.id, cp.id));
+
+      res.json({ data: { onboardingUrl: accountLink.url } });
+    } catch (err) {
+      const message =
+        err instanceof Stripe.errors.StripeError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Stripe onboarding failed";
+      logger.error({ err }, "Stripe Connect onboarding failed");
+      res.status(500).json({
+        error: message,
+        code: err instanceof Stripe.errors.StripeError ? err.code ?? "STRIPE_ERROR" : "STRIPE_ONBOARD_FAILED",
+      });
     }
-
-    const appUrl = process.env.APP_URL ?? "http://localhost:5000";
-    const accountLink = await stripe.accountLinks.create({
-      account: accountId,
-      refresh_url: `${appUrl}/creator/stripe/onboard`,
-      return_url: `${appUrl}/creator/earnings`,
-      type: "account_onboarding",
-    });
-
-    res.json({ data: { onboardingUrl: accountLink.url } });
   }
 );
 

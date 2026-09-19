@@ -14,7 +14,7 @@ import {
   priceRecordsTable,
   learnerSubscriptionsTable,
 } from "@workspace/db";
-import { eq, and, gte, lte, isNull, or, gt, sql } from "drizzle-orm";
+import { eq, and, gte, lte, isNull, or, gt, lt, sql } from "drizzle-orm";
 import { requireAuth, requireRole } from "../../middlewares/auth";
 
 const router: IRouter = Router();
@@ -83,11 +83,31 @@ router.get("/services/:id/availability", async (req, res): Promise<void> => {
       )
     );
 
+  // Active holds block slots (except the current learner's own holds, so they can re-book)
+  const now = new Date();
+  const viewerId = req.session?.userId ?? null;
+  const activeHoldsRaw = await db
+    .select()
+    .from(bookingHoldsTable)
+    .where(
+      and(
+        eq(bookingHoldsTable.serviceOfferId, offer.id),
+        eq(bookingHoldsTable.status, "active"),
+        gte(bookingHoldsTable.expiresAt, now),
+        gte(bookingHoldsTable.holdStartsAt, new Date(fromDate)),
+        lte(bookingHoldsTable.holdStartsAt, new Date(toDate + "T23:59:59Z"))
+      )
+    );
+  const activeHolds = viewerId
+    ? activeHoldsRaw.filter((h) => h.learnerId !== viewerId)
+    : activeHoldsRaw;
+
   // Generate available slots
   const slots = generateSlots({
     rules,
     exceptions,
     existingBookings,
+    activeHolds,
     offer,
     fromDate,
     toDate,
@@ -105,17 +125,29 @@ router.get("/services/:id/availability", async (req, res): Promise<void> => {
   });
 });
 
+function intervalsOverlap(
+  aStart: Date,
+  aEnd: Date,
+  bStart: Date,
+  bEnd: Date
+): boolean {
+  // Strict overlap: A overlaps B when A.start < B.end && A.end > B.start
+  // (back-to-back slots like 10–11 and 11–12 do not conflict)
+  return aStart < bEnd && aEnd > bStart;
+}
+
 function generateSlots(opts: {
   rules: any[];
   exceptions: any[];
   existingBookings: any[];
+  activeHolds: any[];
   offer: any;
   fromDate: string;
   toDate: string;
   timezone: string;
 }): Array<{ startAt: string; endAt: string; available: boolean }> {
   const slots: Array<{ startAt: string; endAt: string; available: boolean }> = [];
-  const { rules, exceptions, existingBookings, offer } = opts;
+  const { rules, exceptions, existingBookings, activeHolds, offer } = opts;
 
   const from = new Date(opts.fromDate + "T00:00:00Z");
   const to = new Date(opts.toDate + "T23:59:59Z");
@@ -152,15 +184,27 @@ function generateSlots(opts: {
         const slotEnd = new Date(slotStart.getTime() + offer.durationMinutes * 60 * 1000);
         if (slotEnd > windowEnd) break;
 
-        // Skip slots too soon
+        const booked = existingBookings.some(
+          (b) =>
+            ["confirmed", "held", "pending_payment", "in_progress"].includes(b.status) &&
+            intervalsOverlap(
+              new Date(b.scheduledStartAt),
+              new Date(b.scheduledEndAt),
+              slotStart,
+              slotEnd
+            )
+        );
+        const held = activeHolds.some((h) =>
+          intervalsOverlap(
+            new Date(h.holdStartsAt),
+            new Date(h.holdEndsAt),
+            slotStart,
+            slotEnd
+          )
+        );
+
         const available =
-          slotStart.getTime() - now.getTime() >= minNoticeMs &&
-          !existingBookings.some(
-            (b) =>
-              ["confirmed", "held", "pending_payment", "in_progress"].includes(b.status) &&
-              b.scheduledStartAt < slotEnd &&
-              b.scheduledEndAt > slotStart
-          );
+          slotStart.getTime() - now.getTime() >= minNoticeMs && !booked && !held;
 
         slots.push({
           startAt: slotStart.toISOString(),
@@ -229,17 +273,15 @@ router.post("/bookings/holds", requireAuth, async (req, res): Promise<void> => {
   const endDate = new Date(startDate.getTime() + offer.durationMinutes * 60 * 1000);
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 min hold
 
-  // Canonical interval-overlap check: A overlaps B when A.start < B.end && A.end > B.start.
-  // Fetch all bookings for this service offer that touch the new slot's time range.
+  // Canonical interval-overlap: A overlaps B when A.start < B.end && A.end > B.start
   const overlappingBookings = await db
     .select()
     .from(bookingsTable)
     .where(
       and(
         eq(bookingsTable.serviceOfferId, serviceOfferId),
-        // existing.start < newEnd AND existing.end > newStart
-        lte(bookingsTable.scheduledStartAt, endDate),
-        gte(bookingsTable.scheduledEndAt, startDate)
+        lt(bookingsTable.scheduledStartAt, endDate),
+        gt(bookingsTable.scheduledEndAt, startDate)
       )
     );
 
@@ -252,7 +294,6 @@ router.post("/bookings/holds", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  // Check active holds using the same canonical overlap logic.
   const now = new Date();
   const overlappingHolds = await db
     .select()
@@ -262,15 +303,50 @@ router.post("/bookings/holds", requireAuth, async (req, res): Promise<void> => {
         eq(bookingHoldsTable.serviceOfferId, serviceOfferId),
         eq(bookingHoldsTable.status, "active"),
         gte(bookingHoldsTable.expiresAt, now),
-        // existing.holdStart < newEnd AND existing.holdEnd > newStart
-        lte(bookingHoldsTable.holdStartsAt, endDate),
-        gte(bookingHoldsTable.holdEndsAt, startDate)
+        lt(bookingHoldsTable.holdStartsAt, endDate),
+        gt(bookingHoldsTable.holdEndsAt, startDate)
       )
     );
 
-  if (overlappingHolds.length > 0) {
+  const ownSameSlot = overlappingHolds.find((h) => {
+    if (h.learnerId !== learnerId) return false;
+    const holdStart = new Date(h.holdStartsAt).getTime();
+    const holdEnd = new Date(h.holdEndsAt).getTime();
+    return holdStart === startDate.getTime() && holdEnd === endDate.getTime();
+  });
+  if (ownSameSlot) {
+    // Extend and reuse the learner's existing hold on this exact slot
+    const [extended] = await db
+      .update(bookingHoldsTable)
+      .set({ expiresAt })
+      .where(eq(bookingHoldsTable.id, ownSameSlot.id))
+      .returning();
+    res.status(201).json({ data: extended ?? ownSameSlot });
+    return;
+  }
+
+  const ownOtherHolds = overlappingHolds.filter((h) => h.learnerId === learnerId);
+  const otherHolds = overlappingHolds.filter((h) => h.learnerId !== learnerId);
+
+  if (otherHolds.length > 0) {
     res.status(409).json({ error: "Slot is held by another user", code: "SLOT_HELD" });
     return;
+  }
+
+  // Release this learner's other overlapping holds so they can switch slots
+  if (ownOtherHolds.length > 0) {
+    await db
+      .update(bookingHoldsTable)
+      .set({ status: "released" })
+      .where(
+        and(
+          eq(bookingHoldsTable.learnerId, learnerId),
+          eq(bookingHoldsTable.serviceOfferId, serviceOfferId),
+          eq(bookingHoldsTable.status, "active"),
+          lt(bookingHoldsTable.holdStartsAt, endDate),
+          gt(bookingHoldsTable.holdEndsAt, startDate)
+        )
+      );
   }
 
   const [hold] = await db
@@ -384,15 +460,15 @@ router.post("/bookings/confirm", requireAuth, async (req, res): Promise<void> =>
     return;
   }
 
-  // Overlap check: bookings
+  // Overlap check: bookings (strict — matches generateSlots / holds)
   const overlappingBookings = await db
     .select()
     .from(bookingsTable)
     .where(
       and(
         eq(bookingsTable.serviceOfferId, serviceOfferId),
-        lte(bookingsTable.scheduledStartAt, endDate),
-        gte(bookingsTable.scheduledEndAt, startDate)
+        lt(bookingsTable.scheduledStartAt, endDate),
+        gt(bookingsTable.scheduledEndAt, startDate)
       )
     );
 
@@ -405,7 +481,7 @@ router.post("/bookings/confirm", requireAuth, async (req, res): Promise<void> =>
     return;
   }
 
-  // Overlap check: active holds
+  // Overlap check: active holds (ignore this learner's own holds — we'll release them)
   const overlappingHolds = await db
     .select()
     .from(bookingHoldsTable)
@@ -414,14 +490,30 @@ router.post("/bookings/confirm", requireAuth, async (req, res): Promise<void> =>
         eq(bookingHoldsTable.serviceOfferId, serviceOfferId),
         eq(bookingHoldsTable.status, "active"),
         gte(bookingHoldsTable.expiresAt, now),
-        lte(bookingHoldsTable.holdStartsAt, endDate),
-        gte(bookingHoldsTable.holdEndsAt, startDate)
+        lt(bookingHoldsTable.holdStartsAt, endDate),
+        gt(bookingHoldsTable.holdEndsAt, startDate)
       )
     );
 
-  if (overlappingHolds.length > 0) {
+  const otherHolds = overlappingHolds.filter((h) => h.learnerId !== learnerId);
+  if (otherHolds.length > 0) {
     res.status(409).json({ error: "Slot is held by another user", code: "SLOT_HELD" });
     return;
+  }
+
+  if (overlappingHolds.length > 0) {
+    await db
+      .update(bookingHoldsTable)
+      .set({ status: "released" })
+      .where(
+        and(
+          eq(bookingHoldsTable.learnerId, learnerId),
+          eq(bookingHoldsTable.serviceOfferId, serviceOfferId),
+          eq(bookingHoldsTable.status, "active"),
+          lt(bookingHoldsTable.holdStartsAt, endDate),
+          gt(bookingHoldsTable.holdEndsAt, startDate)
+        )
+      );
   }
 
   // Create hold (immediately converted)
