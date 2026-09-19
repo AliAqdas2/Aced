@@ -11,12 +11,12 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
-import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Archive } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 type DecisionType = 'approved' | 'rejected';
-type StatusFilter = 'pending' | 'draft' | 'submitted';
+type StatusFilter = 'pending' | 'draft' | 'submitted' | 'published';
 
 interface PendingDecision {
   listingId: string;
@@ -25,10 +25,16 @@ interface PendingDecision {
   notes: string;
 }
 
+interface PendingArchive {
+  listingId: string;
+  listingTitle: string;
+}
+
 const STATUS_TABS: { value: StatusFilter; label: string }[] = [
   { value: 'pending', label: 'Pending' },
   { value: 'draft', label: 'Draft' },
   { value: 'submitted', label: 'Submitted' },
+  { value: 'published', label: 'Live' },
 ];
 
 export default function AdminListings() {
@@ -38,10 +44,12 @@ export default function AdminListings() {
   const { data: response, isLoading } = useGetAdminListings({ status: statusFilter });
 
   const [pending, setPending] = useState<PendingDecision | null>(null);
+  const [pendingArchive, setPendingArchive] = useState<PendingArchive | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const listings = (response?.data ?? []) as Array<any>;
+  const isLiveTab = statusFilter === 'published';
 
   function openModal(listing: any, decision: DecisionType) {
     setPending({
@@ -51,6 +59,28 @@ export default function AdminListings() {
       notes: '',
     });
     setSubmitError(null);
+  }
+
+  function openArchiveModal(listing: any) {
+    setPendingArchive({
+      listingId: listing.id,
+      listingTitle: listing.title ?? 'Untitled listing',
+    });
+    setSubmitError(null);
+  }
+
+  async function invalidateListingQueries() {
+    for (const tab of STATUS_TABS) {
+      await queryClient.invalidateQueries({
+        queryKey: getGetAdminListingsQueryKey({ status: tab.value }),
+      });
+    }
+    await queryClient.invalidateQueries({
+      queryKey: ['/api/v1/marketplace/search'],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ['/api/v1/marketplace/featured'],
+    });
   }
 
   async function confirmDecision() {
@@ -65,6 +95,7 @@ export default function AdminListings() {
       const res = await fetch(`/api/v1/admin/listings/${pending.listingId}/decision`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           decision: pending.decision,
           notes: pending.notes.trim() || undefined,
@@ -74,17 +105,7 @@ export default function AdminListings() {
         const body = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(body?.error ?? `Request failed (${res.status})`);
       }
-      await queryClient.invalidateQueries({
-        queryKey: getGetAdminListingsQueryKey({ status: statusFilter }),
-      });
-      // Also refresh other queue tabs so counts stay consistent if user switches
-      for (const tab of STATUS_TABS) {
-        if (tab.value !== statusFilter) {
-          await queryClient.invalidateQueries({
-            queryKey: getGetAdminListingsQueryKey({ status: tab.value }),
-          });
-        }
-      }
+      await invalidateListingQueries();
       const action = pending.decision === 'approved' ? 'approved' : 'rejected';
       toast({
         title: `Listing ${action}`,
@@ -100,11 +121,41 @@ export default function AdminListings() {
     }
   }
 
+  async function confirmArchive() {
+    if (!pendingArchive) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await fetch(`/api/v1/admin/listings/${pendingArchive.listingId}/archive`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body?.error ?? `Request failed (${res.status})`);
+      }
+      await invalidateListingQueries();
+      toast({
+        title: 'Removed from marketplace',
+        description: `"${pendingArchive.listingTitle}" will no longer appear in search.`,
+      });
+      setPendingArchive(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Something went wrong';
+      setSubmitError(message);
+      toast({ title: 'Action failed', description: message, variant: 'destructive' });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold font-serif">Listing Moderation</h1>
-        <p className="text-muted-foreground">Review and moderate marketplace listings pending approval.</p>
+        <p className="text-muted-foreground">
+          Review pending listings, and remove live listings from the marketplace search.
+        </p>
       </div>
 
       <div className="flex gap-2 border-b border-border pb-0">
@@ -143,20 +194,32 @@ export default function AdminListings() {
                     )}
                   </div>
                   <div className="flex gap-2 shrink-0">
-                    <Button
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                      size="sm"
-                      onClick={() => openModal(listing, 'approved')}
-                    >
-                      <CheckCircle className="mr-1.5 h-4 w-4" /> Approve
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => openModal(listing, 'rejected')}
-                    >
-                      <XCircle className="mr-1.5 h-4 w-4" /> Reject
-                    </Button>
+                    {isLiveTab ? (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => openArchiveModal(listing)}
+                      >
+                        <Archive className="mr-1.5 h-4 w-4" /> Remove from marketplace
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          size="sm"
+                          onClick={() => openModal(listing, 'approved')}
+                        >
+                          <CheckCircle className="mr-1.5 h-4 w-4" /> Approve
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => openModal(listing, 'rejected')}
+                        >
+                          <XCircle className="mr-1.5 h-4 w-4" /> Reject
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
@@ -164,14 +227,20 @@ export default function AdminListings() {
           ) : (
             <div className="p-12 text-center text-muted-foreground">
               <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500 opacity-50" />
-              <p className="text-lg font-medium text-foreground">Queue is clear!</p>
-              <p>No listings match this filter.</p>
+              <p className="text-lg font-medium text-foreground">
+                {isLiveTab ? 'No live listings' : 'Queue is clear!'}
+              </p>
+              <p>
+                {isLiveTab
+                  ? 'There are no published listings on the marketplace right now.'
+                  : 'No listings match this filter.'}
+              </p>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Confirm modal */}
+      {/* Approve / reject modal */}
       <Dialog
         open={!!pending}
         onOpenChange={(open) => {
@@ -247,6 +316,56 @@ export default function AdminListings() {
                 'Confirm Approval'
               ) : (
                 'Confirm Rejection'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Archive / remove from marketplace modal */}
+      <Dialog
+        open={!!pendingArchive}
+        onOpenChange={(open) => {
+          if (!open && !submitting) setPendingArchive(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove from marketplace</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 text-sm">
+            <p className="text-muted-foreground">
+              Remove{' '}
+              <span className="font-medium text-foreground">"{pendingArchive?.listingTitle}"</span>{' '}
+              from search and public pages? It will be archived and no longer visible to learners.
+            </p>
+
+            {submitError && (
+              <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
+                {submitError}
+              </p>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 flex-col sm:flex-row">
+            <DialogClose asChild>
+              <Button variant="outline" disabled={submitting}>
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              variant="destructive"
+              onClick={confirmArchive}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Removing…
+                </span>
+              ) : (
+                'Confirm removal'
               )}
             </Button>
           </DialogFooter>

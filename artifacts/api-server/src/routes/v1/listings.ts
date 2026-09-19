@@ -808,6 +808,40 @@ router.post(
   }
 );
 
+// POST /api/v1/admin/listings/:id/archive — take a live listing off search / public surfaces
+router.post(
+  "/admin/listings/:id/archive",
+  requireRole("moderator"),
+  async (req, res): Promise<void> => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    const [updated] = await db
+      .update(listingsTable)
+      .set({
+        status: "archived" as const,
+        moderatedBy: req.session.userId,
+        moderatedAt: new Date(),
+      })
+      .where(eq(listingsTable.id, id))
+      .returning();
+
+    if (!updated) {
+      res.status(404).json({ error: "Listing not found" });
+      return;
+    }
+
+    await logAuditEvent({
+      actorId: req.session.userId,
+      actorRole: req.session.role,
+      action: "listing.archived",
+      targetId: id,
+      targetType: "listing",
+    });
+
+    res.json({ data: updated });
+  }
+);
+
 // POST /api/v1/creator/listings/:id/upload-url — signed PUT URL for digital product file
 router.post(
   "/creator/listings/:id/upload-url",
