@@ -279,9 +279,9 @@ export default function ListingDetail() {
               )}
             </div>
 
-            {/* Creator Info — hidden on mobile when arriving from showcase Book */}
+            {/* Creator Info — hidden when arriving from showcase Book */}
             <Card
-              className={`rounded-2xl border-border/50 bg-muted/10 shadow-none${fromBook ? ' hidden lg:block' : ''}`}
+              className={`rounded-2xl border-border/50 bg-muted/10 shadow-none${fromBook ? ' hidden' : ''}`}
             >
               <CardContent className="p-8 sm:p-10">
                 <h3 className="font-serif text-3xl mb-8">About the Tutor</h3>
