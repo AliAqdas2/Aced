@@ -25,6 +25,7 @@ import {
   buildApplicationReceivedEmail,
 } from "../../lib/email";
 import { logger } from "../../lib/logger";
+import { AppUrlError, publicPath } from "../../lib/appUrl";
 import Stripe from "stripe";
 
 const router: IRouter = Router();
@@ -403,8 +404,7 @@ router.post(
         .limit(1);
 
       const stripe = getStripe();
-      const appUrl = process.env.APP_URL ?? "http://localhost:5000";
-      const earningsUrl = `${appUrl}/studio/earnings`;
+      const earningsUrl = publicPath("/studio/earnings");
 
       let accountId = cp.stripeAccountId;
       if (!accountId) {
@@ -466,6 +466,11 @@ router.post(
 
       res.json({ data: { onboardingUrl: accountLink.url } });
     } catch (err) {
+      if (err instanceof AppUrlError) {
+        logger.error({ err }, "Stripe Connect onboarding blocked: invalid APP_URL");
+        res.status(400).json({ error: err.message, code: err.code });
+        return;
+      }
       const message =
         err instanceof Stripe.errors.StripeError
           ? err.message

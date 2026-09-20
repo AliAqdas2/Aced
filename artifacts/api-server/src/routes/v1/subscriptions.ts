@@ -27,6 +27,7 @@ import {
 import { eq, and, count } from "drizzle-orm";
 import { requireAuth, requireRole } from "../../middlewares/auth";
 import { rejectIfOwnListing } from "../../lib/ownListing";
+import { publicPath } from "../../lib/appUrl";
 import Stripe from "stripe";
 
 const router: IRouter = Router();
@@ -235,7 +236,6 @@ router.post(
 
     const stripe = getStripe();
     const commissionPct = await getCommissionRatePct();
-    const appUrl = process.env.APP_URL ?? "http://localhost:5000";
 
     // Find or create Stripe Customer for this learner
     const [learner] = await db.select().from(usersTable).where(eq(usersTable.id, learnerId)).limit(1);
@@ -308,8 +308,8 @@ router.post(
         application_fee_percent: commissionPct,
         transfer_data: { destination: creator.stripeAccountId },
       },
-      success_url: `${appUrl}/subscriptions?success=true&planId=${plan.id}`,
-      cancel_url: `${appUrl}/listings/${listing.id}`,
+      success_url: publicPath(`/subscriptions?success=true&planId=${plan.id}`),
+      cancel_url: publicPath(`/listings/${listing.id}`),
     });
 
     res.status(201).json({

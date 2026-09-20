@@ -28,6 +28,7 @@ import { eq, and, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { requireAuth } from "../../middlewares/auth";
 import { rejectIfOwnListing } from "../../lib/ownListing";
+import { publicPath } from "../../lib/appUrl";
 import Stripe from "stripe";
 import { createHash } from "crypto";
 
@@ -174,7 +175,6 @@ router.post("/checkout/sessions", requireAuth, async (req, res): Promise<void> =
     .returning();
 
   const stripe = getStripe();
-  const appUrl = process.env.APP_URL ?? "http://localhost:5000";
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
@@ -199,8 +199,8 @@ router.post("/checkout/sessions", requireAuth, async (req, res): Promise<void> =
       },
     },
     metadata: { orderId: order.id, orderItemId: orderItem.id, holdId: holdId ?? "" },
-    success_url: `${appUrl}/checkout/success?orderId=${order.id}`,
-    cancel_url: `${appUrl}/listings/${listingId}`,
+    success_url: publicPath(`/checkout/success?orderId=${order.id}`),
+    cancel_url: publicPath(`/listings/${listingId}`),
   });
 
   // Update order with Stripe session ID
