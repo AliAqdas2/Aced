@@ -5,6 +5,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Star,
   ShieldCheck,
   BookOpen,
@@ -68,6 +75,7 @@ export default function Storefront() {
   const params = useParams();
   const slug = params.slug as string;
   const [experienceOpen, setExperienceOpen] = useState(true);
+  const [bookDialogOpen, setBookDialogOpen] = useState(false);
 
   const { data: response, isLoading, error } = useGetStorefront(slug, {
     query: { enabled: !!slug, queryKey: getGetStorefrontQueryKey(slug) },
@@ -129,10 +137,10 @@ export default function Storefront() {
   const sessionListings = publishedListings.filter(
     (l) => l.type === 'service_offer' || l.type === 'group_session',
   );
-  const bookHref =
-    sessionListings.length === 1
-      ? `/listings/${sessionListings[0].id}?book=1`
-      : '#services';
+
+  const scrollToServices = () => {
+    document.getElementById('services')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const fromPriceMinor =
     publishedListings.length > 0
@@ -205,12 +213,28 @@ export default function Storefront() {
         </dl>
 
         {hasSessionListings ? (
-          <Button asChild size="lg" className="w-full h-12 rounded-full font-bold text-base shadow-none">
-            <Link href={bookHref}>Book a session</Link>
-          </Button>
+          sessionListings.length === 1 ? (
+            <Button asChild size="lg" className="w-full h-12 rounded-full font-bold text-base shadow-none">
+              <Link href={`/listings/${sessionListings[0].id}?book=1`}>Book a session</Link>
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="lg"
+              className="w-full h-12 rounded-full font-bold text-base shadow-none"
+              onClick={() => setBookDialogOpen(true)}
+            >
+              Book a session
+            </Button>
+          )
         ) : publishedListings.length > 0 ? (
-          <Button asChild size="lg" className="w-full h-12 rounded-full font-bold text-base shadow-none">
-            <Link href="#services">View offerings</Link>
+          <Button
+            type="button"
+            size="lg"
+            className="w-full h-12 rounded-full font-bold text-base shadow-none"
+            onClick={scrollToServices}
+          >
+            View offerings
           </Button>
         ) : null}
 
@@ -477,6 +501,51 @@ export default function Storefront() {
           </aside>
         </div>
       </div>
+
+      <Dialog open={bookDialogOpen} onOpenChange={setBookDialogOpen}>
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl">Book a session</DialogTitle>
+            <DialogDescription>
+              Choose the type of session you&apos;d like to book with {displayName}.
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="rounded-2xl border border-border/50 overflow-hidden divide-y divide-border/50 -mx-1">
+            {sessionListings.map((listing) => {
+              const priceMinor = listingPriceMinor(listing);
+              const duration = listing.serviceOffer?.durationMinutes;
+              return (
+                <li
+                  key={listing.id}
+                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 hover:bg-muted/30 transition-colors"
+                >
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary">
+                      <User className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-bold text-primary tracking-widest uppercase mb-0.5">
+                        {listingTypeLabel(listing.type)}
+                        {duration ? ` · ${duration} min` : ''}
+                      </div>
+                      <h3 className="font-semibold text-base leading-snug">{listing.title}</h3>
+                      <p className="text-sm font-bold tabular-nums mt-1">{formatPrice(priceMinor)}</p>
+                    </div>
+                  </div>
+                  <Button asChild size="sm" className="rounded-full gap-1.5 px-4 shrink-0">
+                    <Link
+                      href={`/listings/${listing.id}?book=1`}
+                      onClick={() => setBookDialogOpen(false)}
+                    >
+                      <Calendar className="h-3.5 w-3.5" /> Book
+                    </Link>
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
