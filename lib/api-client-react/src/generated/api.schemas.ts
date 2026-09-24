@@ -619,6 +619,15 @@ export interface EarningsResponse {
   data: EarningsResponseDataItem[];
 }
 
+export type CreatorCommissionRateResponseData = {
+  /** Platform fee percentage applied on Stripe Checkout and subscriptions */
+  commissionRatePct: number;
+};
+
+export interface CreatorCommissionRateResponse {
+  data: CreatorCommissionRateResponseData;
+}
+
 export type AdminDashboardResponseData = {
   gmvMinorUnits?: number;
   platformRevenueMinorUnits?: number;
@@ -1055,6 +1064,21 @@ export type GetServiceAvailabilityParams = {
 timezone?: string;
 from?: string;
 to?: string;
+};
+
+export type ConfirmFreePurchaseBody = {
+  listingId: string;
+};
+
+export type ConfirmFreePurchase201Data = {
+  orderId?: string | null;
+  orderItemId?: string | null;
+  entitlementId?: string | null;
+  alreadyOwned?: boolean;
+};
+
+export type ConfirmFreePurchase201 = {
+  data?: ConfirmFreePurchase201Data;
 };
 
 export type StripeWebhook200 = {

@@ -45,6 +45,8 @@ import type {
   CommissionRulesResponse,
   ConfirmBookingRequest,
   ConfirmBookingResponse,
+  ConfirmFreePurchase201,
+  ConfirmFreePurchaseBody,
   ConfirmPasswordResetBody,
   ConflictResponse,
   ConversationResponse,
@@ -60,6 +62,7 @@ import type {
   CreateReviewRequest,
   CreateSubscriptionPlanRequest,
   CreatorApplicationRequest,
+  CreatorCommissionRateResponse,
   CreatorDashboardResponse,
   CreatorProfileResponse,
   DownloadUrlResponse,
@@ -1657,6 +1660,77 @@ export const useCreateCheckoutSession = <TError = ErrorType<unknown>,
       return useMutation(getCreateCheckoutSessionMutationOptions(options));
     }
 
+export const getConfirmFreePurchaseUrl = () => {
+
+
+
+
+  return `/api/v1/checkout/confirm-free`
+}
+
+/**
+ * @summary Confirm a free digital product purchase without Stripe
+ */
+export const confirmFreePurchase = async (confirmFreePurchaseBody: ConfirmFreePurchaseBody, options?: RequestInit): Promise<ConfirmFreePurchase201> => {
+
+  return customFetch<ConfirmFreePurchase201>(getConfirmFreePurchaseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(confirmFreePurchaseBody)
+  }
+);}
+
+
+
+
+
+export const getConfirmFreePurchaseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmFreePurchase>>, TError,{data: BodyType<ConfirmFreePurchaseBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmFreePurchase>>, TError,{data: BodyType<ConfirmFreePurchaseBody>}, TContext> => {
+
+const mutationKey = ['confirmFreePurchase'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmFreePurchase>>, {data: BodyType<ConfirmFreePurchaseBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  confirmFreePurchase(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmFreePurchaseMutationResult = NonNullable<Awaited<ReturnType<typeof confirmFreePurchase>>>
+    export type ConfirmFreePurchaseMutationBody = BodyType<ConfirmFreePurchaseBody>
+    export type ConfirmFreePurchaseMutationError = ErrorType<void>
+
+    /**
+ * @summary Confirm a free digital product purchase without Stripe
+ */
+export const useConfirmFreePurchase = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmFreePurchase>>, TError,{data: BodyType<ConfirmFreePurchaseBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof confirmFreePurchase>>,
+        TError,
+        {data: BodyType<ConfirmFreePurchaseBody>},
+        TContext
+      > => {
+      return useMutation(getConfirmFreePurchaseMutationOptions(options));
+    }
+
 export const getStripeWebhookUrl = () => {
 
 
@@ -2990,6 +3064,148 @@ export const useUpdateListing = <TError = ErrorType<void>,
       return useMutation(getUpdateListingMutationOptions(options));
     }
 
+export const getPublishListingUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/creator/listings/${id}/publish`
+}
+
+/**
+ * @summary Publish an approved or paused listing
+ */
+export const publishListing = async (id: string, options?: RequestInit): Promise<ListingResponse> => {
+
+  return customFetch<ListingResponse>(getPublishListingUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPublishListingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishListing>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishListing>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['publishListing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishListing>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  publishListing(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublishListingMutationResult = NonNullable<Awaited<ReturnType<typeof publishListing>>>
+
+    export type PublishListingMutationError = ErrorType<void>
+
+    /**
+ * @summary Publish an approved or paused listing
+ */
+export const usePublishListing = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishListing>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publishListing>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getPublishListingMutationOptions(options));
+    }
+
+export const getPauseListingUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/creator/listings/${id}/pause`
+}
+
+/**
+ * @summary Pause a published listing (hide from public storefront)
+ */
+export const pauseListing = async (id: string, options?: RequestInit): Promise<ListingResponse> => {
+
+  return customFetch<ListingResponse>(getPauseListingUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPauseListingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pauseListing>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof pauseListing>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['pauseListing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof pauseListing>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  pauseListing(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PauseListingMutationResult = NonNullable<Awaited<ReturnType<typeof pauseListing>>>
+
+    export type PauseListingMutationError = ErrorType<void>
+
+    /**
+ * @summary Pause a published listing (hide from public storefront)
+ */
+export const usePauseListing = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pauseListing>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof pauseListing>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getPauseListingMutationOptions(options));
+    }
+
 export const getGetCreatorStorefrontUrl = () => {
 
 
@@ -3280,6 +3496,83 @@ export function useGetCreatorEarnings<TData = Awaited<ReturnType<typeof getCreat
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetCreatorEarningsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCreatorCommissionRateUrl = () => {
+
+
+
+
+  return `/api/v1/creator/commission-rate`
+}
+
+/**
+ * @summary Get platform commission rate for listing price previews
+ */
+export const getCreatorCommissionRate = async ( options?: RequestInit): Promise<CreatorCommissionRateResponse> => {
+
+  return customFetch<CreatorCommissionRateResponse>(getGetCreatorCommissionRateUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCreatorCommissionRateQueryKey = () => {
+    return [
+    `/api/v1/creator/commission-rate`
+    ] as const;
+    }
+
+
+export const getGetCreatorCommissionRateQueryOptions = <TData = Awaited<ReturnType<typeof getCreatorCommissionRate>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCreatorCommissionRate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCreatorCommissionRateQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCreatorCommissionRate>>> = ({ signal }) => getCreatorCommissionRate({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCreatorCommissionRate>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCreatorCommissionRateQueryResult = NonNullable<Awaited<ReturnType<typeof getCreatorCommissionRate>>>
+export type GetCreatorCommissionRateQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get platform commission rate for listing price previews
+ */
+
+export function useGetCreatorCommissionRate<TData = Awaited<ReturnType<typeof getCreatorCommissionRate>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCreatorCommissionRate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCreatorCommissionRateQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

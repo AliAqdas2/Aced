@@ -933,6 +933,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/EarningsResponse"
 
+  /v1/creator/commission-rate:
+    get:
+      operationId: getCreatorCommissionRate
+      tags: [creators]
+      summary: Get platform commission rate for listing price previews
+      responses:
+        "200":
+          description: Platform commission percentage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatorCommissionRateResponse"
+
   /v1/creator/bookings:
     get:
       operationId: getCreatorBookings
@@ -2500,6 +2513,18 @@ components:
           type: array
           items:
             type: object
+
+    CreatorCommissionRateResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [commissionRatePct]
+          properties:
+            commissionRatePct:
+              type: number
+              description: Platform fee percentage applied on Stripe Checkout and subscriptions
 
     AdminDashboardResponse:
       type: object

@@ -466,6 +466,23 @@ export const CreateCheckoutSessionResponse = zod.object({
 
 
 /**
+ * @summary Confirm a free digital product purchase without Stripe
+ */
+export const ConfirmFreePurchaseBody = zod.object({
+  "listingId": zod.uuid()
+})
+
+export const ConfirmFreePurchaseResponse = zod.object({
+  "data": zod.object({
+  "orderId": zod.uuid().nullish(),
+  "orderItemId": zod.uuid().nullish(),
+  "entitlementId": zod.uuid().nullish(),
+  "alreadyOwned": zod.boolean().optional()
+}).optional()
+})
+
+
+/**
  * @summary Process Stripe webhook events
  */
 export const StripeWebhookResponse = zod.object({
@@ -806,6 +823,56 @@ export const UpdateListingResponse = zod.object({
 
 
 /**
+ * @summary Publish an approved or paused listing
+ */
+export const PublishListingParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const PublishListingResponse = zod.object({
+  "data": zod.object({
+  "id": zod.uuid(),
+  "title": zod.string(),
+  "description": zod.string().optional(),
+  "type": zod.string(),
+  "status": zod.string(),
+  "tags": zod.array(zod.string()).optional(),
+  "viewCount": zod.number().optional(),
+  "purchaseCount": zod.number().optional(),
+  "averageRating": zod.number().nullish(),
+  "reviewCount": zod.number().optional(),
+  "publishedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional()
+})
+})
+
+
+/**
+ * @summary Pause a published listing (hide from public storefront)
+ */
+export const PauseListingParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const PauseListingResponse = zod.object({
+  "data": zod.object({
+  "id": zod.uuid(),
+  "title": zod.string(),
+  "description": zod.string().optional(),
+  "type": zod.string(),
+  "status": zod.string(),
+  "tags": zod.array(zod.string()).optional(),
+  "viewCount": zod.number().optional(),
+  "purchaseCount": zod.number().optional(),
+  "averageRating": zod.number().nullish(),
+  "reviewCount": zod.number().optional(),
+  "publishedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional()
+})
+})
+
+
+/**
  * @summary Get creator's own storefront
  */
 export const GetCreatorStorefrontResponse = zod.object({
@@ -852,6 +919,16 @@ export const GetCreatorEarningsResponse = zod.object({
   "data": zod.array(zod.looseObject({
 
 }))
+})
+
+
+/**
+ * @summary Get platform commission rate for listing price previews
+ */
+export const GetCreatorCommissionRateResponse = zod.object({
+  "data": zod.object({
+  "commissionRatePct": zod.number().describe('Platform fee percentage applied on Stripe Checkout and subscriptions')
+})
 })
 
 

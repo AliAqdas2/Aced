@@ -486,6 +486,25 @@ router.post(
   }
 );
 
+// GET /api/v1/creator/commission-rate — platform fee % for listing price previews
+router.get(
+  "/creator/commission-rate",
+  requireRole("creator"),
+  async (_req, res): Promise<void> => {
+    const [cfg] = await db
+      .select()
+      .from(platformConfigTable)
+      .where(eq(platformConfigTable.key, "COMMISSION_RATE"))
+      .limit(1);
+    const commissionRatePct = parseFloat(cfg?.value ?? "15");
+    res.json({
+      data: {
+        commissionRatePct: Number.isFinite(commissionRatePct) ? commissionRatePct : 15,
+      },
+    });
+  }
+);
+
 // GET /api/v1/creator/stripe/status
 router.get(
   "/creator/stripe/status",

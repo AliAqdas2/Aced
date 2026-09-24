@@ -5,6 +5,7 @@ import {
   useUpdateListing,
   useGetListing,
   useCreateSubscriptionPlan,
+  useGetCreatorCommissionRate,
   getGetCreatorListingsQueryKey,
   getGetListingQueryKey,
   getGetCreatorStorefrontQueryKey,
@@ -67,6 +68,30 @@ function formatBytes(n: number) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Shows platform fee % and creator net from a GBP price. */
+function CommissionEarningsHint({
+  priceGbp,
+  commissionRatePct,
+}: {
+  priceGbp: number;
+  commissionRatePct: number | undefined;
+}) {
+  if (commissionRatePct == null || !Number.isFinite(commissionRatePct)) return null;
+  if (!Number.isFinite(priceGbp) || priceGbp <= 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Platform fee {commissionRatePct}% will be deducted from each payment via Stripe.
+      </p>
+    );
+  }
+  const net = priceGbp * (1 - commissionRatePct / 100);
+  return (
+    <p className="text-xs text-muted-foreground">
+      Platform fee {commissionRatePct}% · You receive £{net.toFixed(2)} after Stripe deducts the Aced fee.
+    </p>
+  );
 }
 
 async function uploadListingFile(listingId: string, file: File) {
@@ -302,6 +327,8 @@ function EditSubscriptionPlanModal({
   onClose: () => void;
 }) {
   const { data: listingDetail, isLoading } = useGetListing(listingId);
+  const { data: commissionRes } = useGetCreatorCommissionRate();
+  const commissionRatePct = commissionRes?.data?.commissionRatePct;
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -471,6 +498,10 @@ function EditSubscriptionPlanModal({
                       Students pay this amount each {watchInterval} for {watchSessions} session
                       {watchSessions !== 1 ? 's' : ''}
                     </FormDescription>
+                    <CommissionEarningsHint
+                      priceGbp={Number(field.value) || 0}
+                      commissionRatePct={commissionRatePct}
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -713,6 +744,8 @@ function TypeIcon({ type }: { type: string }) {
 
 export default function StudioListings() {
   const { data: response, isLoading } = useGetCreatorListings();
+  const { data: commissionRes } = useGetCreatorCommissionRate();
+  const commissionRatePct = commissionRes?.data?.commissionRatePct;
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editPlanListingId, setEditPlanListingId] = useState<string | null>(null);
@@ -1209,6 +1242,10 @@ export default function StudioListings() {
                             <FormDescription className="text-xs">
                               Students pay this amount each {form.watch('subscriptionInterval') ?? 'month'} for {form.watch('sessionsPerPeriod') ?? 4} sessions
                             </FormDescription>
+                            <CommissionEarningsHint
+                              priceGbp={Number(field.value) || 0}
+                              commissionRatePct={commissionRatePct}
+                            />
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1262,6 +1299,10 @@ export default function StudioListings() {
                                   />
                                 </div>
                               </FormControl>
+                              <CommissionEarningsHint
+                                priceGbp={Number(field.value) || 0}
+                                commissionRatePct={commissionRatePct}
+                              />
                               <FormMessage />
                             </FormItem>
                           )}
