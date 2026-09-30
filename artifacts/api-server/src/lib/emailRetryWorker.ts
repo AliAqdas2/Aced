@@ -9,21 +9,18 @@
  *
  * Attempt accounting
  * ------------------
- * sendEmailResilient performs (MAX_INLINE_RETRIES + 1) = 4 inline attempts
- * before persisting a row with attempts = 4.  The worker then applies up to
- * BACKOFF_MINUTES.length additional retries, each indexed from 0:
+ * sendEmailResilient performs 1 inline attempt before persisting a row with
+ * attempts = 1.  The worker then applies up to BACKOFF_MINUTES.length
+ * additional retries, each indexed from 0:
  *
  *   workerRetryIndex = row.attempts - INITIAL_INLINE_ATTEMPTS
  *
- *   index 0 → 5 min   (row.attempts was 4 when worker first ran)
- *   index 1 → 15 min
- *   index 2 →  1 h
- *   index 3 →  6 h
- *   index 4 → 24 h
- *   → permanently failed after 5 worker retries (total = 9 attempts)
- *
- * On permanent failure the row is flagged with permanentlyFailed = true and a
- * structured JSON alert is written to stderr for ops dashboards to pick up.
+ *   index 0 → 30 s equivalent scheduling is set by sendEmailResilient; worker uses BACKOFF_MINUTES
+ *   index 1 → 5 min
+ *   index 2 → 15 min
+ *   index 3 →  1 h
+ *   index 4 →  6 h
+ *   → permanently failed after worker retries exhaust
  */
 
 import { db, failedEmailsTable } from "@workspace/db";
@@ -31,23 +28,22 @@ import { and, eq, isNull, lte } from "drizzle-orm";
 import { sendEmail } from "./email";
 import { logger } from "./logger";
 
-const POLL_INTERVAL_MS = 60_000; // check every 60 s
+const POLL_INTERVAL_MS = 30_000; // check every 30 s (password reset needs faster pickup)
 
 /**
  * How many attempts sendEmailResilient makes inline before persisting a row.
- * sendEmailResilient calls retryWithBackoff with retries=3, so it tries
- * attempts 0,1,2,3 (= 4 total).  Must stay in sync with that call.
+ * Must stay in sync with sendEmailResilient (single attempt).
  */
-const INITIAL_INLINE_ATTEMPTS = 4;
+const INITIAL_INLINE_ATTEMPTS = 1;
 
 /** Backoff delay in minutes for worker retry index 0,1,2,3,4 */
-const BACKOFF_MINUTES = [5, 15, 60, 360, 1440];
+const BACKOFF_MINUTES = [1, 5, 15, 60, 360];
 
 /**
  * Total attempts ceiling.  Once row.attempts reaches this value the email is
  * permanently failed.  = INITIAL_INLINE_ATTEMPTS + BACKOFF_MINUTES.length
  */
-const MAX_TOTAL_ATTEMPTS = INITIAL_INLINE_ATTEMPTS + BACKOFF_MINUTES.length; // 9
+const MAX_TOTAL_ATTEMPTS = INITIAL_INLINE_ATTEMPTS + BACKOFF_MINUTES.length; // 6
 
 function nextBackoffMs(workerRetryIndex: number): number {
   const minutes =

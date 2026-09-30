@@ -19,7 +19,7 @@ import {
   consumeEmailVerification,
   logAuditEvent,
 } from "../../lib/auth";
-import { sendEmailResilient, buildMagicLinkEmail, buildPasswordResetEmail } from "../../lib/email";
+import { sendEmailResilient, buildMagicLinkEmail, buildPasswordResetEmail, buildPasswordResetEmailText } from "../../lib/email";
 import { requireAuth } from "../../middlewares/auth";
 import { logger } from "../../lib/logger";
 
@@ -332,10 +332,17 @@ router.post("/auth/password-reset/request", async (req, res): Promise<void> => {
     .where(eq(usersTable.email, email))
     .limit(1);
 
-  if (user) {
+  // Respond immediately — never block the client on Resend latency/retries
+  res.json({ data: { message: "If that email exists, a reset link has been sent." } });
+
+  if (!user) {
+    logger.info({ email }, "Password reset requested for unknown email");
+    return;
+  }
+
+  try {
     const token = await generatePasswordResetToken(user.id);
     const appUrl = (process.env.APP_URL ?? "http://localhost:5000").replace(/\/+$/, "");
-    // Must match the SPA route in App.tsx: /auth/reset-password
     const resetUrl = `${appUrl}/auth/reset-password?token=${encodeURIComponent(token)}`;
     logger.info({ userId: user.id, to: user.email }, "Sending password reset email");
     await sendEmailResilient(
@@ -343,15 +350,13 @@ router.post("/auth/password-reset/request", async (req, res): Promise<void> => {
         to: user.email,
         subject: "Reset your Aced password",
         html: buildPasswordResetEmail(resetUrl),
+        text: buildPasswordResetEmailText(resetUrl),
       },
       "password_reset"
     );
-  } else {
-    logger.info({ email }, "Password reset requested for unknown email");
+  } catch (err) {
+    logger.error({ err, email }, "Password reset email pipeline failed");
   }
-
-  // Always return 200 to prevent email enumeration
-  res.json({ data: { message: "If that email exists, a reset link has been sent." } });
 });
 
 // POST /api/v1/auth/password-reset/confirm

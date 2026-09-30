@@ -42,25 +42,22 @@ export async function retryWithBackoff<T>(
 }
 
 /**
- * Resilient send — retries up to 3 times with exponential backoff.
- * On total failure:
- *   1. Writes a structured JSON error line to stderr for log aggregators.
- *   2. Persists a record to the `failed_emails` table so admins can see
- *      which applicants/users were never notified and manually follow up.
+ * Resilient send — one fast attempt, then hand off to the email retry worker.
+ * Keeps auth/API responses snappy (no multi-second inline backoff loops).
  *
- * @param context  Short label identifying the call-site (e.g. "creator_application_decision")
+ * On failure:
+ *   1. Structured stderr for ops
+ *   2. Persist to `failed_emails` with a near-term nextRetryAt
  */
 export async function sendEmailResilient(
   payload: EmailPayload,
   context = "unknown"
 ): Promise<void> {
-  const maxAttempts = 3;
   try {
-    await retryWithBackoff(() => sendEmail(payload), maxAttempts, 2000);
+    await sendEmail(payload);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
 
-    // Structured stderr entry for log aggregators / ops dashboards
     process.stderr.write(
       JSON.stringify({
         event: "email_failed",
@@ -71,11 +68,9 @@ export async function sendEmailResilient(
       }) + "\n"
     );
 
-    // Persist to dead-letter table so the retry worker can re-attempt delivery
-    // and admins can see which recipients were never notified.
     try {
-      // Schedule first retry attempt 5 minutes from now
-      const nextRetryAt = new Date(Date.now() + 5 * 60 * 1000);
+      // Retry worker picks this up quickly (was 5 min — too slow for password reset)
+      const nextRetryAt = new Date(Date.now() + 30 * 1000);
       await db.insert(failedEmailsTable).values({
         toEmail: payload.to,
         subject: payload.subject,
@@ -83,11 +78,10 @@ export async function sendEmailResilient(
         textBody: payload.text ?? null,
         context,
         errorMessage,
-        attempts: maxAttempts + 1,
+        attempts: 1,
         nextRetryAt,
       });
     } catch (dbErr) {
-      // Don't throw — DB write failure must not mask the original email failure
       process.stderr.write(
         JSON.stringify({
           event: "failed_email_record_write_failed",
@@ -97,6 +91,8 @@ export async function sendEmailResilient(
     }
   }
 }
+
+const RESEND_TIMEOUT_MS = 8_000;
 
 export async function sendEmail(payload: EmailPayload): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
@@ -123,7 +119,6 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
       ...(payload.text ? { text: payload.text } : {}),
     };
 
-    // Resend expects attachments as base64-encoded content
     if (payload.attachments && payload.attachments.length > 0) {
       body["attachments"] = payload.attachments.map((a) => ({
         filename: a.filename,
@@ -138,6 +133,7 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(RESEND_TIMEOUT_MS),
     });
 
     if (!res.ok) {
@@ -170,8 +166,21 @@ export function buildPasswordResetEmail(link: string): EmailPayload["html"] {
       <p>Click the link below to reset your password. This link expires in 60 minutes.</p>
       <a href="${link}" style="display:inline-block;padding:12px 24px;background:linear-gradient(135deg,#7B2FF7,#00D4FF);color:white;border-radius:8px;text-decoration:none;font-weight:bold;">Reset Password</a>
       <p style="color:#666;font-size:12px;margin-top:24px;">If you didn't request this, you can safely ignore this email.</p>
+      <p style="color:#666;font-size:12px;word-break:break-all;">Or paste this URL into your browser:<br/>${link}</p>
     </div>
   `;
+}
+
+export function buildPasswordResetEmailText(link: string): string {
+  return [
+    "Reset your Aced password",
+    "",
+    "Click the link below to reset your password. This link expires in 60 minutes.",
+    "",
+    link,
+    "",
+    "If you didn't request this, you can safely ignore this email.",
+  ].join("\n");
 }
 
 export function buildCreatorApplicationEmail(opts: {
