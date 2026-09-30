@@ -90,6 +90,10 @@ function Router() {
       <Route path="/auth/reset-password">
         <AuthLayout><ResetPassword /></AuthLayout>
       </Route>
+      {/* Legacy link from older reset emails */}
+      <Route path="/reset-password">
+        <AuthLayout><ResetPassword /></AuthLayout>
+      </Route>
       <Route path="/auth/magic-link-sent">
         <AuthLayout><MagicLinkSent /></AuthLayout>
       </Route>

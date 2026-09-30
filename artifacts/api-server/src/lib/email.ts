@@ -99,19 +99,19 @@ export async function sendEmailResilient(
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<void> {
-  const isProduction = process.env.NODE_ENV === "production";
+  const apiKey = process.env.RESEND_API_KEY;
 
-  if (!isProduction) {
+  // Prefer Resend whenever a key is configured (production, staging, or local with key).
+  // Without a key: log in non-production; fail hard in production.
+  if (!apiKey) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("RESEND_API_KEY is not set — cannot send email in production");
+    }
     logger.info(
-      { to: payload.to, subject: payload.subject },
-      "DEV: email would be sent"
+      { to: payload.to, subject: payload.subject, htmlPreview: payload.html.slice(0, 200) },
+      "DEV: email would be sent (RESEND_API_KEY not set)"
     );
     return;
-  }
-
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    throw new Error("RESEND_API_KEY is not set — cannot send email in production");
   }
 
   try {

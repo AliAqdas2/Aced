@@ -21,6 +21,7 @@ import {
 } from "../../lib/auth";
 import { sendEmailResilient, buildMagicLinkEmail, buildPasswordResetEmail } from "../../lib/email";
 import { requireAuth } from "../../middlewares/auth";
+import { logger } from "../../lib/logger";
 
 const router: IRouter = Router();
 
@@ -324,20 +325,29 @@ router.post("/auth/password-reset/request", async (req, res): Promise<void> => {
     return;
   }
 
+  const email = parsed.data.email.toLowerCase();
   const [user] = await db
     .select()
     .from(usersTable)
-    .where(eq(usersTable.email, parsed.data.email.toLowerCase()))
+    .where(eq(usersTable.email, email))
     .limit(1);
 
   if (user) {
     const token = await generatePasswordResetToken(user.id);
-    const resetUrl = `${process.env.APP_URL ?? "http://localhost:5000"}/reset-password?token=${token}`;
-    await sendEmailResilient({
-      to: user.email,
-      subject: "Reset your Aced password",
-      html: buildPasswordResetEmail(resetUrl),
-    });
+    const appUrl = (process.env.APP_URL ?? "http://localhost:5000").replace(/\/+$/, "");
+    // Must match the SPA route in App.tsx: /auth/reset-password
+    const resetUrl = `${appUrl}/auth/reset-password?token=${encodeURIComponent(token)}`;
+    logger.info({ userId: user.id, to: user.email }, "Sending password reset email");
+    await sendEmailResilient(
+      {
+        to: user.email,
+        subject: "Reset your Aced password",
+        html: buildPasswordResetEmail(resetUrl),
+      },
+      "password_reset"
+    );
+  } else {
+    logger.info({ email }, "Password reset requested for unknown email");
   }
 
   // Always return 200 to prevent email enumeration
